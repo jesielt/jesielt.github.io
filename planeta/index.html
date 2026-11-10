@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planeta</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <canvas id="tela"></canvas>
+  <!-- risquinhos de velocidade (estilo anime) quando dá dash -->
+  <canvas id="riscos" class="riscos" aria-hidden="true"></canvas>
+
+  <div class="mira"></div>
+
+  <div class="creditos">© Jesiel Ternero</div>
+
+  <!-- radar: o mapa visto de cima, girando junto com você -->
+  <canvas class="radar" id="radar" aria-hidden="true"></canvas>
+
+  <!-- altura acima do mar, com o "m" no alfabeto saiyajin -->
+  <div class="altura" aria-label="altura">
+    <span id="alturaNum">0</span>
+    <svg class="m-saiyajin" viewBox="0 0 28 31" aria-hidden="true">
+      <path d="M0 1.5 Q0 0 1.5 0 H26.5 Q28 0 28 1.5 V16 H19.5 L18.5 10 H10 L9 16 H0 Z" />
+      <rect x="0" y="21" width="28" height="10" rx="1.5" />
+    </svg>
+  </div>
+  <div class="convite" id="convite">clique pra voar</div>
+
+  <!-- Painel no canto: acende o que está sendo apertado.
+       As teclas também dá pra clicar/tocar. -->
+  <div class="teclas" aria-hidden="true">
+    <div class="grupo">
+      <span class="tecla vazia"></span>
+      <span class="tecla" data-tecla="KeyW">W</span>
+      <span class="tecla vazia"></span>
+      <span class="tecla" data-tecla="KeyA">A</span>
+      <span class="tecla" data-tecla="KeyS">S</span>
+      <span class="tecla" data-tecla="KeyD">D</span>
+    </div>
+    <div class="grupo">
+      <span class="tecla vazia"></span>
+      <span class="tecla" data-tecla="ArrowUp">↑</span>
+      <span class="tecla vazia"></span>
+      <span class="tecla" data-tecla="ArrowLeft">←</span>
+      <span class="tecla" data-tecla="ArrowDown">↓</span>
+      <span class="tecla" data-tecla="ArrowRight">→</span>
+    </div>
+    <div class="mouse" id="mouse">
+      <span class="botao esq" id="mouseEsq"></span>
+      <span class="botao dir" id="mouseDir"></span>
+    </div>
+    <div class="base">
+      <span class="tecla shift" data-tecla="ShiftLeft">⇧</span>
+      <span class="tecla espaco" data-tecla="Space"></span>
+      <span class="tecla" data-tecla="KeyC">C</span>
+    </div>
+  </div>
+
+  <script src="jogo.js"></script>
+</body>
+</html>
