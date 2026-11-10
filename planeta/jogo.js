@@ -1668,9 +1668,9 @@ function soltarNevoa(rapidez) {
   nevoa.pos[i * 3 + 1] = _pp.y;
   nevoa.pos[i * 3 + 2] = _pp.z;
   const fora = h * (1 + Math.random() * 2);
-  nevoa.vel[i * 3]     = _lado.x * fora * p.lado + _rumo.x * rapidez * 0.6;
+  nevoa.vel[i * 3]     = _lado.x * fora * p.lado + vel.x * 0.6;
   nevoa.vel[i * 3 + 1] = h * (0.5 + Math.random());
-  nevoa.vel[i * 3 + 2] = _lado.z * fora * p.lado + _rumo.z * rapidez * 0.6;
+  nevoa.vel[i * 3 + 2] = _lado.z * fora * p.lado + vel.z * 0.6;
   const dura = 0.8 + Math.random() * 0.9;
   nevoa.vida[i] = dura;
   nevoa.dura[i] = dura;
@@ -1739,13 +1739,13 @@ function soltarGota(rapidez) {
   gotas.pos[i * 3]     = _pp.x;
   gotas.pos[i * 3 + 1] = _pp.y;
   gotas.pos[i * 3 + 2] = _pp.z;
-  // salta pra fora e pra cima, com bagunça; acompanha você quase todo
+  // salta pra fora e pra cima, com bagunça; acompanha o seu movimento de verdade quase todo
   const fora = h * (1.5 + Math.random() * 4);
   const cima = h * (1 + Math.random() * 3.5);
   const bagunca = h * 2;
-  gotas.vel[i * 3]     = _lado.x * fora * p.lado + (Math.random() - 0.5) * bagunca + _rumo.x * rapidez * 0.8;
+  gotas.vel[i * 3]     = _lado.x * fora * p.lado + (Math.random() - 0.5) * bagunca + vel.x * 0.8;
   gotas.vel[i * 3 + 1] = cima;
-  gotas.vel[i * 3 + 2] = _lado.z * fora * p.lado + (Math.random() - 0.5) * bagunca + _rumo.z * rapidez * 0.8;
+  gotas.vel[i * 3 + 2] = _lado.z * fora * p.lado + (Math.random() - 0.5) * bagunca + vel.z * 0.8;
   const dura = 0.35 + Math.random() * 0.5;
   gotas.vida[i] = dura;
   gotas.dura[i] = dura;
@@ -1777,11 +1777,21 @@ function atualizarGotas(dt, rapidez) {
   geoGotas.attributes.alfa.needsUpdate = true;
 }
 
+let desvioEspirro = 0; // quanto o esguicho gira pro lado do movimento (radianos)
 function atualizarEspirro(dt) {
   if (!(dt > 0)) return;
   const c = camera.position;
   const rapidez = Math.hypot(vel.x, vel.z);
-  if (rapidez > 1) _rumo.set(vel.x / rapidez, 0, vel.z / rapidez); // parado: mantém o último rumo
+  // O esguicho segue pra onde a CÂMERA olha. O movimento (ex.: segurando
+  // A/D, que vai na diagonal) só puxa um pouquinho, no máximo ~11°, e suave.
+  if (rapidez > 1) {
+    let delta = Math.atan2(-vel.x, -vel.z) - yaw;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta)); // entre -180° e 180°
+    const alvoDesvio = Math.max(-0.2, Math.min(0.2, delta));
+    desvioEspirro = suavizar(desvioEspirro, alvoDesvio, 4, dt);
+  }
+  const rumoYaw = yaw + desvioEspirro;
+  _rumo.set(-Math.sin(rumoYaw), 0, -Math.cos(rumoYaw));
   _lado.set(-_rumo.z, 0, _rumo.x);
 
   // força alvo: só com o dash, rente, sobre a água; mais rápido/mais colado = mais forte
