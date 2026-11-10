@@ -28,8 +28,8 @@ const AJUSTE = {
 
 const CORES = {
   horizonte: '#dbe7ac',
-  agua: '#7cc29a',       // superfície (meio-termo entre o menta antigo e o anime)
-  aguaFunda: '#4f9c80',  // o que se vê lá embaixo, através da água turva
+  agua: '#5fae8a',       // superfície (meio-termo entre o menta antigo e o anime)
+  aguaFunda: '#3d8a70',  // o que se vê lá embaixo, através da água turva
   rocha: '#e9aab3',
   grama: '#7d9ce2',
   tronco: '#e6c3b4',
@@ -360,7 +360,7 @@ matAgua.onBeforeCompile = (sh) => {
     inc += vec2( 0.97, -0.24 ) * cos( dot( p, vec2( 0.97, -0.24 ) ) * 0.29 + tempo * 0.90 ) * 0.45;
     inc += vec2( -0.70, -0.71 ) * cos( dot( p, vec2( -0.70, -0.71 ) ) * 0.47 + tempo * 1.20 ) * 0.3;
     // de longe as ondinhas somem (senão viram chuvisco na tela)
-    float forca = 0.06 * ( 1.0 - smoothstep( 60.0, 900.0, dist ) );
+    float forca = 0.025 * ( 1.0 - smoothstep( 60.0, 900.0, dist ) );
     vec3 N = normalize( vec3( -inc.x * forca, 1.0, -inc.y * forca ) );
 
     // quanto a água vira espelho: rente = muito, de cima = pouco
@@ -375,7 +375,7 @@ matAgua.onBeforeCompile = (sh) => {
     vec4 tB = texture2D( map, uvB );
     float longe = smoothstep( 150.0, 700.0, dist );
     vec3 corpo = corBase
-      + ( tA.rgb - corBase ) * mix( 0.45, 0.3, longe )
+      + ( tA.rgb - corBase ) * mix( 0.3, 0.2, longe )
       + ( tB.rgb - corBase ) * 0.35 * longe;
     vec2 q = vMapUv;
     float macro = sin( q.x * 0.21 + sin( q.y * 0.17 ) * 2.0 ) * sin( q.y * 0.19 + sin( q.x * 0.13 ) * 2.0 );
@@ -388,7 +388,7 @@ matAgua.onBeforeCompile = (sh) => {
 
     diffuseColor.rgb = cor;
     // turva: de cima mostra só um pouco do que está embaixo; rente, nada
-    diffuseColor.a = mix( 0.78, 1.0, espelho );
+    diffuseColor.a = mix( 0.62, 1.0, espelho );
   `);
 };
 const agua = new THREE.Mesh(new THREE.PlaneGeometry(TAM_AGUA, TAM_AGUA), matAgua);
@@ -429,7 +429,7 @@ function turvarEmbaixoDagua(mat) {
       vAlturaMundo = ( modelMatrix * vec4( transformed, 1.0 ) ).y;
     `);
     sh.fragmentShader = 'uniform vec3 corSubmersa;\nvarying float vAlturaMundo;\n' + sh.fragmentShader.replace('#include <tonemapping_fragment>', `
-      gl_FragColor.rgb = mix( gl_FragColor.rgb, corSubmersa, smoothstep( 0.0, 9.0, -vAlturaMundo ) );
+      gl_FragColor.rgb = mix( gl_FragColor.rgb, corSubmersa, smoothstep( 0.0, 15.0, -vAlturaMundo ) );
       #include <tonemapping_fragment>
     `);
   };
