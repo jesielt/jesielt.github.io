@@ -28,7 +28,8 @@ const AJUSTE = {
 
 const CORES = {
   horizonte: '#dbe7ac',
-  agua: '#a6dba0',
+  agua: '#7cc29a',       // superfície (meio-termo entre o menta antigo e o anime)
+  aguaFunda: '#4f9c80',  // o que se vê lá embaixo, através da água turva
   rocha: '#e9aab3',
   grama: '#7d9ce2',
   tronco: '#e6c3b4',
@@ -71,6 +72,22 @@ cena.add(sol);
 // ---------------------------------------------------------------------
 // Céu: uma esfera gigante em volta da câmera, pintada por dentro
 // ---------------------------------------------------------------------
+// O degradê do céu fica numa função só, porque a água usa a mesma pra
+// refletir o céu. h = quanto a direção aponta pra cima (0 = horizonte, 1 = zênite)
+const CEU_GLSL = `
+  vec3 corDoCeu(float h) {
+    // de baixo pra cima: verde-amarelado claro -> verde-amarelado -> verde
+    vec3 claro   = vec3(0.859, 0.906, 0.675); // = CORES.horizonte (#dbe7ac)
+    vec3 amarelo = vec3(0.800, 0.878, 0.553);
+    vec3 verdeCl = vec3(0.624, 0.824, 0.478);
+    vec3 verde   = vec3(0.310, 0.702, 0.322);
+    vec3 c = claro;
+    c = mix(c, amarelo, smoothstep(0.00, 0.08, h));
+    c = mix(c, verdeCl, smoothstep(0.08, 0.30, h));
+    c = mix(c, verde,   smoothstep(0.30, 0.75, h));
+    return c;
+  }
+`;
 const ceu = new THREE.Mesh(
   new THREE.SphereGeometry(5000, 32, 16),
   new THREE.ShaderMaterial({
@@ -83,20 +100,10 @@ const ceu = new THREE.Mesh(
         vDir = normalize(position);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
-    // h = quanto a direção aponta pra cima (0 = horizonte, 1 = zênite)
-    fragmentShader: `
+    fragmentShader: CEU_GLSL + `
       varying vec3 vDir;
       void main() {
-        float h = vDir.y;
-        // de baixo pra cima: quase branco esverdeado -> verde-amarelado -> verde
-        vec3 claro   = vec3(0.859, 0.906, 0.675); // = CORES.horizonte (#dbe7ac)
-        vec3 amarelo = vec3(0.800, 0.878, 0.553);
-        vec3 verdeCl = vec3(0.624, 0.824, 0.478);
-        vec3 verde   = vec3(0.310, 0.702, 0.322);
-        vec3 c = claro;
-        c = mix(c, amarelo, smoothstep(0.00, 0.08, h));
-        c = mix(c, verdeCl, smoothstep(0.08, 0.30, h));
-        c = mix(c, verde,   smoothstep(0.30, 0.75, h));
+        vec3 c = corDoCeu(vDir.y);
         gl_FragColor = vec4(c, 1.0);
       }`,
   })
@@ -320,30 +327,84 @@ function texturaDaAgua() {
 const TAM_AGUA = 12000;
 const texAgua = texturaDaAgua();
 texAgua.repeat.set(TAM_AGUA / LADRILHO, TAM_AGUA / LADRILHO);
-// Camuflar a repetição: de longe, mistura uma SEGUNDA cópia da textura,
-// girada e em outra escala, e uma variação de tom bem larga. A soma das
-// duas quase nunca se repete. De perto continua só a primeira (como antes).
-const matAgua = new THREE.MeshBasicMaterial({ map: texAgua });
+// Mar de lago: quase parado e meio turvo.
+// - ondulação miudinha e lenta (só mexe no brilho, a superfície é plana)
+// - reflete o céu: olhando rente, vira céu; olhando pra baixo, vira água
+// - brilho suave do sol
+// - um pouco transparente: dá pra ver de leve o que está logo embaixo
+// As manchinhas da textura continuam, bem fracas, pra manter o jeito pintado.
+// De longe, a camuflagem da repetição (segunda cópia girada + manchas largas).
+const uniAgua = {
+  tempo: { value: 0 },
+  corBase: { value: new THREE.Color(CORES.agua) },
+  solDir: { value: sol.position.clone().normalize() },
+};
+const matAgua = new THREE.MeshBasicMaterial({ map: texAgua, transparent: true });
 matAgua.onBeforeCompile = (sh) => {
-  sh.uniforms.corBase = { value: new THREE.Color(CORES.agua) };
-  sh.fragmentShader = 'uniform vec3 corBase;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
+  Object.assign(sh.uniforms, uniAgua);
+  sh.vertexShader = 'varying vec3 vMundo;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+    #include <project_vertex>
+    vMundo = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
+  `);
+  sh.fragmentShader = 'uniform vec3 corBase;\nuniform float tempo;\nuniform vec3 solDir;\nvarying vec3 vMundo;\n'
+    + CEU_GLSL + sh.fragmentShader.replace('#include <map_fragment>', `
+    vec3 paraCamera = cameraPosition - vMundo;
+    float dist = length( paraCamera );
+    vec3 V = paraCamera / dist;
+
+    // ondulação: algumas ondinhas em direções diferentes, somadas
+    vec2 p = vMundo.xz;
+    vec2 inc = vec2( 0.0 );
+    inc += vec2( 0.80, 0.60 ) * cos( dot( p, vec2( 0.80, 0.60 ) ) * 0.11 + tempo * 0.55 );
+    inc += vec2( -0.45, 0.89 ) * cos( dot( p, vec2( -0.45, 0.89 ) ) * 0.17 + tempo * 0.70 ) * 0.7;
+    inc += vec2( 0.97, -0.24 ) * cos( dot( p, vec2( 0.97, -0.24 ) ) * 0.29 + tempo * 0.90 ) * 0.45;
+    inc += vec2( -0.70, -0.71 ) * cos( dot( p, vec2( -0.70, -0.71 ) ) * 0.47 + tempo * 1.20 ) * 0.3;
+    // de longe as ondinhas somem (senão viram chuvisco na tela)
+    float forca = 0.06 * ( 1.0 - smoothstep( 60.0, 900.0, dist ) );
+    vec3 N = normalize( vec3( -inc.x * forca, 1.0, -inc.y * forca ) );
+
+    // quanto a água vira espelho: rente = muito, de cima = pouco
+    float ndv = max( dot( N, V ), 0.0 );
+    float espelho = 0.06 + 0.94 * pow( 1.0 - ndv, 4.0 );
+    vec3 R = reflect( -V, N );
+    vec3 ceu = pow( corDoCeu( max( R.y, 0.0 ) ), vec3( 2.2 ) ); // céu está em sRGB
+
+    // cor do corpo da água, com as manchinhas bem fracas
     vec4 tA = texture2D( map, vMapUv );
     vec2 uvB = mat2( 0.8, -0.6, 0.6, 0.8 ) * vMapUv * 0.43 + vec2( 0.37, 0.71 );
     vec4 tB = texture2D( map, uvB );
-    float longe = smoothstep( 150.0, 700.0, vFogDepth ); // 0 = perto, 1 = longe
-    vec3 cor = corBase
-      + ( tA.rgb - corBase ) * mix( 1.0, 0.7, longe )
-      + ( tB.rgb - corBase ) * 0.75 * longe;
-    // manchas de tom enormes (centenas de metros), só de longe
+    float longe = smoothstep( 150.0, 700.0, dist );
+    vec3 corpo = corBase
+      + ( tA.rgb - corBase ) * mix( 0.45, 0.3, longe )
+      + ( tB.rgb - corBase ) * 0.35 * longe;
     vec2 q = vMapUv;
     float macro = sin( q.x * 0.21 + sin( q.y * 0.17 ) * 2.0 ) * sin( q.y * 0.19 + sin( q.x * 0.13 ) * 2.0 );
-    cor *= 1.0 + 0.05 * macro * longe;
-    diffuseColor.rgb *= cor;
+    corpo *= 1.0 + 0.05 * macro * longe;
+
+    vec3 cor = mix( corpo, ceu, espelho );
+    // sol: um brilho fino e um halo largo e fraquinho
+    float s = max( dot( R, solDir ), 0.0 );
+    cor += vec3( 1.0, 0.98, 0.9 ) * ( pow( s, 400.0 ) * 0.7 + pow( s, 30.0 ) * 0.06 );
+
+    diffuseColor.rgb = cor;
+    // turva: de cima mostra só um pouco do que está embaixo; rente, nada
+    diffuseColor.a = mix( 0.78, 1.0, espelho );
   `);
 };
 const agua = new THREE.Mesh(new THREE.PlaneGeometry(TAM_AGUA, TAM_AGUA), matAgua);
 agua.rotation.x = -Math.PI / 2;
+agua.renderOrder = -0.9;
 cena.add(agua);
+
+// Fundo: um chão escuro lá embaixo, só pra água turva ter o que mostrar
+// quando você olha de cima (sem ele, apareceria o céu através da água).
+const leito = new THREE.Mesh(
+  new THREE.PlaneGeometry(TAM_AGUA, TAM_AGUA),
+  new THREE.MeshBasicMaterial({ color: CORES.aguaFunda })
+);
+leito.rotation.x = -Math.PI / 2;
+leito.position.y = -45;
+cena.add(leito);
 
 // ---------------------------------------------------------------------
 // Ilhas: uma plataforma baixa logo acima da água, com 1 a 4 rochas em cima.
@@ -357,6 +418,24 @@ const geosRocha = AFINA.map(t => new THREE.CylinderGeometry(t, 1, 1, 16));
 const geoTopo = new THREE.CylinderGeometry(1.1, 1.1, 1, 16);
 const matRocha = new THREE.MeshLambertMaterial({ color: CORES.rocha });
 const matGrama = new THREE.MeshLambertMaterial({ color: CORES.grama });
+// Embaixo d'água a cor some rápido na cor do fundo: a água é turva,
+// então só o pedacinho logo abaixo da superfície ainda aparece.
+const corSubmersa = { value: new THREE.Color(CORES.aguaFunda) };
+function turvarEmbaixoDagua(mat) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.corSubmersa = corSubmersa;
+    sh.vertexShader = 'varying float vAlturaMundo;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+      #include <project_vertex>
+      vAlturaMundo = ( modelMatrix * vec4( transformed, 1.0 ) ).y;
+    `);
+    sh.fragmentShader = 'uniform vec3 corSubmersa;\nvarying float vAlturaMundo;\n' + sh.fragmentShader.replace('#include <tonemapping_fragment>', `
+      gl_FragColor.rgb = mix( gl_FragColor.rgb, corSubmersa, smoothstep( 0.0, 9.0, -vAlturaMundo ) );
+      #include <tonemapping_fragment>
+    `);
+  };
+}
+turvarEmbaixoDagua(matRocha);
+turvarEmbaixoDagua(matGrama);
 
 // Mancha no gramado: um pedaço onde o solo embaixo é diferente e a grama
 // fica num tom mais escuro. Formato de café derramado: redonda, borda ondulada.
@@ -510,7 +589,7 @@ function criarIlha(i, j) {
   const x = (i + 0.5) * CELULA + (hash(i, j, 4) - 0.5) * 2 * folga;
   const z = (j + 0.5) * CELULA + (hash(i, j, 5) - 0.5) * 2 * folga;
   const alt = 1.2 + hash(i, j, 6) * 2.3;               // quanto a plataforma sai da água
-  const FUNDO = 4;                                    // parte escondida embaixo d'água
+  const FUNDO = 45;                                   // desce até o fundo (a água é meio transparente)
 
   const grupo = new THREE.Group();
   grupo.position.set(x, 0, z);
@@ -1146,6 +1225,8 @@ function atualizar(dt) {
   atualizarNuvens(dt);
   agua.position.x = Math.round(camera.position.x / LADRILHO) * LADRILHO;
   agua.position.z = Math.round(camera.position.z / LADRILHO) * LADRILHO;
+  leito.position.x = camera.position.x;
+  leito.position.z = camera.position.z;
   atualizarIlhas();
   // graminha só aparece nas ilhas perto
   for (const ilha of ilhas.values()) {
@@ -1337,7 +1418,8 @@ function mostrarAltura() {
 
 // ondinhas: a textura da água desliza devagar
 function animarAgua(tempo) {
-  texAgua.offset.set(tempo * 0.01, Math.sin(tempo * 0.3) * 0.02);
+  texAgua.offset.set(tempo * 0.004, Math.sin(tempo * 0.3) * 0.01); // lago: desliza bem menos
+  uniAgua.tempo.value = tempo;
 }
 
 // ---------------------------------------------------------------------
