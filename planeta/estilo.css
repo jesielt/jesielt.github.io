@@ -81,8 +81,10 @@ html, body {
   pointer-events: none;
 }
 
-/* altura: fica logo acima do radar */
-.altura {
+/* altura: fica logo acima do radar, no canto direito dele;
+   velocidade: no canto esquerdo (encostada na borda esquerda do radar) */
+.altura,
+.velocidade {
   position: fixed;
   right: 16px;
   bottom: calc(16px + clamp(140px, 28vw, 230px) + 10px);
@@ -101,7 +103,12 @@ html, body {
   font-variant-numeric: tabular-nums; /* números não "dançam" quando mudam */
   pointer-events: none;
 }
-.m-saiyajin {
+.velocidade {
+  right: calc(16px + clamp(140px, 28vw, 230px));
+  transform: translateX(100%);
+}
+.m-saiyajin,
+.v-saiyajin {
   width: 15px;
   height: 17px;
   fill: currentColor;

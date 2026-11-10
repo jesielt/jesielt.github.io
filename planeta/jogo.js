@@ -1418,12 +1418,161 @@ function mostrarAltura() {
   const h = camera.position.y / ESCALA_SENTIDA;
   const texto = h < 10 ? h.toFixed(1).replace('.', ',') : String(Math.round(h));
   if (texto !== alturaMostrada) { alturaNum.textContent = texto; alturaMostrada = texto; }
+  mostrarVelocidade();
+}
+
+// Velocidade em km/h, na mesma régua (unidades/s ÷ 17,5 = m/s; × 3,6 = km/h)
+const velNum = document.getElementById('velNum');
+let velMostrada = '';
+function mostrarVelocidade() {
+  const kmh = vel.length() / ESCALA_SENTIDA * 3.6;
+  const texto = String(Math.round(kmh));
+  if (texto !== velMostrada) { velNum.textContent = texto; velMostrada = texto; }
 }
 
 // ondinhas: a textura da água desliza devagar
 function animarAgua(tempo) {
   texAgua.offset.set(tempo * 0.004, Math.sin(tempo * 0.3) * 0.01); // lago: desliza bem menos
   uniAgua.tempo.value = tempo;
+}
+
+// ---------------------------------------------------------------------
+// Espirro: voando rente ao mar (1 m ou menos), a água abre pros lados
+// em espuma branca, tipo  \\\ você ///  — pouco, não abre o mar.
+// Cada gotinha nasce na água um pouco à frente, é jogada pra fora, pra
+// cima e pra trás, cai com a gravidade e some.
+// ---------------------------------------------------------------------
+const ESPIRRO = {
+  alturaMax: 1 * ESCALA_SENTIDA, // começa a espirrar a 1 m da água
+  velMin: 25,                    // parado ou devagar não espirra
+  porSegundo: 420,               // gotinhas por segundo, no máximo
+  max: 900,
+  gravidade: 70,
+};
+const espirro = {
+  pos: new Float32Array(ESPIRRO.max * 3),
+  vel: new Float32Array(ESPIRRO.max * 3),
+  vida: new Float32Array(ESPIRRO.max),  // segundos que ainda faltam (0 = livre)
+  dura: new Float32Array(ESPIRRO.max),
+  tam: new Float32Array(ESPIRRO.max),
+  alfa: new Float32Array(ESPIRRO.max),
+  proxima: 0,
+  acumulado: 0,
+};
+const geoEspirro = new THREE.BufferGeometry();
+geoEspirro.setAttribute('position', new THREE.BufferAttribute(espirro.pos, 3));
+geoEspirro.setAttribute('tam', new THREE.BufferAttribute(espirro.tam, 1));
+geoEspirro.setAttribute('alfa', new THREE.BufferAttribute(espirro.alfa, 1));
+const uniEspirro = { escala: { value: 1 } };
+const pontosEspirro = new THREE.Points(geoEspirro, new THREE.ShaderMaterial({
+  uniforms: uniEspirro,
+  transparent: true,
+  depthWrite: false,
+  vertexShader: `
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
+    attribute float tam;
+    attribute float alfa;
+    uniform float escala;
+    varying float vAlfa;
+    void main() {
+      vAlfa = alfa;
+      vec4 mv = modelViewMatrix * vec4( position, 1.0 );
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = alfa > 0.0 ? min( tam * escala / -mv.z, 22.0 ) : 0.0;
+      #include <logdepthbuf_vertex>
+    }`,
+  fragmentShader: `
+    #include <logdepthbuf_pars_fragment>
+    varying float vAlfa;
+    void main() {
+      #include <logdepthbuf_fragment>
+      // bolinha macia: cheia no meio, some na borda
+      float d = length( gl_PointCoord - 0.5 ) * 2.0;
+      float a = ( 1.0 - smoothstep( 0.55, 1.0, d ) ) * vAlfa;
+      if ( a < 0.01 ) discard;
+      gl_FragColor = vec4( 0.97, 1.0, 0.97, a );
+    }`,
+}));
+pontosEspirro.frustumCulled = false;
+pontosEspirro.renderOrder = 1;
+cena.add(pontosEspirro);
+
+function sobreIlha(x, z) {
+  for (const ilha of ilhasPerto()) {
+    const s = ilha.solidos[0];
+    const lx = (x - s.x) / s.rx, lz = (z - s.z) / s.rz;
+    if (Math.hypot(lx, lz) < contorno(Math.atan2(lz, lx), s.ondas) * 1.06) return true;
+  }
+  return false;
+}
+
+const _horiz = new THREE.Vector3(), _lado = new THREE.Vector3();
+function soltarGota(lado, rapidez, forca) {
+  const i = espirro.proxima;
+  espirro.proxima = (i + 1) % ESPIRRO.max;
+  const c = camera.position;
+  // nasce na água, um pouco à frente (pra dar tempo de ver) e de lado
+  const frenteDist = 12 + Math.random() * 14;
+  const ladoDist = 4 + Math.random() * 4;
+  espirro.pos[i * 3]     = c.x + _horiz.x * frenteDist + _lado.x * ladoDist * lado;
+  espirro.pos[i * 3 + 1] = 0.3;
+  espirro.pos[i * 3 + 2] = c.z + _horiz.z * frenteDist + _lado.z * ladoDist * lado;
+  // jogada pra fora (o grosso), pra cima e um pouco pra trás de quem passa
+  const fora = (18 + Math.random() * 30) * (0.5 + forca * 0.6);
+  const cima = (10 + Math.random() * 22) * (0.4 + forca * 0.7);
+  const tras = rapidez * (0.15 + Math.random() * 0.3); // fica pra trás devagar, não some na hora
+  espirro.vel[i * 3]     = _lado.x * fora * lado + _horiz.x * (rapidez - tras);
+  espirro.vel[i * 3 + 1] = cima;
+  espirro.vel[i * 3 + 2] = _lado.z * fora * lado + _horiz.z * (rapidez - tras);
+  const dura = 0.5 + Math.random() * 0.6;
+  espirro.vida[i] = dura;
+  espirro.dura[i] = dura;
+  espirro.tam[i] = 0.5 + Math.random() * 0.8;
+}
+
+function atualizarEspirro(dt) {
+  if (!(dt > 0)) return;
+  // tamanho das gotinhas na tela acompanha o zoom (campo de visão)
+  uniEspirro.escala.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
+
+  // solta gotinhas novas?
+  const c = camera.position;
+  _horiz.set(vel.x, 0, vel.z);
+  const rapidez = _horiz.length();
+  if (c.y <= ESPIRRO.alturaMax && rapidez > ESPIRRO.velMin && !sobreIlha(c.x, c.z)) {
+    _horiz.divideScalar(rapidez);
+    _lado.set(-_horiz.z, 0, _horiz.x);
+    const rente = 1 - (c.y - AJUSTE.alturaOlhos) / (ESPIRRO.alturaMax - AJUSTE.alturaOlhos); // 1 = colado
+    const forca = Math.max(0, Math.min(1, rente)) * Math.min(rapidez / AJUSTE.velMax, 1.6);
+    espirro.acumulado += ESPIRRO.porSegundo * forca * dt;
+    while (espirro.acumulado >= 1) {
+      espirro.acumulado -= 1;
+      soltarGota(Math.random() < 0.5 ? -1 : 1, rapidez, forca);
+    }
+  } else {
+    espirro.acumulado = 0;
+  }
+
+  // move, puxa pra baixo e apaga
+  for (let i = 0; i < ESPIRRO.max; i++) {
+    if (espirro.vida[i] <= 0) { espirro.alfa[i] = 0; continue; }
+    espirro.vida[i] -= dt;
+    espirro.vel[i * 3 + 1] -= ESPIRRO.gravidade * dt;
+    const amortece = Math.exp(-1.5 * dt); // o ar segura um pouco
+    espirro.vel[i * 3] *= amortece;
+    espirro.vel[i * 3 + 2] *= amortece;
+    espirro.pos[i * 3]     += espirro.vel[i * 3] * dt;
+    espirro.pos[i * 3 + 1] += espirro.vel[i * 3 + 1] * dt;
+    espirro.pos[i * 3 + 2] += espirro.vel[i * 3 + 2] * dt;
+    if (espirro.pos[i * 3 + 1] < 0 || espirro.vida[i] <= 0) { espirro.vida[i] = 0; espirro.alfa[i] = 0; continue; }
+    const t = espirro.vida[i] / espirro.dura[i]; // 1 = acabou de nascer, 0 = sumindo
+    espirro.alfa[i] = Math.min(1, t * 1.6) * 0.85;
+    espirro.tam[i] += dt * 0.8; // a espuma se abre enquanto voa
+  }
+  geoEspirro.attributes.position.needsUpdate = true;
+  geoEspirro.attributes.tam.needsUpdate = true;
+  geoEspirro.attributes.alfa.needsUpdate = true;
 }
 
 // ---------------------------------------------------------------------
@@ -1434,6 +1583,7 @@ function quadro(agora) {
   const dt = Math.min((agora - antes) / 1000, 0.05);
   antes = agora;
   atualizar(dt);
+  atualizarEspirro(dt);
   animarAgua(agora / 1000);
   renderer.render(cena, camera);
   desenharRadar(agora / 1000);
@@ -1447,5 +1597,5 @@ requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
 window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esfera,
-  passo(seg = 1 / 60) { atualizar(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
+  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
 })();
