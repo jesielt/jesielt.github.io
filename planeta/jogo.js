@@ -215,10 +215,28 @@ function texturaDaAgua() {
 const TAM_AGUA = 12000;
 const texAgua = texturaDaAgua();
 texAgua.repeat.set(TAM_AGUA / LADRILHO, TAM_AGUA / LADRILHO);
-const agua = new THREE.Mesh(
-  new THREE.PlaneGeometry(TAM_AGUA, TAM_AGUA),
-  new THREE.MeshBasicMaterial({ map: texAgua })
-);
+// Camuflar a repetição: de longe, mistura uma SEGUNDA cópia da textura,
+// girada e em outra escala, e uma variação de tom bem larga. A soma das
+// duas quase nunca se repete. De perto continua só a primeira (como antes).
+const matAgua = new THREE.MeshBasicMaterial({ map: texAgua });
+matAgua.onBeforeCompile = (sh) => {
+  sh.uniforms.corBase = { value: new THREE.Color(CORES.agua) };
+  sh.fragmentShader = 'uniform vec3 corBase;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
+    vec4 tA = texture2D( map, vMapUv );
+    vec2 uvB = mat2( 0.8, -0.6, 0.6, 0.8 ) * vMapUv * 0.43 + vec2( 0.37, 0.71 );
+    vec4 tB = texture2D( map, uvB );
+    float longe = smoothstep( 150.0, 700.0, vFogDepth ); // 0 = perto, 1 = longe
+    vec3 cor = corBase
+      + ( tA.rgb - corBase ) * mix( 1.0, 0.7, longe )
+      + ( tB.rgb - corBase ) * 0.75 * longe;
+    // manchas de tom enormes (centenas de metros), só de longe
+    vec2 q = vMapUv;
+    float macro = sin( q.x * 0.21 + sin( q.y * 0.17 ) * 2.0 ) * sin( q.y * 0.19 + sin( q.x * 0.13 ) * 2.0 );
+    cor *= 1.0 + 0.05 * macro * longe;
+    diffuseColor.rgb *= cor;
+  `);
+};
+const agua = new THREE.Mesh(new THREE.PlaneGeometry(TAM_AGUA, TAM_AGUA), matAgua);
 agua.rotation.x = -Math.PI / 2;
 cena.add(agua);
 
