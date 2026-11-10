@@ -22,10 +22,18 @@ e aparece no console do navegador quando o jogo abre.
 - Espirro: com o dash (Shift), a 1,5 m da água ou menos, a espuma abre pros dois lados
 - As 7 esferas: a de 4 estrelas perto de onde você começa, as outras 6 espalhadas
   (de 1500 a 5000 de distância), todas no radar; se cair no mar, a esfera volta pro lugar
-- Esferas de vidro laranja com volume (miolo claro, borda funda)
+- Esferas de vidro laranja com volume (miolo claro, borda funda e levemente transparente)
 - No radar, cada esfera tem um triângulo vazado apontando pra ela: maior = mais perto
 - Captura: perto da esfera aparece o botão direito do mouse; clicou, ela vai pra caixinha
   redonda embaixo do radar, mostrando as estrelas dela
+- Juntou as 7: o céu escurece aos poucos (verde-escuro, quase noite), com raios e clarões
+- Fundo do mar: dá pra mergulhar. As ilhas descem como montanhas até um chão irregular,
+  com montinhos e algas balançando
+- Debaixo d'água: tudo esverdeado, bolhinhas (mais quanto mais rápido), movimento mais
+  fraco, choque ao entrar na água e sem espirro
+- Fôlego: barra azul de 25 s; se acabar, você volta pro começo e perde as esferas
+- As esferas também afundam devagar e rolam pelo fundo (não somem mais)
+- Grama das ilhas com pinceladas, como nos cenários de Namek; as manchas viraram areia clara
 
 ## 1.0.0 — 10/11/2026
 

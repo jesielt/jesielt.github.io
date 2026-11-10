@@ -38,7 +38,7 @@ const CORES = {
   grama: '#7d9ce2',
   tronco: '#e6c3b4',
   tufo: '#6683d6',
-  mancha: '#6283cf',
+  mancha: '#e4d4a8',   // areia clara (no anime, terra aparecendo na grama)
 };
 
 // ---------------------------------------------------------------------
@@ -68,7 +68,8 @@ function ajustarTela() {
 window.addEventListener('resize', ajustarTela);
 ajustarTela();
 
-cena.add(new THREE.HemisphereLight('#e8f6d0', '#9fb3e6', 2.2));
+const hemi = new THREE.HemisphereLight('#e8f6d0', '#9fb3e6', 2.2);
+cena.add(hemi);
 const sol = new THREE.DirectionalLight('#fff4e0', 1.6);
 sol.position.set(-0.5, 1, 0.3);
 cena.add(sol);
@@ -78,7 +79,10 @@ cena.add(sol);
 // ---------------------------------------------------------------------
 // O degradê do céu fica numa função só, porque a água usa a mesma pra
 // refletir o céu. h = quanto a direção aponta pra cima (0 = horizonte, 1 = zênite)
+// escuro: 0 = céu normal, 1 = céu escuro de quando junta as 7 esferas
+const uniEscuro = { value: 0 };
 const CEU_GLSL = `
+  uniform float escuro;
   vec3 corDoCeu(float h) {
     // de baixo pra cima: verde-amarelado claro -> verde-amarelado -> verde
     vec3 claro   = vec3(0.859, 0.906, 0.675); // = CORES.horizonte (#dbe7ac)
@@ -89,7 +93,10 @@ const CEU_GLSL = `
     c = mix(c, amarelo, smoothstep(0.00, 0.08, h));
     c = mix(c, verdeCl, smoothstep(0.08, 0.30, h));
     c = mix(c, verde,   smoothstep(0.30, 0.75, h));
-    return c;
+    // céu escuro: verde-azulado fundo, quase noite, mais claro no horizonte
+    vec3 e = mix(vec3(0.12, 0.32, 0.25), vec3(0.06, 0.21, 0.18), smoothstep(0.0, 0.25, h));
+    e = mix(e, vec3(0.02, 0.10, 0.10), smoothstep(0.25, 0.85, h));
+    return mix(c, e, escuro);
   }
 `;
 const ceu = new THREE.Mesh(
@@ -104,6 +111,7 @@ const ceu = new THREE.Mesh(
         vDir = normalize(position);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
+    uniforms: { escuro: uniEscuro },
     fragmentShader: CEU_GLSL + `
       varying vec3 vDir;
       void main() {
@@ -339,11 +347,12 @@ texAgua.repeat.set(TAM_AGUA / LADRILHO, TAM_AGUA / LADRILHO);
 // As manchinhas da textura continuam, bem fracas, pra manter o jeito pintado.
 // De longe, a camuflagem da repetição (segunda cópia girada + manchas largas).
 const uniAgua = {
+  escuro: uniEscuro,
   tempo: { value: 0 },
   corBase: { value: new THREE.Color(CORES.agua) },
   solDir: { value: sol.position.clone().normalize() },
 };
-const matAgua = new THREE.MeshBasicMaterial({ map: texAgua, transparent: true });
+const matAgua = new THREE.MeshBasicMaterial({ map: texAgua, transparent: true, side: THREE.DoubleSide });
 matAgua.onBeforeCompile = (sh) => {
   Object.assign(sh.uniforms, uniAgua);
   sh.vertexShader = 'varying vec3 vMundo;\n' + sh.vertexShader.replace('#include <project_vertex>', `
@@ -386,6 +395,7 @@ matAgua.onBeforeCompile = (sh) => {
     corpo *= 1.0 + 0.05 * macro * longe;
 
     vec3 cor = mix( corpo, ceu, espelho );
+    cor *= 1.0 - 0.45 * escuro; // céu escuro: o mar escurece junto
     // sol: um brilho fino e um halo largo e fraquinho
     float s = max( dot( R, solDir ), 0.0 );
     cor += vec3( 1.0, 0.98, 0.9 ) * ( pow( s, 400.0 ) * 0.7 + pow( s, 30.0 ) * 0.06 );
@@ -393,6 +403,11 @@ matAgua.onBeforeCompile = (sh) => {
     diffuseColor.rgb = cor;
     // turva: de cima mostra só um pouco do que está embaixo; rente, nada
     diffuseColor.a = mix( 0.62, 1.0, espelho );
+    // vista de baixo (você mergulhou): um teto claro, com a luz vindo de cima
+    if ( cameraPosition.y < 0.0 ) {
+      diffuseColor.rgb = mix( vec3( 0.42, 0.80, 0.66 ), vec3( 0.75, 0.95, 0.85 ), 1.0 - espelho ) + ( tA.rgb - corBase ) * 0.25;
+      diffuseColor.a = 0.9;
+    }
   `);
 };
 const agua = new THREE.Mesh(new THREE.PlaneGeometry(TAM_AGUA, TAM_AGUA), matAgua);
@@ -407,8 +422,39 @@ const leito = new THREE.Mesh(
   new THREE.MeshBasicMaterial({ color: CORES.aguaFunda })
 );
 leito.rotation.x = -Math.PI / 2;
-leito.position.y = -45;
+leito.position.y = -80; // bem abaixo do fundo do mar (só pra nunca aparecer buraco)
 cena.add(leito);
+
+// ---------------------------------------------------------------------
+// Fundo do mar: um chão a ~60 de profundidade (≈3,4 m na sua régua), com
+// ondulações e montinhos de terra espalhados — nunca 100% plano.
+// A mesma conta existe em JS (pra você e as esferas pisarem nele) e no
+// shader (pra desenhar), então os dois batem certinho.
+// ---------------------------------------------------------------------
+const PROF = 60;
+function alturaDoFundo(x, z) {
+  return -PROF
+    + 3.5 * Math.sin(x * 0.021 + 1.3) * Math.sin(z * 0.017 + 0.4)
+    + 2.0 * Math.sin(x * 0.053 + z * 0.041 + 2.1)
+    + 1.2 * Math.sin(x * 0.11 - z * 0.09 + 0.7)
+    + 7.0 * Math.pow(Math.max(0, Math.sin(x * 0.0083 + 5.0) * Math.sin(z * 0.0071 + 1.0)), 3);
+}
+const FUNDO_GLSL = `
+  float alturaDoFundo( vec2 p ) {
+    return -60.0
+      + 3.5 * sin( p.x * 0.021 + 1.3 ) * sin( p.y * 0.017 + 0.4 )
+      + 2.0 * sin( p.x * 0.053 + p.y * 0.041 + 2.1 )
+      + 1.2 * sin( p.x * 0.11 - p.y * 0.09 + 0.7 )
+      + 7.0 * pow( max( 0.0, sin( p.x * 0.0083 + 5.0 ) * sin( p.y * 0.0071 + 1.0 ) ), 3.0 );
+  }
+`;
+const PASSO_FUNDO = 20; // o chão anda com você de 20 em 20 (pra não "nadar")
+const geoFundo = new THREE.PlaneGeometry(2400, 2400, 120, 120);
+geoFundo.rotateX(-Math.PI / 2);
+const matFundo = new THREE.MeshLambertMaterial({ color: '#7f8fc4' }); // areia azulada (as rochas de Namek embaixo d'água)
+const fundoDoMar = new THREE.Mesh(geoFundo, matFundo);
+fundoDoMar.frustumCulled = false;
+cena.add(fundoDoMar);
 
 // ---------------------------------------------------------------------
 // Ilhas: uma plataforma baixa logo acima da água, com 1 a 4 rochas em cima.
@@ -422,27 +468,105 @@ const geosRocha = AFINA.map(t => new THREE.CylinderGeometry(t, 1, 1, 16));
 const geoTopo = new THREE.CylinderGeometry(1.1, 1.1, 1, 16);
 const matRocha = new THREE.MeshLambertMaterial({ color: CORES.rocha });
 const matGrama = new THREE.MeshLambertMaterial({ color: CORES.grama });
+
+// Grama de Namek: azul pintado à mão, com pinceladas mais claras e mais
+// escuras, curtas e deitadas. A textura é "carimbada" pela posição no mundo
+// (de cima), então é igual em todas as ilhas, de qualquer tamanho.
+function texturaDaGrama() {
+  const t = 512, c = document.createElement('canvas');
+  c.width = c.height = t;
+  const g = c.getContext('2d');
+  g.fillStyle = CORES.grama;
+  g.fillRect(0, 0, t, t);
+  let semente = 31;
+  const aleatorio = () => (semente = (semente * 16807) % 2147483647) / 2147483647;
+  const tons = [
+    ['rgba(160, 190, 245, 0.30)', 0.35],  // mais claro
+    ['rgba(185, 215, 250, 0.22)', 0.15],  // bem claro, quase céu
+    ['rgba(84, 118, 205, 0.26)', 0.35],   // mais escuro
+    ['rgba(110, 170, 230, 0.20)', 0.15],  // puxado pro ciano
+  ];
+  for (let i = 0; i < 1400; i++) {
+    let r = aleatorio(), cor = tons[0][0];
+    for (const [c2, peso] of tons) { if ((r -= peso) <= 0) { cor = c2; break; } }
+    const x = aleatorio() * t, y = aleatorio() * t;
+    const comp = 10 + aleatorio() * 34, larg = 3 + aleatorio() * 7;
+    const giro = (aleatorio() - 0.5) * 0.7; // quase deitadas
+    g.fillStyle = cor;
+    for (const dx of [-t, 0, t]) for (const dy of [-t, 0, t]) { // emenda sem costura
+      g.beginPath();
+      g.ellipse(x + dx, y + dy, comp, larg, giro, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+const texGrama = { value: texturaDaGrama() };
+function pintarGrama(sh) {
+  sh.uniforms.texGrama = texGrama;
+  sh.vertexShader = 'varying vec2 vChaoXZ;\n' + sh.vertexShader.replace('#include <project_vertex>', `
+    #include <project_vertex>
+    vChaoXZ = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;
+  `);
+  sh.fragmentShader = 'uniform sampler2D texGrama;\nvarying vec2 vChaoXZ;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
+    diffuseColor.rgb = texture2D( texGrama, vChaoXZ / 110.0 ).rgb;
+  `);
+}
 // Embaixo d'água a cor some rápido na cor do fundo: a água é turva,
 // então só o pedacinho logo abaixo da superfície ainda aparece.
 const corSubmersa = { value: new THREE.Color(CORES.aguaFunda) };
-function turvarEmbaixoDagua(mat) {
+// turvo: 1 = vendo de fora da água (tudo lá embaixo some na cor da água);
+// 0 = você mergulhou (aí quem dá o tom é a neblina verde de debaixo d'água)
+const turvo = { value: 1 };
+// antes(sh): outra mudança no mesmo material (ex.: balançar as algas)
+let materiaisTurvos = 0;
+function turvarEmbaixoDagua(mat, antes) {
+  // cada material ganha uma "identidade" própria: sem isso o three.js acha que
+  // todos são iguais (a função abaixo é a mesma) e reaproveita o programa errado
+  const id = 'turvo-' + (materiaisTurvos++);
+  mat.customProgramCacheKey = () => id;
   mat.onBeforeCompile = (sh) => {
+    if (antes) antes(sh);
     sh.uniforms.corSubmersa = corSubmersa;
+    sh.uniforms.turvo = turvo;
     sh.vertexShader = 'varying float vAlturaMundo;\n' + sh.vertexShader.replace('#include <project_vertex>', `
       #include <project_vertex>
-      vAlturaMundo = ( modelMatrix * vec4( transformed, 1.0 ) ).y;
+      #ifdef USE_INSTANCING
+        vAlturaMundo = ( modelMatrix * instanceMatrix * vec4( transformed, 1.0 ) ).y;
+      #else
+        vAlturaMundo = ( modelMatrix * vec4( transformed, 1.0 ) ).y;
+      #endif
     `);
-    sh.fragmentShader = 'uniform vec3 corSubmersa;\nvarying float vAlturaMundo;\n' + sh.fragmentShader.replace('#include <tonemapping_fragment>', `
-      gl_FragColor.rgb = mix( gl_FragColor.rgb, corSubmersa, smoothstep( 0.0, 15.0, -vAlturaMundo ) );
+    sh.fragmentShader = 'uniform vec3 corSubmersa;\nuniform float turvo;\nvarying float vAlturaMundo;\n' + sh.fragmentShader.replace('#include <tonemapping_fragment>', `
+      gl_FragColor.rgb = mix( gl_FragColor.rgb, corSubmersa, smoothstep( 0.0, 15.0, -vAlturaMundo ) * turvo );
       #include <tonemapping_fragment>
     `);
   };
 }
 turvarEmbaixoDagua(matRocha);
-turvarEmbaixoDagua(matGrama);
+turvarEmbaixoDagua(matGrama, pintarGrama);
+turvarEmbaixoDagua(matFundo, (sh) => {
+  // o chão do fundo do mar ondula pela conta alturaDoFundo (e a luz acompanha)
+  sh.vertexShader = FUNDO_GLSL + sh.vertexShader
+    .replace('#include <beginnormal_vertex>', `
+      #include <beginnormal_vertex>
+      vec2 pFundo = ( modelMatrix * vec4( position, 1.0 ) ).xz;
+      objectNormal = normalize( vec3(
+        alturaDoFundo( pFundo - vec2( 1.0, 0.0 ) ) - alturaDoFundo( pFundo + vec2( 1.0, 0.0 ) ), 2.0,
+        alturaDoFundo( pFundo - vec2( 0.0, 1.0 ) ) - alturaDoFundo( pFundo + vec2( 0.0, 1.0 ) ) ) );
+    `)
+    .replace('#include <begin_vertex>', `
+      #include <begin_vertex>
+      transformed.y = alturaDoFundo( pFundo );
+    `);
+});
 
-// Mancha no gramado: um pedaço onde o solo embaixo é diferente e a grama
-// fica num tom mais escuro. Formato de café derramado: redonda, borda ondulada.
+// Mancha no gramado: um pedaço de terra/areia clara aparecendo no meio da
+// grama, como nos cenários de Namek. Formato de café derramado: borda ondulada.
 // É uma "folha" fininha deitada um tiquinho acima da grama.
 const matMancha = new THREE.MeshLambertMaterial({
   color: CORES.mancha,
@@ -578,6 +702,95 @@ function vizinhaDeEnorme(i, j) {
   return false;
 }
 
+// ---------------------------------------------------------------------
+// Embaixo d'água a ilha vira montanha: da beira da plataforma (a 3 abaixo
+// da superfície) a encosta desce abrindo até o fundo do mar, com calombos
+// de rocha. A largura que ela abre varia em volta (saia.E, f, g).
+// ---------------------------------------------------------------------
+const SAIA_TOPO = -3;
+function larguraDaSaia(saia, a) {
+  return saia.E * (1 + 0.25 * Math.sin(5 * a + saia.f) + 0.15 * Math.sin(11 * a + saia.g));
+}
+function geometriaSaia(ondas, sx, sz, saia) {
+  const geo = new THREE.CylinderGeometry(1, 1, 1, 48, 8, true);
+  const pos = geo.attributes.position;
+  for (let v = 0; v < pos.count; v++) {
+    const a = Math.atan2(pos.getZ(v), pos.getX(v));
+    const t = 0.5 - pos.getY(v); // 0 = rente à plataforma, 1 = no fundo
+    const k = contorno(a, ondas);
+    const extra = larguraDaSaia(saia, a) * Math.pow(t, 0.8) + 3 * Math.sin(a * 17 + t * 9) * t;
+    pos.setXYZ(v, Math.cos(a) * (k * sx + extra), SAIA_TOPO - t * (PROF + 8), Math.sin(a) * (k * sz + extra));
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+// altura da encosta submersa da ilha (s = solidos[0]) nesse ponto, ou -Infinity se fora dela
+function alturaDaSaia(s, x, z) {
+  const dx = x - s.x, dz = z - s.z;
+  const a = Math.atan2(dz / s.rz, dx / s.rx);
+  const k = contorno(a, s.ondas);
+  const r0 = Math.hypot(Math.cos(a) * k * s.rx, Math.sin(a) * k * s.rz);
+  const r = Math.hypot(dx, dz);
+  const E = larguraDaSaia(s.saia, a);
+  if (r <= r0) return SAIA_TOPO;
+  if (r >= r0 + E) return -Infinity;
+  return SAIA_TOPO - Math.pow((r - r0) / E, 1 / 0.8) * (PROF + 8);
+}
+// o chão embaixo d'água nesse ponto: o fundo do mar ou a encosta de uma ilha
+function chaoDoMar(x, z) {
+  let h = alturaDoFundo(x, z);
+  const ci = Math.floor(x / CELULA), cj = Math.floor(z / CELULA);
+  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+    const ilha = ilhas.get((ci + di) + ',' + (cj + dj));
+    if (ilha) h = Math.max(h, alturaDaSaia(ilha.solidos[0], x, z));
+  }
+  return h;
+}
+
+// Algas de fundo do mar: fitas largas de borda ondulada e ponta redonda
+// (duas cruzadas, pra ter volume de qualquer lado), balançando devagar.
+const geoAlga = (() => {
+  const fita = new THREE.PlaneGeometry(1, 1, 1, 14);
+  fita.translate(0, 0.5, 0);
+  const pos = fita.attributes.position;
+  for (let v = 0; v < pos.count; v++) {
+    const y = pos.getY(v);
+    const ponta = y > 0.82 ? Math.sqrt(Math.max(0, 1 - ((y - 0.82) / 0.18) ** 2)) : 1;
+    const larg = (0.78 + 0.22 * Math.sin(y * 17)) * ponta * (0.55 + 0.45 * Math.min(1, y * 5));
+    pos.setX(v, pos.getX(v) * larg);
+  }
+  const outra = fita.clone();
+  outra.rotateY(Math.PI / 2);
+  const juntas = new THREE.BufferGeometry();
+  const a = fita.attributes.position.array, b = outra.attributes.position.array;
+  const posicoes = new Float32Array(a.length + b.length);
+  posicoes.set(a); posicoes.set(b, a.length);
+  const ia = fita.index.array, n = a.length / 3;
+  const indices = [...ia, ...Array.from(outra.index.array, x => x + n)];
+  juntas.setAttribute('position', new THREE.BufferAttribute(posicoes, 3));
+  juntas.setIndex(indices);
+  juntas.computeVertexNormals();
+  return juntas;
+})();
+const tempoAlga = { value: 0 };
+const matAlga = new THREE.MeshLambertMaterial({ color: '#4fa86a', side: THREE.DoubleSide });
+turvarEmbaixoDagua(matAlga, (sh) => {
+  sh.uniforms.tempoAlga = tempoAlga;
+  sh.vertexShader = 'uniform float tempoAlga;\n' + sh.vertexShader.replace('#include <begin_vertex>', `
+    #include <begin_vertex>
+    // balanço leve: a ponta mexe mais que o pé; cada alga num ritmo
+    float faseAlga = instanceMatrix[3].x * 0.13 + instanceMatrix[3].z * 0.17;
+    float hAlga = position.y;
+    transformed.x += sin( tempoAlga * 1.4 + faseAlga + hAlga * 3.0 ) * 0.55 * hAlga * hAlga;
+    transformed.z += cos( tempoAlga * 1.1 + faseAlga + hAlga * 2.4 ) * 0.35 * hAlga * hAlga;
+  `);
+});
+// a rocha da encosta submersa: azul-arroxeada, como as rochas debaixo d'água no anime
+const matSaia = new THREE.MeshLambertMaterial({ color: '#8b80c4' });
+turvarEmbaixoDagua(matSaia);
+const _m4a = new THREE.Matrix4(), _qa = new THREE.Quaternion(), _ea = new THREE.Euler();
+const _pa = new THREE.Vector3(), _sa = new THREE.Vector3();
+
 function criarIlha(i, j) {
   const enorme = ehEnorme(i, j);
   if (!enorme && (vizinhaDeEnorme(i, j) || hash(i, j) > 0.5)) return null; // só água
@@ -593,7 +806,7 @@ function criarIlha(i, j) {
   const x = (i + 0.5) * CELULA + (hash(i, j, 4) - 0.5) * 2 * folga;
   const z = (j + 0.5) * CELULA + (hash(i, j, 5) - 0.5) * 2 * folga;
   const alt = 1.2 + hash(i, j, 6) * 2.3;               // quanto a plataforma sai da água
-  const FUNDO = 45;                                   // desce até o fundo (a água é meio transparente)
+  const FUNDO = -SAIA_TOPO;                           // a plataforma desce até a encosta submersa começar
 
   const grupo = new THREE.Group();
   grupo.position.set(x, 0, z);
@@ -607,6 +820,28 @@ function criarIlha(i, j) {
   plataforma.position.y = (alt + FUNDO) / 2 - FUNDO;
   grupo.add(plataforma);
   solidos.push({ x, z, rx: sx, rz: sz, base: -FUNDO, h: alt, afina: 1, giro: 0, ondas });
+
+  // embaixo d'água: a encosta que desce até o fundo do mar
+  const saia = { E: 35 + hash(i, j, 40) * 30 + tam * 0.1, f: hash(i, j, 41) * 6.3, g: hash(i, j, 42) * 6.3 };
+  solidos[0].saia = saia;
+  const geoSaia = geometriaSaia(ondas, sx, sz, saia);
+  grupo.add(new THREE.Mesh(geoSaia, matSaia));
+
+  // algas no fundo, em volta do pé da ilha (bem menos que o mato)
+  const nAlgas = 5 + Math.floor(hash(i, j, 800) * 9);
+  const algas = new THREE.InstancedMesh(geoAlga, matAlga, nAlgas);
+  for (let k = 0; k < nAlgas; k++) {
+    const a = hash(i, j, 801 + k) * Math.PI * 2;
+    const kk = contorno(a, ondas);
+    const longe = larguraDaSaia(saia, a) * (0.55 + hash(i, j, 830 + k) * 0.9);
+    const ax = Math.cos(a) * (kk * sx + longe), az = Math.sin(a) * (kk * sz + longe);
+    const chao = Math.max(alturaDoFundo(x + ax, z + az), alturaDaSaia(solidos[0], x + ax, z + az));
+    const h = 10 + hash(i, j, 860 + k) * 22, w = 2.5 + hash(i, j, 890 + k) * 2.5;
+    _m4a.compose(_pa.set(ax, chao - 0.8, az), _qa.setFromEuler(_ea.set(0, hash(i, j, 920 + k) * 6.3, 0)), _sa.set(w, h, w));
+    algas.setMatrixAt(k, _m4a);
+  }
+  algas.frustumCulled = false;
+  grupo.add(algas);
 
   // manchas no gramado: toda ilha tem pelo menos uma; as maiores chegam a 3.
   // Podem ficar em qualquer lugar, até encostar na borda: o centro fica no
@@ -748,7 +983,7 @@ function criarIlha(i, j) {
   grupo.add(tufos);
 
   cena.add(grupo);
-  return { grupo, geo, geosManchas, tufos, x, z, solidos, copas };
+  return { grupo, geo, geosManchas, tufos, geoSaia, algas, x, z, solidos, copas };
 }
 
 // esse ponto (com essa folga) fica em cima de alguma rocha?
@@ -788,6 +1023,8 @@ function atualizarIlhas() {
       ilha.geo.dispose();
       ilha.geosManchas.forEach(g => g.dispose());
       ilha.tufos.dispose();
+      ilha.geoSaia.dispose();
+      ilha.algas.dispose();
     }
     ilhas.delete(k);
   }
@@ -932,6 +1169,7 @@ function colidir(s) {
   const p = camera.position;
   const olhos = AJUSTE.alturaOlhos;
   if (p.y >= s.h + olhos) return;
+  if (p.y < s.base) return; // embaixo do sólido (debaixo d'água): a encosta cuida disso
   // traz a posição pro "jeito" do sólido (desfaz o giro dele)
   const dx = p.x - s.x, dz = p.z - s.z;
   const c = Math.cos(s.giro), sn = Math.sin(s.giro);
@@ -968,7 +1206,7 @@ function colidir(s) {
 // O mundo só existe perto de você, então cada esfera distante "pousa" na
 // ilha grande mais perto do ponto dela quando você chega a ~1600 de lá;
 // até isso, o radar já aponta pro ponto.
-// Você esbarra, ela rola; se cair no mar, afunda e volta pro lugar dela.
+// Você esbarra, ela rola; se cair no mar, afunda devagar e rola pelo fundo.
 // Chegando perto, aparece o botão direito do mouse: clicou, capturou.
 // Tamanho: um pouco maior que uma cabeça (~30 cm na sensação).
 // ---------------------------------------------------------------------
@@ -978,6 +1216,8 @@ const GRAVIDADE = 170;     // ≈ 9,8 m/s² na escala sentida
 const DIST_POUSO = 1600;   // a essa distância do ponto, a esfera escolhe a ilha e aparece
 const DIST_CAPTURA = 24;   // perto assim (~1,4 m), dá pra capturar
 const esferas = [];        // uma por número de estrelas (1 a 7)
+const inicio = new THREE.Vector3(); // onde você começou (volta pra cá se o ar acabar)
+let yawInicio = 0;
 for (let n = 1; n <= 7; n++) {
   esferas.push({
     n,
@@ -1043,6 +1283,7 @@ function materialDaCasca() {
       float borda = pow( 1.0 - deFrente, 1.4 );
       outgoingLight = mix( outgoingLight * 1.08 + vec3( 0.30, 0.17, 0.02 ) * deFrente * deFrente,
                            outgoingLight * 0.6, borda );
+      diffuseColor.a *= 1.0 - 0.3 * borda * borda; // bordinha levemente transparente
       #include <opaque_fragment>
     `);
   };
@@ -1106,6 +1347,8 @@ function criarEsferas() {
   const angVoce = lugar.ang + (Math.random() - 0.5) * 2;
   const longe = 200 + Math.random() * 300;
   camera.position.set(quatro.pos.x + Math.cos(angVoce) * longe, 40, quatro.pos.z + Math.sin(angVoce) * longe);
+  inicio.copy(camera.position);
+  yawInicio = yaw;
   atualizarIlhas(); // carrega o mundo em volta do novo começo
 }
 
@@ -1152,7 +1395,7 @@ function atualizarUmaEsfera(e, dt) {
   _n.subVectors(p, camera.position);
   const dist = _n.length();
   const min = R_ESFERA + RAIO_CORPO;
-  if (dist < min && !e.afundando) {
+  if (dist < min) {
     _n.divideScalar(dist || 1);
     camera.position.copy(p).addScaledVector(_n, -min);
     const aproxima = vel.dot(_n) - v.dot(_n); // quão rápido você vinha na direção dela
@@ -1165,22 +1408,27 @@ function atualizarUmaEsfera(e, dt) {
   const s = e.ilha.solidos[0];
   const sobreIlha = emCimaDaIlha(e, p.x, p.z);
 
-  if (e.afundando) {
-    // na água: freia, desce devagar e vai sumindo...
-    v.x *= Math.exp(-2.5 * dt);
-    v.z *= Math.exp(-2.5 * dt);
-    v.y = suavizar(v.y, -3, 3, dt);
+  const naAgua = p.y < 0;
+  if (naAgua && !e.naAgua) v.multiplyScalar(AGUA.choque); // tchibum: perde o embalo
+  e.naAgua = naAgua;
+  if (naAgua) {
+    // debaixo d'água: afunda devagar (a água segura) e tudo freia ("nerfado")
+    const gAgua = GRAVIDADE * AGUA.gravidadeEsfera;
+    v.y -= gAgua * dt;
+    v.multiplyScalar(Math.exp(-AGUA.arrastoEsfera * dt));
     p.addScaledVector(v, dt);
-    const fundo = Math.min(1, Math.max(0, -p.y / (R_ESFERA * 3)));
-    e.casca.material.opacity = 1 - fundo;
-    e.estrelas.material.opacity = 1 - fundo;
-    if (fundo >= 1) {
-      // ...e volta pro lugar dela na ilha
-      p.copy(e.origem);
-      v.set(0, 0, 0);
-      e.afundando = false;
-      e.casca.material.opacity = 1;
-      e.estrelas.material.opacity = 1;
+    const chao = chaoDoMar(p.x, p.z);
+    if (p.y - R_ESFERA <= chao) {
+      p.y = chao + R_ESFERA;
+      if (v.y < 0) v.y = 0;
+      // chão inclinado (encosta da ilha, montinho): rola morro abaixo
+      const d = 1.5;
+      const gx = (chaoDoMar(p.x + d, p.z) - chaoDoMar(p.x - d, p.z)) / (2 * d);
+      const gz = (chaoDoMar(p.x, p.z + d) - chaoDoMar(p.x, p.z - d)) / (2 * d);
+      v.x -= Math.max(-3, Math.min(3, gx)) * gAgua * dt;
+      v.z -= Math.max(-3, Math.min(3, gz)) * gAgua * dt;
+      v.x *= Math.exp(-1.2 * dt);
+      v.z *= Math.exp(-1.2 * dt);
     }
   } else {
     v.y -= GRAVIDADE * dt;
@@ -1193,8 +1441,6 @@ function atualizarUmaEsfera(e, dt) {
       v.x *= Math.exp(-0.7 * dt);
       v.z *= Math.exp(-0.7 * dt);
       if (Math.hypot(v.x, v.z) < 0.05) { v.x = 0; v.z = 0; }
-    } else if (!sobreIlha && p.y - R_ESFERA <= 0) {
-      e.afundando = true; // tchibum
     }
 
     // bate nos troncos das árvores (só a esfera: você atravessa, pra não enroscar voando)
@@ -1267,6 +1513,7 @@ function capturar() {
   iconeCaptura.classList.remove('visivel');
   const casa = caixaEsferas.querySelector(`[data-n="${e.n}"]`);
   if (casa) casa.classList.add('pegou');
+  if (esferas.every(x => x.capturada)) escurecerCeu();
 }
 document.addEventListener('mousedown', ev => { if (ev.button === 2) capturar(); });
 iconeCaptura.addEventListener('click', capturar); // no celular / sem mouse: toca no ícone
@@ -1278,7 +1525,7 @@ function atualizarEsfera(dt) {
     if (e.capturada && e.sumindo <= 0) continue;
     if (!e.casca) { tentarPousar(e); continue; }
     atualizarUmaEsfera(e, dt);
-    if (e.capturada || e.afundando) continue;
+    if (e.capturada) continue;
     const d = camera.position.distanceTo(e.pos);
     if (d < maisPerto) { maisPerto = d; capturavel = e; }
   }
@@ -1327,26 +1574,33 @@ function atualizar(dt) {
   desejo.y += u;
   if (desejo.lengthSq() > 1) desejo.normalize();
 
+  // debaixo d'água tudo fica "nerfado": empurra menos, freia mais, dash fraquinho
+  const nerf = submerso ? AGUA.nerf : 1;
   const dashLigado = segurando('dash');
-  const fator = dashLigado ? AJUSTE.dash : 1;
-  vel.addScaledVector(desejo, AJUSTE.acel * fator * dt);
-  // arranque: o dash engata quase na hora, em vez de esperar a inércia
-  if (dashLigado && vel.length() < AJUSTE.velMax * fator * 0.95) {
+  const fator = dashLigado ? (submerso ? AGUA.dash : AJUSTE.dash) : 1;
+  vel.addScaledVector(desejo, AJUSTE.acel * fator * nerf * dt);
+  // arranque: o dash engata quase na hora, em vez de esperar a inércia (só fora d'água)
+  if (dashLigado && !submerso && vel.length() < AJUSTE.velMax * fator * 0.95) {
     vel.addScaledVector(desejo, AJUSTE.arranqueDash * dt);
   }
-  vel.multiplyScalar(Math.exp(-AJUSTE.arrasto * dt)); // inércia
+  vel.multiplyScalar(Math.exp(-AJUSTE.arrasto * (submerso ? AGUA.arrasto : 1) * dt)); // inércia
   // passou do limite (ex.: soltou o Shift): desacelera suave em vez de frear seco
-  const limite = AJUSTE.velMax * fator;
+  const limite = AJUSTE.velMax * fator * nerf;
   const v = vel.length();
   if (v > limite) vel.setLength(suavizar(v, limite, 2.5, dt));
 
   camera.position.addScaledVector(vel, dt);
 
-  // não afundar na água
-  if (camera.position.y < AJUSTE.alturaOlhos) {
-    camera.position.y = AJUSTE.alturaOlhos;
+  // dá pra mergulhar: o chão é o fundo do mar ou a encosta submersa de uma ilha
+  const chaoAqui = chaoDoMar(camera.position.x, camera.position.z) + AJUSTE.alturaOlhos;
+  if (camera.position.y < chaoAqui) {
+    camera.position.y = chaoAqui;
     if (vel.y < 0) vel.y = 0;
   }
+  // entrou na água: choque de mudança de meio, perde quase todo o embalo
+  const agoraSubmerso = camera.position.y < 0;
+  if (agoraSubmerso && !submerso) vel.multiplyScalar(AGUA.choque);
+  submerso = agoraSubmerso;
 
   // não atravessar ilhas e rochas
   for (const ilha of ilhasPerto()) {
@@ -1967,7 +2221,7 @@ function atualizarEspirro(dt) {
 
   // força alvo: só com o dash, rente, sobre a água; mais rápido/mais colado = mais forte
   let alvo = 0;
-  if (segurando('dash') && c.y <= ESPIRRO.alturaMax && rapidez > ESPIRRO.velMin && !sobreIlha(c.x, c.z)) {
+  if (segurando('dash') && c.y > 0 && c.y <= ESPIRRO.alturaMax && rapidez > ESPIRRO.velMin && !sobreIlha(c.x, c.z)) {
     const rente = 1 - (c.y - AJUSTE.alturaOlhos) / (ESPIRRO.alturaMax - AJUSTE.alturaOlhos);
     alvo = Math.max(0.35, Math.min(1, rente)) * Math.min(rapidez / (AJUSTE.velMax * 1.5), 1);
   }
@@ -2010,6 +2264,219 @@ function atualizarEspirro(dt) {
 }
 
 // ---------------------------------------------------------------------
+// Debaixo d'água: tudo se matiza de verde, aparecem bolhinhas na frente
+// da tela (mais quanto mais rápido você vai), o movimento fica "nerfado"
+// e uma barra de ar azul vai diminuindo. Acabou o ar: você volta pro
+// ponto de partida e perde todas as esferas.
+// ---------------------------------------------------------------------
+const AGUA = {
+  nerf: 0.55,            // força e velocidade máxima debaixo d'água (× normal)
+  dash: 1.35,            // o dash debaixo d'água (fora d'água é 2)
+  arrasto: 1.5,          // a água freia mais (× normal)
+  choque: 0.3,           // ao entrar na água, sobra só isso do embalo
+  ar: 25,                // segundos de fôlego
+  gravidadeEsfera: 0.22, // esfera afunda devagar
+  arrastoEsfera: 2.0,
+};
+let submerso = false;
+let ar = AGUA.ar;
+const corNeblinaAgua = new THREE.Color('#1f7a64');
+const corNeblinaNormal = new THREE.Color(CORES.horizonte);
+const corNeblinaEscura = new THREE.Color('#1e4a3c');
+
+const telaDebaixo = document.getElementById('debaixo');
+const barraAr = document.getElementById('ar');
+const nivelAr = document.getElementById('arNivel');
+const apagao = document.getElementById('apagao');
+
+// ---------- bolhas: anéis subindo e balançando na frente da tela ----------
+const telaBolhas = document.getElementById('bolhas');
+const bctx = telaBolhas.getContext('2d');
+let bolhas = [], acumBolhas = 0;
+function atualizarBolhas(dt) {
+  const W = window.innerWidth, H = window.innerHeight;
+  if (telaBolhas.width !== W || telaBolhas.height !== H) { telaBolhas.width = W; telaBolhas.height = H; }
+  if (submerso) {
+    // parado: quase nada; nadando: algumas; dash: bastante
+    const r = Math.min(vel.length() / AJUSTE.velMax, 1.5);
+    acumBolhas += (0.12 + 9 * Math.pow(r, 1.6)) * dt;
+    while (acumBolhas >= 1) {
+      acumBolhas -= 1;
+      bolhas.push({
+        x: W * (0.1 + Math.random() * 0.8), y: H * (0.75 + Math.random() * 0.3),
+        r: 2 + Math.random() * 6, sobe: 60 + Math.random() * 90, fase: Math.random() * 6.3, t: 0,
+      });
+    }
+  } else {
+    acumBolhas = 0;
+    bolhas.length = 0;
+  }
+  bctx.clearRect(0, 0, W, H);
+  bolhas = bolhas.filter(b => b.y > -20);
+  for (const b of bolhas) {
+    b.t += dt;
+    b.y -= b.sobe * dt;
+    b.x += Math.sin(b.t * 3 + b.fase) * 18 * dt;
+    b.r += dt * 0.6;
+    bctx.strokeStyle = 'rgba(235, 255, 245, 0.75)';
+    bctx.lineWidth = 1.5;
+    bctx.beginPath();
+    bctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    bctx.stroke();
+    bctx.fillStyle = 'rgba(255, 255, 255, 0.6)'; // brilhinho
+    bctx.beginPath();
+    bctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.22, 0, Math.PI * 2);
+    bctx.fill();
+  }
+}
+
+// acabou o ar: volta pro começo e perde as esferas
+function afogar() {
+  camera.position.copy(inicio);
+  vel.set(0, 0, 0);
+  yaw = yawInicio;
+  pitch = 0;
+  ar = AGUA.ar;
+  submerso = false;
+  apagao.classList.remove('some');
+  void apagao.offsetWidth; // reinicia a animação
+  apagao.classList.add('some');
+  for (const e of esferas) {
+    if (!e.capturada) continue;
+    e.capturada = false;
+    e.sumindo = 0;
+    e.naAgua = false;
+    e.pos.copy(e.origem);
+    e.vel.set(0, 0, 0);
+    e.casca.scale.setScalar(1);
+    e.estrelas.scale.set(R_ESFERA * 1.5, R_ESFERA * 1.5, 1);
+    e.casca.position.copy(e.pos);
+    e.estrelas.position.copy(e.pos);
+    cena.add(e.casca, e.estrelas);
+    const casa = caixaEsferas.querySelector(`[data-n="${e.n}"]`);
+    if (casa) casa.classList.remove('pegou');
+  }
+  escuroAlvo = 0;
+  atualizarIlhas();
+}
+
+// ---------- céu escuro + raios quando junta as 7 ----------
+let escuroAlvo = 0;
+let proximoRaio = 0, clarao = 0;
+const telaRaios = document.getElementById('raios');
+const rcx = telaRaios.getContext('2d');
+const telaClarao = document.getElementById('clarao');
+let raios = [];
+const corNuvemTopo = matNuvemTopo.color.clone(), corNuvemBase = matNuvemBase.color.clone();
+const corNuvemEscura = new THREE.Color('#3e5e55'), corNuvemBaseEscura = new THREE.Color('#2a483f');
+
+function escurecerCeu() {
+  escuroAlvo = 1;
+  clarao = 0.9;
+  soltarRaio(); soltarRaio();
+  proximoRaio = 0.2;
+}
+// um raio: zigue-zague de cima até o meio da tela, com um galho
+function soltarRaio() {
+  const W = window.innerWidth, H = window.innerHeight;
+  const fazer = (x, y, ate, larg) => {
+    const pts = [[x, y]];
+    while (y < ate) {
+      y += 14 + Math.random() * 30;
+      x += (Math.random() - 0.5) * 50;
+      pts.push([x, y]);
+    }
+    return { pts, larg };
+  };
+  const tronco = fazer(W * (0.1 + Math.random() * 0.8), -10, H * (0.3 + Math.random() * 0.35), 1);
+  const lista = [tronco];
+  const k = 2 + Math.floor(Math.random() * (tronco.pts.length - 3));
+  if (tronco.pts[k]) {
+    const [gx, gy] = tronco.pts[k];
+    lista.push(fazer(gx, gy, gy + H * (0.08 + Math.random() * 0.12), 0.6));
+  }
+  raios.push({ lista, vida: 0.22, dura: 0.22 });
+  clarao = Math.max(clarao, 0.3 + Math.random() * 0.3);
+}
+function atualizarRaios(dt) {
+  const W = window.innerWidth, H = window.innerHeight;
+  if (telaRaios.width !== W || telaRaios.height !== H) { telaRaios.width = W; telaRaios.height = H; }
+  const transicao = escuroAlvo > 0 && uniEscuro.value < 0.98;
+  if (escuroAlvo > 0) {
+    proximoRaio -= dt;
+    if (proximoRaio <= 0) {
+      soltarRaio();
+      // durante a transição, um atrás do outro; depois, de vez em quando, lá longe
+      proximoRaio = transicao ? 0.15 + Math.random() * 0.4 : 5 + Math.random() * 8;
+    }
+  }
+  rcx.clearRect(0, 0, W, H);
+  raios = raios.filter(r => (r.vida -= dt) > 0);
+  for (const r of raios) {
+    const a = (r.vida / r.dura) * (0.6 + 0.4 * Math.random()); // pisca
+    for (const { pts, larg } of r.lista) {
+      for (const [cor, lw] of [[`rgba(190, 255, 215, ${a * 0.35})`, 8 * larg], [`rgba(255, 255, 255, ${a})`, 2.4 * larg]]) {
+        rcx.strokeStyle = cor;
+        rcx.lineWidth = lw;
+        rcx.lineJoin = 'round';
+        rcx.beginPath();
+        pts.forEach(([x, y], n) => (n ? rcx.lineTo(x, y) : rcx.moveTo(x, y)));
+        rcx.stroke();
+      }
+    }
+  }
+  clarao *= Math.exp(-6 * dt);
+  telaClarao.style.opacity = clarao.toFixed(3);
+}
+
+const _corNeblina = new THREE.Color();
+function atualizarDebaixoDagua(dt) {
+  if (!(dt > 0)) return;
+  // céu escurecendo (ou clareando de volta) aos poucos
+  uniEscuro.value = suavizar(uniEscuro.value, escuroAlvo, 0.9, dt);
+  if (Math.abs(uniEscuro.value - escuroAlvo) < 0.002) uniEscuro.value = escuroAlvo;
+  const esc = uniEscuro.value;
+  hemi.intensity = 2.2 * (1 - 0.62 * esc);
+  sol.intensity = 1.6 * (1 - 0.72 * esc);
+  matNuvemTopo.color.copy(corNuvemTopo).lerp(corNuvemEscura, esc);
+  matNuvemBase.color.copy(corNuvemBase).lerp(corNuvemBaseEscura, esc);
+  atualizarRaios(dt);
+
+  // o chão do fundo do mar e as algas acompanham
+  fundoDoMar.position.x = Math.round(camera.position.x / PASSO_FUNDO) * PASSO_FUNDO;
+  fundoDoMar.position.z = Math.round(camera.position.z / PASSO_FUNDO) * PASSO_FUNDO;
+  tempoAlga.value += dt;
+
+  // debaixo d'água: neblina verde fechada, sem céu, sem turvo
+  if (submerso) {
+    cena.fog.color.copy(corNeblinaAgua);
+    cena.fog.near = 2;
+    cena.fog.far = 240;
+    cena.background = corNeblinaAgua;
+  } else {
+    cena.fog.color.copy(_corNeblina.copy(corNeblinaNormal).lerp(corNeblinaEscura, esc));
+    cena.fog.near = AJUSTE.neblinaPerto;
+    cena.fog.far = AJUSTE.neblinaLonge;
+    cena.background = null;
+  }
+  turvo.value = submerso ? 0 : 1;
+  ceu.visible = !submerso;
+  ceuDasNuvens.visible = !submerso;
+  for (const sat of satelites) sat.sprite.visible = !submerso;
+  telaDebaixo.classList.toggle('ligada', submerso);
+
+  // fôlego
+  if (submerso) ar -= dt;
+  else ar = Math.min(AGUA.ar, ar + dt * 8);
+  barraAr.classList.toggle('visivel', submerso || ar < AGUA.ar - 0.05);
+  nivelAr.style.width = (Math.max(0, ar) / AGUA.ar * 100).toFixed(1) + '%';
+  barraAr.classList.toggle('pouco', ar < AGUA.ar * 0.2);
+  if (ar <= 0) afogar();
+
+  atualizarBolhas(dt);
+}
+
+// ---------------------------------------------------------------------
 // Laço principal
 // ---------------------------------------------------------------------
 let antes = performance.now();
@@ -2018,6 +2485,7 @@ function quadro(agora) {
   antes = agora;
   atualizar(dt);
   atualizarEspirro(dt);
+  atualizarDebaixoDagua(dt);
   animarAgua(agora / 1000);
   renderer.render(cena, camera);
   desenharRadar(agora / 1000);
@@ -2035,6 +2503,6 @@ jatos.visible = false;
 requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
-window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar,
-  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
+window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar, chaoDoMar, escurecerCeu, get ar() { return ar; }, set ar(v) { ar = v; },
+  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
 })();

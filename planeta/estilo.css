@@ -29,6 +29,65 @@ html, body {
   pointer-events: none;
 }
 
+/* ---------- debaixo d'água ---------- */
+.debaixo {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 20%, rgba(90, 200, 160, 0.18), rgba(20, 110, 90, 0.42));
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.debaixo.ligada { opacity: 1; }
+.bolhas, .raios {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+.clarao {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(225, 255, 235, 1);
+  opacity: 0;
+}
+.ar {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  width: min(36vw, 360px);
+  height: 12px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 2px 8px rgba(10, 60, 50, 0.3);
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.ar.visivel { opacity: 1; }
+.ar-nivel {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(#7fd0ff, #2f8fe0);
+}
+.ar.pouco .ar-nivel { animation: piscarAr 0.5s ease-in-out infinite alternate; }
+@keyframes piscarAr { to { opacity: 0.45; } }
+.apagao {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: #0b2b25;
+  opacity: 0;
+}
+.apagao.some { animation: apagar 1.6s ease-out; }
+@keyframes apagar { 0% { opacity: 1; } 35% { opacity: 1; } 100% { opacity: 0; } }
+
 /* pontinho no centro: pra onde você vai quando aperta W */
 .mira {
   position: fixed;

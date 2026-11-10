@@ -11,6 +11,20 @@
   <!-- risquinhos de velocidade (estilo anime) quando dá dash -->
   <canvas id="riscos" class="riscos" aria-hidden="true"></canvas>
 
+  <!-- debaixo d'água: tudo puxado pro verde, e bolhinhas na frente -->
+  <div class="debaixo" id="debaixo" aria-hidden="true"></div>
+  <canvas class="bolhas" id="bolhas" aria-hidden="true"></canvas>
+
+  <!-- céu escuro (as 7 esferas): raios e clarão -->
+  <canvas class="raios" id="raios" aria-hidden="true"></canvas>
+  <div class="clarao" id="clarao" aria-hidden="true"></div>
+
+  <!-- fôlego debaixo d'água: a barra azul vai diminuindo -->
+  <div class="ar" id="ar" aria-label="fôlego"><div class="ar-nivel" id="arNivel"></div></div>
+
+  <!-- acabou o ar: escurece e volta pro começo -->
+  <div class="apagao" id="apagao" aria-hidden="true"></div>
+
   <div class="mira"></div>
 
   <div class="creditos">© Jesiel Ternero</div>
