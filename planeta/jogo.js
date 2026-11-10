@@ -1437,35 +1437,178 @@ function animarAgua(tempo) {
 }
 
 // ---------------------------------------------------------------------
-// Espirro: voando rente ao mar (1 m ou menos), a água abre pros lados
-// em espuma branca, tipo  \\\ você ///  — pouco, não abre o mar.
-// Cada gotinha nasce na água um pouco à frente, é jogada pra fora, pra
-// cima e pra trás, cai com a gravidade e some.
+// Espirro: com o dash (Shift), rente ao mar (1 m ou menos), a água abre
+// pros lados como dois jatos de mangueira:  \\\ você ///
+// - JATOS: fitas curvas (3 de cada lado) com riscos brancos correndo
+//   por elas. Nascem estreitas e cheias, vão abrindo e se desmanchando.
+//   A fita sempre vira de frente pra câmera, então parece ter volume.
+// - NÉVOA: puffs grandes e bem transparentes que nascem no pé e ao longo
+//   dos jatos e ficam boiando pra trás (a espuma na base, o vapor em volta).
+// "Spawn" = o ponto na água onde cada jato nasce.
 // ---------------------------------------------------------------------
 const ESPIRRO = {
-  alturaMax: 1 * ESCALA_SENTIDA, // começa a espirrar a 1 m da água
-  velMin: 25,                    // parado ou devagar não espirra
-  porSegundo: 1100,              // gotinhas por segundo, no máximo
-  max: 2200,
-  gravidade: 70,
+  alturaMax: 1 * ESCALA_SENTIDA, // só espirra a 1 m da água ou menos
+  velMin: 25,                    // devagar não espirra
+  spawnFrente: 55,               // spawn: quanto à frente de você...
+  spawnLado: 30,                 // ...e quanto pro lado (bem longe do centro)
+  alturaJato: 28,                // altura do arco (~1,6 m na sua régua)
+  aberturaJato: 45,              // quanto o jato anda pra fora até cair
+  recuoJato: 95,                 // quanto ele vai pra trás até cair
+  nevoaPorSegundo: 110,
+  maxNevoa: 600,
 };
-const espirro = {
-  pos: new Float32Array(ESPIRRO.max * 3),
-  vel: new Float32Array(ESPIRRO.max * 3),
-  vida: new Float32Array(ESPIRRO.max),  // segundos que ainda faltam (0 = livre)
-  dura: new Float32Array(ESPIRRO.max),
-  tam: new Float32Array(ESPIRRO.max),
-  alfa: new Float32Array(ESPIRRO.max),
+let forcaEspirro = 0;            // 0 a 1: sobe e desce suave (não liga/desliga seco)
+const _rumo = new THREE.Vector3(0, 0, -1); // pra onde você está indo (no plano)
+const _lado = new THREE.Vector3();
+
+function sobreIlha(x, z) {
+  for (const ilha of ilhasPerto()) {
+    const s = ilha.solidos[0];
+    const lx = (x - s.x) / s.rx, lz = (z - s.z) / s.rz;
+    if (Math.hypot(lx, lz) < contorno(Math.atan2(lz, lx), s.ondas) * 1.06) return true;
+  }
+  return false;
+}
+
+// ---------- jatos ----------
+const SEG_JATO = 28; // pedaços ao longo de cada fita
+const FITAS = [      // lado, quanto abre, altura, largura, fase dos riscos
+  { lado: -1, ab: 1.0,  alt: 1.0,  larg: 1.0, fase: 0.0 },
+  { lado: -1, ab: 0.7,  alt: 0.75, larg: 0.8, fase: 3.1 },
+  { lado: -1, ab: 1.3,  alt: 0.6,  larg: 1.4, fase: 6.7 },
+  { lado:  1, ab: 1.0,  alt: 1.0,  larg: 1.0, fase: 1.7 },
+  { lado:  1, ab: 0.7,  alt: 0.75, larg: 0.8, fase: 4.9 },
+  { lado:  1, ab: 1.3,  alt: 0.6,  larg: 1.4, fase: 8.3 },
+];
+const geoJatos = new THREE.BufferGeometry();
+{
+  const porFita = (SEG_JATO + 1) * 2;
+  const uv = new Float32Array(FITAS.length * porFita * 2);
+  const fase = new Float32Array(FITAS.length * porFita);
+  const idx = [];
+  FITAS.forEach((f, k) => {
+    for (let i = 0; i <= SEG_JATO; i++) {
+      for (let j = 0; j < 2; j++) {
+        const v = k * porFita + i * 2 + j;
+        uv[v * 2] = i / SEG_JATO;
+        uv[v * 2 + 1] = j;
+        fase[v] = f.fase;
+      }
+      if (i < SEG_JATO) {
+        const a = k * porFita + i * 2;
+        idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+      }
+    }
+  });
+  geoJatos.setAttribute('position', new THREE.BufferAttribute(new Float32Array(FITAS.length * porFita * 3), 3));
+  geoJatos.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geoJatos.setAttribute('fase', new THREE.BufferAttribute(fase, 1));
+  geoJatos.setIndex(idx);
+}
+const uniJatos = { tempo: { value: 0 }, forca: { value: 0 } };
+const jatos = new THREE.Mesh(geoJatos, new THREE.ShaderMaterial({
+  uniforms: uniJatos,
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  vertexShader: `
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
+    attribute float fase;
+    varying vec2 vUv;
+    varying float vFase;
+    void main() {
+      vUv = uv;
+      vFase = fase;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+      #include <logdepthbuf_vertex>
+    }`,
+  fragmentShader: `
+    #include <logdepthbuf_pars_fragment>
+    uniform float tempo;
+    uniform float forca;
+    varying vec2 vUv;
+    varying float vFase;
+    float h( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+    float ruido( vec2 p ) {
+      vec2 i = floor( p ), f = fract( p );
+      f = f * f * ( 3.0 - 2.0 * f );
+      return mix( mix( h( i ), h( i + vec2( 1.0, 0.0 ) ), f.x ),
+                  mix( h( i + vec2( 0.0, 1.0 ) ), h( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
+    }
+    void main() {
+      #include <logdepthbuf_fragment>
+      float t = vUv.x;                          // 0 = spawn, 1 = onde cai
+      float s = abs( vUv.y - 0.5 ) * 2.0;       // 0 = meio do jato, 1 = borda
+      // riscos compridos correndo ao longo do jato
+      vec2 p = vec2( t * 6.0 - tempo * 2.8 + vFase, vUv.y * 7.0 + vFase );
+      float riscos = ruido( vec2( p.x, p.y * 2.5 ) ) * 0.6 + ruido( p * 2.7 ) * 0.4;
+      // cheio no meio, macio na borda; perto do fim a borda esfiapa
+      float borda = 1.0 - smoothstep( 0.2 + 0.35 * ( 1.0 - t ), 1.0, s + ( riscos - 0.5 ) * 0.6 * t );
+      // sai da água e se desmancha em névoa no fim
+      float vida = smoothstep( 0.0, 0.07, t ) * ( 1.0 - smoothstep( 0.4, 1.0, t + ( riscos - 0.5 ) * 0.45 ) );
+      float a = borda * vida * ( 0.3 + 0.7 * riscos ) * forca * 0.85;
+      if ( a < 0.01 ) discard;
+      gl_FragColor = vec4( 0.97, 1.0, 0.97, a );
+    }`,
+}));
+jatos.frustumCulled = false;
+jatos.renderOrder = 1;
+jatos.visible = false;
+cena.add(jatos);
+
+// ponto do jato no instante t (0 = spawn, 1 = onde cai)
+function pontoDoJato(f, t, alvo) {
+  const c = camera.position;
+  const lateral = f.lado * (ESPIRRO.spawnLado + ESPIRRO.aberturaJato * f.ab * t);
+  const frente = ESPIRRO.spawnFrente - ESPIRRO.recuoJato * t;
+  const cima = ESPIRRO.alturaJato * f.alt * forcaEspirro * 4 * t * (1 - t);
+  return alvo.set(c.x, 0, c.z).addScaledVector(_rumo, frente).addScaledVector(_lado, lateral).setY(cima);
+}
+
+const _pts = Array.from({ length: SEG_JATO + 1 }, () => new THREE.Vector3());
+const _tg = new THREE.Vector3(), _praCam = new THREE.Vector3(), _larg = new THREE.Vector3();
+function montarJatos() {
+  const pos = geoJatos.attributes.position.array;
+  const porFita = (SEG_JATO + 1) * 2;
+  FITAS.forEach((f, k) => {
+    for (let i = 0; i <= SEG_JATO; i++) pontoDoJato(f, i / SEG_JATO, _pts[i]);
+    for (let i = 0; i <= SEG_JATO; i++) {
+      const t = i / SEG_JATO;
+      _tg.subVectors(_pts[Math.min(i + 1, SEG_JATO)], _pts[Math.max(i - 1, 0)]);
+      _praCam.subVectors(camera.position, _pts[i]);
+      _larg.crossVectors(_tg, _praCam).normalize(); // de lado pra quem olha: a fita vira pra câmera
+      const meia = (2 + 11 * t) * f.larg * (0.5 + 0.5 * forcaEspirro) / 2;
+      const v = (k * porFita + i * 2) * 3;
+      pos[v]     = _pts[i].x - _larg.x * meia;
+      pos[v + 1] = _pts[i].y - _larg.y * meia;
+      pos[v + 2] = _pts[i].z - _larg.z * meia;
+      pos[v + 3] = _pts[i].x + _larg.x * meia;
+      pos[v + 4] = _pts[i].y + _larg.y * meia;
+      pos[v + 5] = _pts[i].z + _larg.z * meia;
+    }
+  });
+  geoJatos.attributes.position.needsUpdate = true;
+}
+
+// ---------- névoa ----------
+const nevoa = {
+  pos: new Float32Array(ESPIRRO.maxNevoa * 3),
+  vel: new Float32Array(ESPIRRO.maxNevoa * 3),
+  vida: new Float32Array(ESPIRRO.maxNevoa),
+  dura: new Float32Array(ESPIRRO.maxNevoa),
+  tam: new Float32Array(ESPIRRO.maxNevoa),
+  alfa: new Float32Array(ESPIRRO.maxNevoa),
   proxima: 0,
   acumulado: 0,
 };
-const geoEspirro = new THREE.BufferGeometry();
-geoEspirro.setAttribute('position', new THREE.BufferAttribute(espirro.pos, 3));
-geoEspirro.setAttribute('tam', new THREE.BufferAttribute(espirro.tam, 1));
-geoEspirro.setAttribute('alfa', new THREE.BufferAttribute(espirro.alfa, 1));
-const uniEspirro = { escala: { value: 1 } };
-const pontosEspirro = new THREE.Points(geoEspirro, new THREE.ShaderMaterial({
-  uniforms: uniEspirro,
+const geoNevoa = new THREE.BufferGeometry();
+geoNevoa.setAttribute('position', new THREE.BufferAttribute(nevoa.pos, 3));
+geoNevoa.setAttribute('tam', new THREE.BufferAttribute(nevoa.tam, 1));
+geoNevoa.setAttribute('alfa', new THREE.BufferAttribute(nevoa.alfa, 1));
+const uniNevoa = { escala: { value: 1 } };
+const pontosNevoa = new THREE.Points(geoNevoa, new THREE.ShaderMaterial({
+  uniforms: uniNevoa,
   transparent: true,
   depthWrite: false,
   vertexShader: `
@@ -1479,7 +1622,7 @@ const pontosEspirro = new THREE.Points(geoEspirro, new THREE.ShaderMaterial({
       vAlfa = alfa;
       vec4 mv = modelViewMatrix * vec4( position, 1.0 );
       gl_Position = projectionMatrix * mv;
-      gl_PointSize = alfa > 0.0 ? min( tam * escala / -mv.z, 22.0 ) : 0.0;
+      gl_PointSize = alfa > 0.0 ? min( tam * escala / -mv.z, 220.0 ) : 0.0;
       #include <logdepthbuf_vertex>
     }`,
   fragmentShader: `
@@ -1487,93 +1630,85 @@ const pontosEspirro = new THREE.Points(geoEspirro, new THREE.ShaderMaterial({
     varying float vAlfa;
     void main() {
       #include <logdepthbuf_fragment>
-      // bolinha macia: cheia no meio, some na borda
       float d = length( gl_PointCoord - 0.5 ) * 2.0;
-      float a = ( 1.0 - smoothstep( 0.55, 1.0, d ) ) * vAlfa;
-      if ( a < 0.01 ) discard;
-      gl_FragColor = vec4( 0.97, 1.0, 0.97, a );
+      float a = exp( -d * d * 3.5 ) * ( 1.0 - smoothstep( 0.8, 1.0, d ) ) * vAlfa;
+      if ( a < 0.005 ) discard;
+      gl_FragColor = vec4( 0.96, 1.0, 0.96, a );
     }`,
 }));
-pontosEspirro.frustumCulled = false;
-pontosEspirro.renderOrder = 1;
-cena.add(pontosEspirro);
+pontosNevoa.frustumCulled = false;
+pontosNevoa.renderOrder = 1;
+cena.add(pontosNevoa);
 
-function sobreIlha(x, z) {
-  for (const ilha of ilhasPerto()) {
-    const s = ilha.solidos[0];
-    const lx = (x - s.x) / s.rx, lz = (z - s.z) / s.rz;
-    if (Math.hypot(lx, lz) < contorno(Math.atan2(lz, lx), s.ondas) * 1.06) return true;
-  }
-  return false;
-}
-
-const _horiz = new THREE.Vector3(), _lado = new THREE.Vector3();
-function soltarGota(lado, rapidez, forca) {
-  const i = espirro.proxima;
-  espirro.proxima = (i + 1) % ESPIRRO.max;
-  const c = camera.position;
-  // nasce na água, um pouco à frente (pra dar tempo de ver) e de lado
-  const frenteDist = 14 + Math.random() * 16;
-  const ladoDist = 11 + Math.random() * 7; // bem afastado do centro da tela
-  espirro.pos[i * 3]     = c.x + _horiz.x * frenteDist + _lado.x * ladoDist * lado;
-  espirro.pos[i * 3 + 1] = 0.3;
-  espirro.pos[i * 3 + 2] = c.z + _horiz.z * frenteDist + _lado.z * ladoDist * lado;
-  // jogada pra fora (o grosso), pra cima e um pouco pra trás de quem passa
-  const fora = (18 + Math.random() * 30) * (0.5 + forca * 0.6);
-  const cima = (10 + Math.random() * 22) * (0.4 + forca * 0.7);
-  const tras = rapidez * (0.15 + Math.random() * 0.3); // fica pra trás devagar, não some na hora
-  espirro.vel[i * 3]     = _lado.x * fora * lado + _horiz.x * (rapidez - tras);
-  espirro.vel[i * 3 + 1] = cima;
-  espirro.vel[i * 3 + 2] = _lado.z * fora * lado + _horiz.z * (rapidez - tras);
-  const dura = 0.5 + Math.random() * 0.6;
-  espirro.vida[i] = dura;
-  espirro.dura[i] = dura;
-  espirro.tam[i] = 0.5 + Math.random() * 0.8;
+const _pn = new THREE.Vector3();
+function soltarNevoa(rapidez) {
+  const i = nevoa.proxima;
+  nevoa.proxima = (i + 1) % ESPIRRO.maxNevoa;
+  const f = FITAS[Math.floor(Math.random() * FITAS.length)];
+  // a maioria no pé do jato (a espuma), o resto ao longo dele
+  const t = Math.random() < 0.55 ? Math.random() * 0.12 : Math.random() * 0.7;
+  pontoDoJato(f, t, _pn);
+  nevoa.pos[i * 3]     = _pn.x + (Math.random() - 0.5) * 6;
+  nevoa.pos[i * 3 + 1] = _pn.y + Math.random() * 2;
+  nevoa.pos[i * 3 + 2] = _pn.z + (Math.random() - 0.5) * 6;
+  // boia pra fora e pra cima; acompanha você só um pouco, então fica pra trás
+  const fora = 6 + Math.random() * 10;
+  nevoa.vel[i * 3]     = _lado.x * fora * f.lado + _rumo.x * rapidez * 0.35;
+  nevoa.vel[i * 3 + 1] = 3 + Math.random() * 6;
+  nevoa.vel[i * 3 + 2] = _lado.z * fora * f.lado + _rumo.z * rapidez * 0.35;
+  const dura = 0.8 + Math.random() * 0.9;
+  nevoa.vida[i] = dura;
+  nevoa.dura[i] = dura;
+  nevoa.tam[i] = 5 + Math.random() * 8;
 }
 
 function atualizarEspirro(dt) {
   if (!(dt > 0)) return;
-  // tamanho das gotinhas na tela acompanha o zoom (campo de visão)
-  uniEspirro.escala.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
-
-  // solta gotinhas novas?
   const c = camera.position;
-  _horiz.set(vel.x, 0, vel.z);
-  const rapidez = _horiz.length();
-  // só com o dash (Shift)
-  if (segurando('dash') && c.y <= ESPIRRO.alturaMax && rapidez > ESPIRRO.velMin && !sobreIlha(c.x, c.z)) {
-    _horiz.divideScalar(rapidez);
-    _lado.set(-_horiz.z, 0, _horiz.x);
-    const rente = 1 - (c.y - AJUSTE.alturaOlhos) / (ESPIRRO.alturaMax - AJUSTE.alturaOlhos); // 1 = colado
-    const forca = Math.max(0, Math.min(1, rente)) * Math.min(rapidez / AJUSTE.velMax, 1.6);
-    espirro.acumulado += ESPIRRO.porSegundo * forca * dt;
-    while (espirro.acumulado >= 1) {
-      espirro.acumulado -= 1;
-      soltarGota(Math.random() < 0.5 ? -1 : 1, rapidez, forca);
-    }
-  } else {
-    espirro.acumulado = 0;
-  }
+  const rapidez = Math.hypot(vel.x, vel.z);
+  if (rapidez > 1) _rumo.set(vel.x / rapidez, 0, vel.z / rapidez); // parado: mantém o último rumo
+  _lado.set(-_rumo.z, 0, _rumo.x);
 
-  // move, puxa pra baixo e apaga
-  for (let i = 0; i < ESPIRRO.max; i++) {
-    if (espirro.vida[i] <= 0) { espirro.alfa[i] = 0; continue; }
-    espirro.vida[i] -= dt;
-    espirro.vel[i * 3 + 1] -= ESPIRRO.gravidade * dt;
-    const amortece = Math.exp(-1.5 * dt); // o ar segura um pouco
-    espirro.vel[i * 3] *= amortece;
-    espirro.vel[i * 3 + 2] *= amortece;
-    espirro.pos[i * 3]     += espirro.vel[i * 3] * dt;
-    espirro.pos[i * 3 + 1] += espirro.vel[i * 3 + 1] * dt;
-    espirro.pos[i * 3 + 2] += espirro.vel[i * 3 + 2] * dt;
-    if (espirro.pos[i * 3 + 1] < 0 || espirro.vida[i] <= 0) { espirro.vida[i] = 0; espirro.alfa[i] = 0; continue; }
-    const t = espirro.vida[i] / espirro.dura[i]; // 1 = acabou de nascer, 0 = sumindo
-    espirro.alfa[i] = Math.min(1, t * 1.6) * 0.85;
-    espirro.tam[i] += dt * 0.8; // a espuma se abre enquanto voa
+  // força alvo: só com o dash, rente, sobre a água; mais rápido/mais colado = mais forte
+  let alvo = 0;
+  if (segurando('dash') && c.y <= ESPIRRO.alturaMax && rapidez > ESPIRRO.velMin && !sobreIlha(c.x, c.z)) {
+    const rente = 1 - (c.y - AJUSTE.alturaOlhos) / (ESPIRRO.alturaMax - AJUSTE.alturaOlhos);
+    alvo = Math.max(0.35, Math.min(1, rente)) * Math.min(rapidez / (AJUSTE.velMax * 1.5), 1);
   }
-  geoEspirro.attributes.position.needsUpdate = true;
-  geoEspirro.attributes.tam.needsUpdate = true;
-  geoEspirro.attributes.alfa.needsUpdate = true;
+  forcaEspirro = suavizar(forcaEspirro, alvo, alvo > forcaEspirro ? 6 : 3, dt);
+
+  // jatos
+  uniJatos.tempo.value += dt;
+  uniJatos.forca.value = forcaEspirro;
+  jatos.visible = forcaEspirro > 0.01;
+  if (jatos.visible) montarJatos();
+
+  // névoa: nasce enquanto tem força, e a que já nasceu termina a vida dela
+  uniNevoa.escala.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
+  if (forcaEspirro > 0.05) {
+    nevoa.acumulado += ESPIRRO.nevoaPorSegundo * forcaEspirro * dt;
+    while (nevoa.acumulado >= 1) { nevoa.acumulado -= 1; soltarNevoa(rapidez); }
+  } else {
+    nevoa.acumulado = 0;
+  }
+  for (let i = 0; i < ESPIRRO.maxNevoa; i++) {
+    if (nevoa.vida[i] <= 0) { nevoa.alfa[i] = 0; continue; }
+    nevoa.vida[i] -= dt;
+    if (nevoa.vida[i] <= 0) { nevoa.alfa[i] = 0; continue; }
+    const amortece = Math.exp(-1.2 * dt);
+    nevoa.vel[i * 3] *= amortece;
+    nevoa.vel[i * 3 + 2] *= amortece;
+    nevoa.vel[i * 3 + 1] -= 4 * dt;
+    nevoa.pos[i * 3]     += nevoa.vel[i * 3] * dt;
+    nevoa.pos[i * 3 + 1] = Math.max(0.5, nevoa.pos[i * 3 + 1] + nevoa.vel[i * 3 + 1] * dt);
+    nevoa.pos[i * 3 + 2] += nevoa.vel[i * 3 + 2] * dt;
+    const t = nevoa.vida[i] / nevoa.dura[i]; // 1 = nasceu agora, 0 = sumindo
+    nevoa.alfa[i] = Math.min(1, (1 - t) * 6) * t * 0.32; // acende rápido, apaga devagar
+    nevoa.tam[i] += dt * 7; // a névoa se espalha
+  }
+  geoNevoa.attributes.position.needsUpdate = true;
+  geoNevoa.attributes.tam.needsUpdate = true;
+  geoNevoa.attributes.alfa.needsUpdate = true;
 }
 
 // ---------------------------------------------------------------------
