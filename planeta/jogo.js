@@ -1438,30 +1438,37 @@ function animarAgua(tempo) {
 
 // ---------------------------------------------------------------------
 // Espirro: com o dash (Shift), rente ao mar (1 m ou menos), a água abre
-// pros lados como dois jatos de mangueira:  \\\ você ///
-// - JATOS: fitas curvas (3 de cada lado) com riscos brancos correndo
-//   por elas. Nascem estreitas e cheias, vão abrindo e se desmanchando.
-//   A fita sempre vira de frente pra câmera, então parece ter volume.
-// - NÉVOA: puffs grandes e bem transparentes que nascem no pé e ao longo
-//   dos jatos e ficam boiando pra trás (a espuma na base, o vapor em volta).
-// "Spawn" = o ponto na água onde cada jato nasce.
+// pros lados:  \\\ você ///
+//
+// Visto de lado, cada esguicho é um TRIÂNGULO preso no mar:
+//   - o lado curto fica na FRENTE, perto de você: é onde a água sobe e
+//     estoura em gotas e névoa. Ele é inclinado pra fora, então olhando
+//     reto ele vira uma diagonal de baixo (perto do centro) até a lateral;
+//   - o lado comprido fica deitado na superfície da água, indo pra trás
+//     (e um pouco pra fora). Como está sempre encostado no mar, não aparece
+//     corte de nenhum ângulo;
+//   - a altura vai baixando da frente pra trás até sumir (a hipotenusa).
+// São 3 paredes desse jeito de cada lado, cada uma inclinada pra fora num
+// ângulo diferente e um pouco curvada: juntas têm volume de qualquer ângulo.
+// Por cima, GOTAS saem do topo e da ponta de trás, e NÉVOA fica boiando.
+// Medidas em "alturas dos olhos" (h = sua altura sobre a água), pra ficar
+// igual na tela tanto colado no mar quanto a 1 m.
 // ---------------------------------------------------------------------
 const ESPIRRO = {
   alturaMax: 1 * ESCALA_SENTIDA, // só espirra a 1 m da água ou menos
   velMin: 25,                    // devagar não espirra
-  // Medidas em "alturas dos olhos" (h = sua altura sobre a água), pra o
-  // jato ficar igual na tela tanto colado na água quanto a 1 m.
-  spawnFrente: 1.15,             // spawn: à frente de você (× h)...
-  spawnLado: 0.9,                // ...e pro lado (× h): um em cada canto de baixo da tela
-  alturaJato: 1.4,               // até onde o jato sobe (× h): um pouco acima dos olhos
-  aberturaJato: 4,               // quanto anda pra fora (× h): sai pela lateral da tela
-  recuoJato: 1.1,                // quanto vem pra trás (× h)
+  pontaFrente: 1.5,              // spawn (pé do lado curto): à frente de você (× h)...
+  pontaLado: 1.3,                // ...e pro lado (× h): bem separados, embaixo na tela
+  comprimento: 3.5,              // quanto o lado comprido vai pra trás (× h)
+  abre: 1.2,                     // ...e quanto se afasta pro lado no caminho (× h)
+  altura: 1.6,                   // altura do lado curto, na frente (× h)
   nevoaPorSegundo: 35,
   maxNevoa: 300,
 };
 let forcaEspirro = 0;            // 0 a 1: sobe e desce suave (não liga/desliga seco)
 const _rumo = new THREE.Vector3(0, 0, -1); // pra onde você está indo (no plano)
 const _lado = new THREE.Vector3();
+const _cimaY = new THREE.Vector3(0, 1, 0);
 
 function sobreIlha(x, z) {
   for (const ilha of ilhasPerto()) {
@@ -1472,47 +1479,36 @@ function sobreIlha(x, z) {
   return false;
 }
 
-// ---------- jatos ----------
-const SEG_JATO = 28; // pedaços ao longo de cada fita
-// 8 fitas de cada lado, cada uma um pouco diferente (quanto abre, altura,
-// largura, onde nasce, fase dos riscos): juntas parecem um jato só, grosso.
-// As 3 últimas são baixas, quase deitadas na água, e nascem mais perto:
-// elas preenchem a parte de baixo dos cantos da tela.
-const FITAS = [];
+// ---------- paredes de água ----------
+const SEG_U = 26, SEG_V = 7; // pedaços ao longo (u: ponta -> trás) e pra cima (v: mar -> topo)
+const PAREDES = [];
 for (const lado of [-1, 1]) {
-  for (let k = 0; k < 8; k++) {
-    FITAS.push({
-      lado,
-      ab:   [0.55, 0.75, 0.95, 1.15, 1.35, 1.7, 1.5, 1.25][k],
-      alt:  [1.1, 0.8, 0.95, 0.6, 0.75, 0.15, 0.3, 0.45][k],
-      larg: [1.0, 1.3, 0.9, 1.5, 1.1, 1.9, 1.7, 1.5][k],
-      dFrente: [0, 1.5, -1, 2.5, -2, -3.5, -2.5, -3][k],
-      dLado:   [0, -1, 1.2, 0.5, -0.6, 0.8, -0.4, 1.5][k],
-      fase: k * 2.3 + (lado > 0 ? 11 : 0),
-    });
-  }
+  // [inclinação pra fora (graus), desvio pro lado (× h), altura relativa, fase]
+  [[25, 0.0, 1.15, 0.0], [40, 0.12, 0.95, 2.7], [55, 0.25, 0.8, 5.3]].forEach(([inc, dLado, alt, fase]) => {
+    PAREDES.push({ lado, inc: inc * Math.PI / 180, dLado, alt, fase: fase + (lado > 0 ? 9 : 0) });
+  });
 }
 const geoJatos = new THREE.BufferGeometry();
 {
-  const porFita = (SEG_JATO + 1) * 2;
-  const uv = new Float32Array(FITAS.length * porFita * 2);
-  const fase = new Float32Array(FITAS.length * porFita);
+  const porParede = (SEG_U + 1) * (SEG_V + 1);
+  const uv = new Float32Array(PAREDES.length * porParede * 2);
+  const fase = new Float32Array(PAREDES.length * porParede);
   const idx = [];
-  FITAS.forEach((f, k) => {
-    for (let i = 0; i <= SEG_JATO; i++) {
-      for (let j = 0; j < 2; j++) {
-        const v = k * porFita + i * 2 + j;
-        uv[v * 2] = i / SEG_JATO;
-        uv[v * 2 + 1] = j;
-        fase[v] = f.fase;
-      }
-      if (i < SEG_JATO) {
-        const a = k * porFita + i * 2;
-        idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  PAREDES.forEach((p, k) => {
+    for (let i = 0; i <= SEG_U; i++) {
+      for (let j = 0; j <= SEG_V; j++) {
+        const v = k * porParede + i * (SEG_V + 1) + j;
+        uv[v * 2] = i / SEG_U;
+        uv[v * 2 + 1] = j / SEG_V;
+        fase[v] = p.fase;
+        if (i < SEG_U && j < SEG_V) {
+          const a = v, b = v + 1, c = v + SEG_V + 1, d = c + 1;
+          idx.push(a, c, b, b, c, d);
+        }
       }
     }
   });
-  geoJatos.setAttribute('position', new THREE.BufferAttribute(new Float32Array(FITAS.length * porFita * 3), 3));
+  geoJatos.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PAREDES.length * porParede * 3), 3));
   geoJatos.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geoJatos.setAttribute('fase', new THREE.BufferAttribute(fase, 1));
   geoJatos.setIndex(idx);
@@ -1550,24 +1546,21 @@ const jatos = new THREE.Mesh(geoJatos, new THREE.ShaderMaterial({
     }
     void main() {
       #include <logdepthbuf_fragment>
-      float t = vUv.x;                          // 0 = spawn, 1 = onde cai
-      float s = abs( vUv.y - 0.5 ) * 2.0;       // 0 = meio do jato, 1 = borda
-      // riscos compridos correndo ao longo do jato
-      // riscos compridos e embolados correndo depressa pelo jato
-      // manchas emboladas (não riscos compridos) correndo pelo jato:
-      // três tamanhos de ruído somados, quase redondos, pra parecer água
-      vec2 p = vec2( t * 4.0 - tempo * 4.5 + vFase, vUv.y * 2.2 + vFase );
-      float riscos = ruido( p * vec2( 1.0, 1.3 ) ) * 0.5
-                   + ruido( p * 2.6 + tempo * 1.3 ) * 0.3
-                   + ruido( p * 6.0 - tempo * 2.0 ) * 0.2;
-      // cheio no meio, borda rasgada (mais rasgada na ponta)
-      float borda = 1.0 - smoothstep( 0.35 + 0.3 * ( 1.0 - t ), 1.0, s + ( riscos - 0.5 ) * 0.8 * t );
-      // sai da água e só se desmancha bem no fim
-      float vida = smoothstep( 0.0, 0.05, t ) * ( 1.0 - smoothstep( 0.6, 1.0, t + ( riscos - 0.5 ) * 0.5 ) );
-      float a = borda * vida * ( 0.55 + 0.45 * smoothstep( 0.25, 0.7, riscos ) ) * forca * 0.95;
+      float u = vUv.x;  // 0 = lado curto na frente (spawn), 1 = lá atrás
+      float v = vUv.y;  // 0 = no mar, 1 = topo
+      // manchas emboladas correndo da ponta pra trás e subindo
+      vec2 p = vec2( u * 5.0 - tempo * 3.5 + vFase, v * 2.5 - tempo * 1.5 + vFase );
+      float n = ruido( p * vec2( 1.0, 1.4 ) ) * 0.5
+              + ruido( p * 2.7 + tempo * 1.1 ) * 0.3
+              + ruido( p * 6.5 - tempo * 2.2 ) * 0.2;
+      float ponta = smoothstep( 0.0, 0.14, u + ( n - 0.5 ) * 0.22 );              // lado curto estourando (esfiapado)
+      float topo = 1.0 - smoothstep( 0.5, 1.0, v + ( n - 0.5 ) * 0.6 );           // topo esfiapado
+      float estouro = 1.0 - smoothstep( 0.7, 1.0, u );                            // some aos poucos lá atrás
+      float a = ponta * topo * estouro * ( 0.5 + 0.5 * smoothstep( 0.25, 0.7, n ) ) * forca * 0.9;
       if ( a < 0.01 ) discard;
-      // branco com partes levemente da cor da água: dá textura de água de verdade
-      vec3 cor = mix( vec3( 0.80, 0.92, 0.86 ), vec3( 0.98, 1.0, 0.98 ), smoothstep( 0.25, 0.75, riscos ) );
+      // embaixo mais espuma (branca), no meio aparece um pouco da cor da água
+      vec3 cor = mix( vec3( 0.80, 0.92, 0.86 ), vec3( 0.98, 1.0, 0.98 ),
+                      clamp( smoothstep( 0.25, 0.75, n ) + ( 1.0 - v ) * 0.35, 0.0, 1.0 ) );
       gl_FragColor = vec4( cor, a );
     }`,
 }));
@@ -1576,44 +1569,35 @@ jatos.renderOrder = 1;
 jatos.visible = false;
 cena.add(jatos);
 
-// ponto do jato no instante t (0 = spawn, 1 = onde cai)
-// Nasce na água logo à frente e ao lado, sobe rápido abrindo pra fora e
-// pra trás, e sai pela lateral da tela mais ou menos na altura do horizonte.
-function pontoDoJato(f, t, alvo) {
+// ponto (u, v) da parede: u = do lado curto na frente (0) pra trás (1); v = do mar (0) ao topo (1)
+function pontoDaParede(p, u, v, alvo) {
   const c = camera.position;
   const h = c.y;
   const tempo = uniJatos.tempo.value;
-  const treme = t * forcaEspirro * h; // balança mais na ponta: fica caótico
-  const lateral = f.lado * h * (ESPIRRO.spawnLado + f.dLado * 0.12 + ESPIRRO.aberturaJato * f.ab * t)
-    + f.lado * Math.sin(tempo * 9 + f.fase) * 0.35 * treme;
-  const frente = h * (ESPIRRO.spawnFrente + f.dFrente * 0.08 - ESPIRRO.recuoJato * t)
-    + Math.sin(tempo * 6.3 + f.fase * 1.7) * 0.2 * treme;
-  const sobe = 1 - Math.pow(1 - t, 4); // sobe bem rápido no começo
-  const cima = h * ESPIRRO.alturaJato * f.alt * forcaEspirro * sobe
-    + Math.sin(tempo * 11 + f.fase * 2.3) * 0.2 * treme;
-  return alvo.set(c.x, 0, c.z).addScaledVector(_rumo, frente).addScaledVector(_lado, lateral).setY(Math.max(0, cima));
+  const frente = h * (ESPIRRO.pontaFrente - ESPIRRO.comprimento * u);
+  // o pé no mar: vai pra trás e pra fora, com uma barriguinha pra fora
+  const lateral = h * (ESPIRRO.pontaLado + p.dLado * u + ESPIRRO.abre * u + 0.15 * Math.sin(Math.PI * u));
+  // altura: alta na frente, baixando até sumir lá atrás (triângulo); o topo treme
+  const treme = 1 + 0.15 * Math.sin(tempo * 9 + u * 12 + p.fase);
+  const alt = h * ESPIRRO.altura * p.alt * Math.pow(1 - u, 0.8) * treme * forcaEspirro * v;
+  alvo.set(c.x, 0, c.z).addScaledVector(_rumo, frente).addScaledVector(_lado, lateral * p.lado);
+  // sobe inclinado pra fora (cada parede num ângulo)
+  alvo.y += alt * Math.cos(p.inc);
+  alvo.addScaledVector(_lado, alt * Math.sin(p.inc) * p.lado);
+  return alvo;
 }
 
-const _pts = Array.from({ length: SEG_JATO + 1 }, () => new THREE.Vector3());
-const _tg = new THREE.Vector3(), _praCam = new THREE.Vector3(), _larg = new THREE.Vector3();
+const _pp = new THREE.Vector3();
 function montarJatos() {
   const pos = geoJatos.attributes.position.array;
-  const porFita = (SEG_JATO + 1) * 2;
-  FITAS.forEach((f, k) => {
-    for (let i = 0; i <= SEG_JATO; i++) pontoDoJato(f, i / SEG_JATO, _pts[i]);
-    for (let i = 0; i <= SEG_JATO; i++) {
-      const t = i / SEG_JATO;
-      _tg.subVectors(_pts[Math.min(i + 1, SEG_JATO)], _pts[Math.max(i - 1, 0)]);
-      _praCam.subVectors(camera.position, _pts[i]);
-      _larg.crossVectors(_tg, _praCam).normalize(); // de lado pra quem olha: a fita vira pra câmera
-      const meia = camera.position.y * (0.2 + 0.95 * t) * f.larg * (0.4 + 0.6 * forcaEspirro) / 2;
-      const v = (k * porFita + i * 2) * 3;
-      pos[v]     = _pts[i].x - _larg.x * meia;
-      pos[v + 1] = _pts[i].y - _larg.y * meia;
-      pos[v + 2] = _pts[i].z - _larg.z * meia;
-      pos[v + 3] = _pts[i].x + _larg.x * meia;
-      pos[v + 4] = _pts[i].y + _larg.y * meia;
-      pos[v + 5] = _pts[i].z + _larg.z * meia;
+  const porParede = (SEG_U + 1) * (SEG_V + 1);
+  PAREDES.forEach((p, k) => {
+    for (let i = 0; i <= SEG_U; i++) {
+      for (let j = 0; j <= SEG_V; j++) {
+        pontoDaParede(p, i / SEG_U, j / SEG_V, _pp);
+        const v = (k * porParede + i * (SEG_V + 1) + j) * 3;
+        pos[v] = _pp.x; pos[v + 1] = _pp.y; pos[v + 2] = _pp.z;
+      }
     }
   });
   geoJatos.attributes.position.needsUpdate = true;
@@ -1668,31 +1652,29 @@ pontosNevoa.frustumCulled = false;
 pontosNevoa.renderOrder = 1;
 cena.add(pontosNevoa);
 
-const _pn = new THREE.Vector3();
+// nasce no lado curto (onde a água estoura), do pé até o topo
 function soltarNevoa(rapidez) {
   const i = nevoa.proxima;
   nevoa.proxima = (i + 1) % ESPIRRO.maxNevoa;
-  const f = FITAS[Math.floor(Math.random() * FITAS.length)];
-  // a maioria no pé do jato (a espuma), o resto ao longo dele
-  const t = Math.random() < 0.7 ? Math.random() * 0.15 : Math.random() * 0.6;
-  pontoDoJato(f, t, _pn);
-  nevoa.pos[i * 3]     = _pn.x + (Math.random() - 0.5) * 2;
-  nevoa.pos[i * 3 + 1] = _pn.y + Math.random() * 2;
-  nevoa.pos[i * 3 + 2] = _pn.z + (Math.random() - 0.5) * 2;
-  // boia pra fora e pra cima; acompanha você só um pouco, então fica pra trás
-  const fora = 6 + Math.random() * 10;
-  nevoa.vel[i * 3]     = _lado.x * fora * f.lado + _rumo.x * rapidez * 0.35;
-  nevoa.vel[i * 3 + 1] = 3 + Math.random() * 6;
-  nevoa.vel[i * 3 + 2] = _lado.z * fora * f.lado + _rumo.z * rapidez * 0.35;
+  const p = PAREDES[Math.floor(Math.random() * PAREDES.length)];
+  pontoDaParede(p, Math.random() * 0.2, Math.random(), _pp);
+  const h = camera.position.y;
+  nevoa.pos[i * 3]     = _pp.x;
+  nevoa.pos[i * 3 + 1] = _pp.y;
+  nevoa.pos[i * 3 + 2] = _pp.z;
+  const fora = h * (1 + Math.random() * 2);
+  nevoa.vel[i * 3]     = _lado.x * fora * p.lado + _rumo.x * rapidez * 0.6;
+  nevoa.vel[i * 3 + 1] = h * (0.5 + Math.random());
+  nevoa.vel[i * 3 + 2] = _lado.z * fora * p.lado + _rumo.z * rapidez * 0.6;
   const dura = 0.8 + Math.random() * 0.9;
   nevoa.vida[i] = dura;
   nevoa.dura[i] = dura;
-  nevoa.tam[i] = 1.5 + Math.random() * 3;
+  nevoa.tam[i] = h * (0.4 + Math.random() * 0.6);
 }
 
 // ---------- gotas ----------
-// Gotinhas e pedaços de espuma que saem voando dos jatos, no mesmo rumo
-// deles, e caem. São a "bagunça" por cima do corpo do jato.
+// Gotinhas e pedaços de espuma que saltam do topo e do lado curto das
+// paredes (onde a água estoura) e caem. São a "bagunça" por cima.
 const MAX_GOTAS = 1500;
 const gotas = {
   pos: new Float32Array(MAX_GOTAS * 3),
@@ -1741,27 +1723,25 @@ pontosGotas.frustumCulled = false;
 pontosGotas.renderOrder = 2;
 cena.add(pontosGotas);
 
-const _g0 = new THREE.Vector3(), _g1 = new THREE.Vector3();
 function soltarGota(rapidez) {
   const i = gotas.proxima;
   gotas.proxima = (i + 1) % MAX_GOTAS;
   const h = camera.position.y;
-  const f = FITAS[Math.floor(Math.random() * FITAS.length)];
-  const t = Math.random() * 0.55;
-  pontoDoJato(f, t, _g0);
-  pontoDoJato(f, t + 0.05, _g1);
-  _g1.sub(_g0).normalize(); // rumo do jato nesse ponto
-  const espalha = h * 0.25;
-  gotas.pos[i * 3]     = _g0.x + (Math.random() - 0.5) * espalha;
-  gotas.pos[i * 3 + 1] = _g0.y + (Math.random() - 0.5) * espalha;
-  gotas.pos[i * 3 + 2] = _g0.z + (Math.random() - 0.5) * espalha;
-  // segue o jato (com um pouco de bagunça) e acompanha você quase todo
-  const v = h * (5 + Math.random() * 7);
-  const bagunca = h * 2.5;
-  gotas.vel[i * 3]     = _g1.x * v + (Math.random() - 0.5) * bagunca + _rumo.x * rapidez * 0.85;
-  gotas.vel[i * 3 + 1] = _g1.y * v + (Math.random() - 0.5) * bagunca;
-  gotas.vel[i * 3 + 2] = _g1.z * v + (Math.random() - 0.5) * bagunca + _rumo.z * rapidez * 0.85;
-  const dura = 0.35 + Math.random() * 0.45;
+  const p = PAREDES[Math.floor(Math.random() * PAREDES.length)];
+  // metade sai do lado curto na frente (onde estoura), metade do topo
+  if (Math.random() < 0.5) pontoDaParede(p, Math.random() * 0.15, Math.random(), _pp);
+  else pontoDaParede(p, Math.random() * 0.7, 0.8 + Math.random() * 0.2, _pp);
+  gotas.pos[i * 3]     = _pp.x;
+  gotas.pos[i * 3 + 1] = _pp.y;
+  gotas.pos[i * 3 + 2] = _pp.z;
+  // salta pra fora e pra cima, com bagunça; acompanha você quase todo
+  const fora = h * (1.5 + Math.random() * 4);
+  const cima = h * (1 + Math.random() * 3.5);
+  const bagunca = h * 2;
+  gotas.vel[i * 3]     = _lado.x * fora * p.lado + (Math.random() - 0.5) * bagunca + _rumo.x * rapidez * 0.8;
+  gotas.vel[i * 3 + 1] = cima;
+  gotas.vel[i * 3 + 2] = _lado.z * fora * p.lado + (Math.random() - 0.5) * bagunca + _rumo.z * rapidez * 0.8;
+  const dura = 0.35 + Math.random() * 0.5;
   gotas.vida[i] = dura;
   gotas.dura[i] = dura;
   // a maioria gotinha; algumas são pedaços maiores de espuma
@@ -1770,7 +1750,7 @@ function soltarGota(rapidez) {
 
 function atualizarGotas(dt, rapidez) {
   if (forcaEspirro > 0.05) {
-    gotas.acumulado += 1400 * forcaEspirro * dt;
+    gotas.acumulado += 1200 * forcaEspirro * dt;
     while (gotas.acumulado >= 1) { gotas.acumulado -= 1; soltarGota(rapidez); }
   } else {
     gotas.acumulado = 0;
@@ -1807,16 +1787,16 @@ function atualizarEspirro(dt) {
   }
   forcaEspirro = suavizar(forcaEspirro, alvo, alvo > forcaEspirro ? 6 : 3, dt);
 
-  // jatos
+  // paredes
   uniJatos.tempo.value += dt;
   uniJatos.forca.value = forcaEspirro;
   jatos.visible = forcaEspirro > 0.01;
   if (jatos.visible) montarJatos();
 
+  uniNevoa.escala.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
   atualizarGotas(dt, rapidez);
 
   // névoa: nasce enquanto tem força, e a que já nasceu termina a vida dela
-  uniNevoa.escala.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
   if (forcaEspirro > 0.05) {
     nevoa.acumulado += ESPIRRO.nevoaPorSegundo * forcaEspirro * dt;
     while (nevoa.acumulado >= 1) { nevoa.acumulado -= 1; soltarNevoa(rapidez); }
@@ -1836,7 +1816,7 @@ function atualizarEspirro(dt) {
     nevoa.pos[i * 3 + 2] += nevoa.vel[i * 3 + 2] * dt;
     const t = nevoa.vida[i] / nevoa.dura[i]; // 1 = nasceu agora, 0 = sumindo
     nevoa.alfa[i] = Math.min(1, (1 - t) * 6) * t * 0.16; // acende rápido, apaga devagar
-    nevoa.tam[i] += dt * 3; // a névoa se espalha
+    nevoa.tam[i] += dt * camera.position.y * 0.6; // a névoa se espalha
   }
   geoNevoa.attributes.position.needsUpdate = true;
   geoNevoa.attributes.tam.needsUpdate = true;
