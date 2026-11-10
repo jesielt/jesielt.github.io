@@ -3,6 +3,10 @@
 
 // A biblioteca de 3D vem de um link. Carregando assim, o jogo funciona
 // tanto no site quanto abrindo o index.html direto (duplo clique).
+// Versão oficial (a que vai pro ar no próximo push). Ver CHANGELOG.md.
+const VERSAO = '1.1.0';
+console.log(`Planeta v${VERSAO}`);
+
 (async () => {
 const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
 
