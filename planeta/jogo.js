@@ -1474,18 +1474,20 @@ function sobreIlha(x, z) {
 
 // ---------- jatos ----------
 const SEG_JATO = 28; // pedaços ao longo de cada fita
-// 5 fitas de cada lado, cada uma um pouco diferente (quanto abre, altura,
-// largura, onde nasce, fase dos riscos): juntas parecem um jato só, grosso
+// 8 fitas de cada lado, cada uma um pouco diferente (quanto abre, altura,
+// largura, onde nasce, fase dos riscos): juntas parecem um jato só, grosso.
+// As 3 últimas são baixas, quase deitadas na água, e nascem mais perto:
+// elas preenchem a parte de baixo dos cantos da tela.
 const FITAS = [];
 for (const lado of [-1, 1]) {
-  for (let k = 0; k < 5; k++) {
+  for (let k = 0; k < 8; k++) {
     FITAS.push({
       lado,
-      ab:   [0.55, 0.75, 0.95, 1.15, 1.35][k],
-      alt:  [1.1, 0.8, 0.95, 0.6, 0.75][k],
-      larg: [1.0, 1.3, 0.9, 1.5, 1.1][k],
-      dFrente: [0, 1.5, -1, 2.5, -2][k],
-      dLado:   [0, -1, 1.2, 0.5, -0.6][k],
+      ab:   [0.55, 0.75, 0.95, 1.15, 1.35, 1.7, 1.5, 1.25][k],
+      alt:  [1.1, 0.8, 0.95, 0.6, 0.75, 0.15, 0.3, 0.45][k],
+      larg: [1.0, 1.3, 0.9, 1.5, 1.1, 1.9, 1.7, 1.5][k],
+      dFrente: [0, 1.5, -1, 2.5, -2, -3.5, -2.5, -3][k],
+      dLado:   [0, -1, 1.2, 0.5, -0.6, 0.8, -0.4, 1.5][k],
       fase: k * 2.3 + (lado > 0 ? 11 : 0),
     });
   }
@@ -1552,13 +1554,17 @@ const jatos = new THREE.Mesh(geoJatos, new THREE.ShaderMaterial({
       float s = abs( vUv.y - 0.5 ) * 2.0;       // 0 = meio do jato, 1 = borda
       // riscos compridos correndo ao longo do jato
       // riscos compridos e embolados correndo depressa pelo jato
-      vec2 p = vec2( t * 5.0 - tempo * 4.5 + vFase, vUv.y * 4.0 + vFase );
-      float riscos = ruido( vec2( p.x, p.y * 3.0 ) ) * 0.55 + ruido( p * 3.1 + tempo * 1.3 ) * 0.45;
+      // manchas emboladas (não riscos compridos) correndo pelo jato:
+      // três tamanhos de ruído somados, quase redondos, pra parecer água
+      vec2 p = vec2( t * 4.0 - tempo * 4.5 + vFase, vUv.y * 2.2 + vFase );
+      float riscos = ruido( p * vec2( 1.0, 1.3 ) ) * 0.5
+                   + ruido( p * 2.6 + tempo * 1.3 ) * 0.3
+                   + ruido( p * 6.0 - tempo * 2.0 ) * 0.2;
       // cheio no meio, borda rasgada (mais rasgada na ponta)
       float borda = 1.0 - smoothstep( 0.35 + 0.3 * ( 1.0 - t ), 1.0, s + ( riscos - 0.5 ) * 0.8 * t );
       // sai da água e só se desmancha bem no fim
       float vida = smoothstep( 0.0, 0.05, t ) * ( 1.0 - smoothstep( 0.6, 1.0, t + ( riscos - 0.5 ) * 0.5 ) );
-      float a = borda * vida * ( 0.45 + 0.55 * smoothstep( 0.2, 0.7, riscos ) ) * forca * 0.95;
+      float a = borda * vida * ( 0.55 + 0.45 * smoothstep( 0.25, 0.7, riscos ) ) * forca * 0.95;
       if ( a < 0.01 ) discard;
       // branco com partes levemente da cor da água: dá textura de água de verdade
       vec3 cor = mix( vec3( 0.80, 0.92, 0.86 ), vec3( 0.98, 1.0, 0.98 ), smoothstep( 0.25, 0.75, riscos ) );
@@ -1600,7 +1606,7 @@ function montarJatos() {
       _tg.subVectors(_pts[Math.min(i + 1, SEG_JATO)], _pts[Math.max(i - 1, 0)]);
       _praCam.subVectors(camera.position, _pts[i]);
       _larg.crossVectors(_tg, _praCam).normalize(); // de lado pra quem olha: a fita vira pra câmera
-      const meia = camera.position.y * (0.12 + 0.7 * t) * f.larg * (0.4 + 0.6 * forcaEspirro) / 2;
+      const meia = camera.position.y * (0.2 + 0.95 * t) * f.larg * (0.4 + 0.6 * forcaEspirro) / 2;
       const v = (k * porFita + i * 2) * 3;
       pos[v]     = _pts[i].x - _larg.x * meia;
       pos[v + 1] = _pts[i].y - _larg.y * meia;
@@ -1684,6 +1690,108 @@ function soltarNevoa(rapidez) {
   nevoa.tam[i] = 1.5 + Math.random() * 3;
 }
 
+// ---------- gotas ----------
+// Gotinhas e pedaços de espuma que saem voando dos jatos, no mesmo rumo
+// deles, e caem. São a "bagunça" por cima do corpo do jato.
+const MAX_GOTAS = 1500;
+const gotas = {
+  pos: new Float32Array(MAX_GOTAS * 3),
+  vel: new Float32Array(MAX_GOTAS * 3),
+  vida: new Float32Array(MAX_GOTAS),
+  dura: new Float32Array(MAX_GOTAS),
+  tam: new Float32Array(MAX_GOTAS),
+  alfa: new Float32Array(MAX_GOTAS),
+  proxima: 0,
+  acumulado: 0,
+};
+const geoGotas = new THREE.BufferGeometry();
+geoGotas.setAttribute('position', new THREE.BufferAttribute(gotas.pos, 3));
+geoGotas.setAttribute('tam', new THREE.BufferAttribute(gotas.tam, 1));
+geoGotas.setAttribute('alfa', new THREE.BufferAttribute(gotas.alfa, 1));
+const pontosGotas = new THREE.Points(geoGotas, new THREE.ShaderMaterial({
+  uniforms: uniNevoa, // mesma escala de tamanho na tela
+  transparent: true,
+  depthWrite: false,
+  vertexShader: `
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
+    attribute float tam;
+    attribute float alfa;
+    uniform float escala;
+    varying float vAlfa;
+    void main() {
+      vAlfa = alfa;
+      vec4 mv = modelViewMatrix * vec4( position, 1.0 );
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = alfa > 0.0 ? clamp( tam * escala / -mv.z, 1.5, 48.0 ) : 0.0;
+      #include <logdepthbuf_vertex>
+    }`,
+  fragmentShader: `
+    #include <logdepthbuf_pars_fragment>
+    varying float vAlfa;
+    void main() {
+      #include <logdepthbuf_fragment>
+      float d = length( gl_PointCoord - 0.5 ) * 2.0;
+      float a = ( 1.0 - smoothstep( 0.5, 1.0, d ) ) * vAlfa;
+      if ( a < 0.01 ) discard;
+      gl_FragColor = vec4( 0.98, 1.0, 0.98, a );
+    }`,
+}));
+pontosGotas.frustumCulled = false;
+pontosGotas.renderOrder = 2;
+cena.add(pontosGotas);
+
+const _g0 = new THREE.Vector3(), _g1 = new THREE.Vector3();
+function soltarGota(rapidez) {
+  const i = gotas.proxima;
+  gotas.proxima = (i + 1) % MAX_GOTAS;
+  const h = camera.position.y;
+  const f = FITAS[Math.floor(Math.random() * FITAS.length)];
+  const t = Math.random() * 0.55;
+  pontoDoJato(f, t, _g0);
+  pontoDoJato(f, t + 0.05, _g1);
+  _g1.sub(_g0).normalize(); // rumo do jato nesse ponto
+  const espalha = h * 0.25;
+  gotas.pos[i * 3]     = _g0.x + (Math.random() - 0.5) * espalha;
+  gotas.pos[i * 3 + 1] = _g0.y + (Math.random() - 0.5) * espalha;
+  gotas.pos[i * 3 + 2] = _g0.z + (Math.random() - 0.5) * espalha;
+  // segue o jato (com um pouco de bagunça) e acompanha você quase todo
+  const v = h * (5 + Math.random() * 7);
+  const bagunca = h * 2.5;
+  gotas.vel[i * 3]     = _g1.x * v + (Math.random() - 0.5) * bagunca + _rumo.x * rapidez * 0.85;
+  gotas.vel[i * 3 + 1] = _g1.y * v + (Math.random() - 0.5) * bagunca;
+  gotas.vel[i * 3 + 2] = _g1.z * v + (Math.random() - 0.5) * bagunca + _rumo.z * rapidez * 0.85;
+  const dura = 0.35 + Math.random() * 0.45;
+  gotas.vida[i] = dura;
+  gotas.dura[i] = dura;
+  // a maioria gotinha; algumas são pedaços maiores de espuma
+  gotas.tam[i] = h * (Math.random() < 0.85 ? 0.04 + Math.random() * 0.06 : 0.12 + Math.random() * 0.12);
+}
+
+function atualizarGotas(dt, rapidez) {
+  if (forcaEspirro > 0.05) {
+    gotas.acumulado += 1400 * forcaEspirro * dt;
+    while (gotas.acumulado >= 1) { gotas.acumulado -= 1; soltarGota(rapidez); }
+  } else {
+    gotas.acumulado = 0;
+  }
+  const gravidade = camera.position.y * 9;
+  for (let i = 0; i < MAX_GOTAS; i++) {
+    if (gotas.vida[i] <= 0) { gotas.alfa[i] = 0; continue; }
+    gotas.vida[i] -= dt;
+    gotas.vel[i * 3 + 1] -= gravidade * dt;
+    gotas.pos[i * 3]     += gotas.vel[i * 3] * dt;
+    gotas.pos[i * 3 + 1] += gotas.vel[i * 3 + 1] * dt;
+    gotas.pos[i * 3 + 2] += gotas.vel[i * 3 + 2] * dt;
+    if (gotas.vida[i] <= 0 || gotas.pos[i * 3 + 1] < 0) { gotas.vida[i] = 0; gotas.alfa[i] = 0; continue; }
+    const t = gotas.vida[i] / gotas.dura[i];
+    gotas.alfa[i] = Math.min(1, t * 2.5) * 0.9;
+  }
+  geoGotas.attributes.position.needsUpdate = true;
+  geoGotas.attributes.tam.needsUpdate = true;
+  geoGotas.attributes.alfa.needsUpdate = true;
+}
+
 function atualizarEspirro(dt) {
   if (!(dt > 0)) return;
   const c = camera.position;
@@ -1704,6 +1812,8 @@ function atualizarEspirro(dt) {
   uniJatos.forca.value = forcaEspirro;
   jatos.visible = forcaEspirro > 0.01;
   if (jatos.visible) montarJatos();
+
+  atualizarGotas(dt, rapidez);
 
   // névoa: nasce enquanto tem força, e a que já nasceu termina a vida dela
   uniNevoa.escala.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
