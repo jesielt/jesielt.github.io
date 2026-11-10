@@ -1445,8 +1445,8 @@ function animarAgua(tempo) {
 const ESPIRRO = {
   alturaMax: 1 * ESCALA_SENTIDA, // começa a espirrar a 1 m da água
   velMin: 25,                    // parado ou devagar não espirra
-  porSegundo: 420,               // gotinhas por segundo, no máximo
-  max: 900,
+  porSegundo: 1100,              // gotinhas por segundo, no máximo
+  max: 2200,
   gravidade: 70,
 };
 const espirro = {
@@ -1513,8 +1513,8 @@ function soltarGota(lado, rapidez, forca) {
   espirro.proxima = (i + 1) % ESPIRRO.max;
   const c = camera.position;
   // nasce na água, um pouco à frente (pra dar tempo de ver) e de lado
-  const frenteDist = 12 + Math.random() * 14;
-  const ladoDist = 4 + Math.random() * 4;
+  const frenteDist = 14 + Math.random() * 16;
+  const ladoDist = 11 + Math.random() * 7; // bem afastado do centro da tela
   espirro.pos[i * 3]     = c.x + _horiz.x * frenteDist + _lado.x * ladoDist * lado;
   espirro.pos[i * 3 + 1] = 0.3;
   espirro.pos[i * 3 + 2] = c.z + _horiz.z * frenteDist + _lado.z * ladoDist * lado;
@@ -1540,7 +1540,8 @@ function atualizarEspirro(dt) {
   const c = camera.position;
   _horiz.set(vel.x, 0, vel.z);
   const rapidez = _horiz.length();
-  if (c.y <= ESPIRRO.alturaMax && rapidez > ESPIRRO.velMin && !sobreIlha(c.x, c.z)) {
+  // só com o dash (Shift)
+  if (segurando('dash') && c.y <= ESPIRRO.alturaMax && rapidez > ESPIRRO.velMin && !sobreIlha(c.x, c.z)) {
     _horiz.divideScalar(rapidez);
     _lado.set(-_horiz.z, 0, _horiz.x);
     const rente = 1 - (c.y - AJUSTE.alturaOlhos) / (ESPIRRO.alturaMax - AJUSTE.alturaOlhos); // 1 = colado
