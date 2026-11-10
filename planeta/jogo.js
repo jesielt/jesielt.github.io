@@ -1861,6 +1861,11 @@ function quadro(agora) {
 }
 atualizarIlhas();
 criarEsfera();
+// Monta já na abertura os "programas" de desenho de tudo (inclusive do
+// espirro, que fica escondido): senão o primeiro dash dá uma engasgada.
+jatos.visible = true;
+renderer.compile(cena, camera);
+jatos.visible = false;
 requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
