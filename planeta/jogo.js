@@ -1001,28 +1001,53 @@ const ARRUMACAO = {
   6: [[-19, -12], [0, -21], [19, -12], [-19, 12], [0, 21], [19, 12]],
   7: [[0, 0], [-20, -11], [0, -22], [20, -11], [-20, 11], [0, 22], [20, 11]],
 };
-function texturaDasEstrelas(n) {
+// zoom > 1 aproxima as estrelas (usado nas bolinhas da caixinha)
+function canvasDasEstrelas(n, zoom = 1) {
   const t = 128, c = document.createElement('canvas');
   c.width = c.height = t;
   const g = c.getContext('2d');
-  const r = n <= 4 ? 10 : n === 5 ? 9 : 8;
+  const r = (n <= 4 ? 10 : n === 5 ? 9 : 8) * zoom;
   g.fillStyle = '#d8261c';
   for (const [x, y] of ARRUMACAO[n]) {
     g.beginPath();
     for (let k = 0; k < 10; k++) {
       const a = -Math.PI / 2 + (k * Math.PI) / 5;
       const rr = k % 2 ? r * 0.45 : r;
-      g.lineTo(64 + x + Math.cos(a) * rr, 64 + y + Math.sin(a) * rr);
+      g.lineTo(64 + x * zoom + Math.cos(a) * rr, 64 + y * zoom + Math.sin(a) * rr);
     }
     g.closePath();
     g.fill();
   }
-  const tex = new THREE.CanvasTexture(c);
+  return c;
+}
+function texturaDasEstrelas(n) {
+  const tex = new THREE.CanvasTexture(canvasDasEstrelas(n));
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
 const raioDaIlha = il => (il.solidos[0].rx + il.solidos[0].rz) / 2;
+
+// Vidro laranja grosso: opaco, mas com "volume" — o miolo fica mais claro
+// e quente (como luz lá dentro) e a borda mais funda e escura. As estrelas
+// são desenhadas por cima (a casca não grava profundidade), então parecem
+// estar dentro. Só fica transparente quando afunda.
+function materialDaCasca() {
+  const m = new THREE.MeshPhongMaterial({
+    color: '#f7a02c', emissive: '#7a3300', specular: '#fff6e0', shininess: 90,
+    transparent: true, opacity: 1, depthWrite: false,
+  });
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `
+      float deFrente = clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 );
+      float borda = pow( 1.0 - deFrente, 1.4 );
+      outgoingLight = mix( outgoingLight * 1.08 + vec3( 0.30, 0.17, 0.02 ) * deFrente * deFrente,
+                           outgoingLight * 0.6, borda );
+      #include <opaque_fragment>
+    `);
+  };
+  return m;
+}
 
 // põe a esfera num lugar livre da ilha (num lado qualquer) e cria a bola
 function pousarNaIlha(e, ilha) {
@@ -1040,14 +1065,8 @@ function pousarNaIlha(e, ilha) {
   e.pos.set(lugar.px, s.h + R_ESFERA, lugar.pz);
   e.origem.copy(e.pos);
   e.vel.set(0, 0, 0);
-  // casca: vidro laranja brilhante, meio translúcido
-  e.casca = new THREE.Mesh(
-    new THREE.SphereGeometry(R_ESFERA, 32, 20),
-    new THREE.MeshPhongMaterial({
-      color: '#f7a02c', emissive: '#6e2c00', specular: '#fff6e0', shininess: 90,
-      transparent: true, opacity: 0.9, depthWrite: false,
-    })
-  );
+  // casca: vidro laranja grosso, com volume (ver materialDaCasca)
+  e.casca = new THREE.Mesh(new THREE.SphereGeometry(R_ESFERA, 32, 20), materialDaCasca());
   e.casca.renderOrder = 1;
   // estrelas: sempre de frente pra você
   e.estrelas = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaDasEstrelas(e.n), transparent: true }));
@@ -1153,14 +1172,14 @@ function atualizarUmaEsfera(e, dt) {
     v.y = suavizar(v.y, -3, 3, dt);
     p.addScaledVector(v, dt);
     const fundo = Math.min(1, Math.max(0, -p.y / (R_ESFERA * 3)));
-    e.casca.material.opacity = 0.9 * (1 - fundo);
+    e.casca.material.opacity = 1 - fundo;
     e.estrelas.material.opacity = 1 - fundo;
     if (fundo >= 1) {
       // ...e volta pro lugar dela na ilha
       p.copy(e.origem);
       v.set(0, 0, 0);
       e.afundando = false;
-      e.casca.material.opacity = 0.9;
+      e.casca.material.opacity = 1;
       e.estrelas.material.opacity = 1;
     }
   } else {
@@ -1226,6 +1245,16 @@ function atualizarUmaEsfera(e, dt) {
 // ---------- captura ----------
 const iconeCaptura = document.getElementById('capturar');
 const caixaEsferas = document.getElementById('caixaEsferas');
+// cada bolinha da caixinha mostra as estrelas dela (nada de número: a
+// arrumação e a quantidade de estrelas já dizem qual é)
+for (const casa of caixaEsferas.querySelectorAll('.casa')) {
+  const n = Number(casa.dataset.n);
+  const bola = casa.querySelector('.bola');
+  bola.textContent = '';
+  bola.setAttribute('aria-label', n === 1 ? '1 estrela' : `${n} estrelas`);
+  bola.style.backgroundImage = `url(${canvasDasEstrelas(n, 1.9).toDataURL()}), ` +
+    'radial-gradient(circle at 35% 30%, #ffe2a4 0%, #f7a02c 45%, #c8650f 100%)';
+}
 let capturavel = null; // a esfera que dá pra capturar agora (ou null)
 const _tela = new THREE.Vector3();
 
@@ -1455,6 +1484,29 @@ function desenharRadar(tempo) {
     rctx.beginPath();
     rctx.arc(R + ex, R + ey, 4, 0, Math.PI * 2);
     rctx.fill();
+    rctx.shadowBlur = 0;
+
+    // triângulo vazado (na cor do seu pontinho) colado na esfera, apontando
+    // pra ela: quanto mais perto ela está, maior o triângulo
+    const dist = Math.hypot(dx, dz);
+    const perto = 1 - Math.min(1, Math.max(0, Math.log(dist / 150) / Math.log(5500 / 150)));
+    const tam = 3.5 + 7.5 * perto;
+    const len = Math.hypot(ex, ey);
+    if (len > tam * 2 + 8) {
+      const ux = ex / len, uy = ey / len;              // de você pra esfera
+      const px = R + ex - ux * 7, py = R + ey - uy * 7; // ponta, logo antes da bolinha
+      const bx = px - ux * tam * 1.3, by = py - uy * tam * 1.3;
+      const lx = -uy * tam * 0.75, ly = ux * tam * 0.75;
+      rctx.strokeStyle = '#ffe94a';
+      rctx.lineWidth = 1.6;
+      rctx.lineJoin = 'round';
+      rctx.beginPath();
+      rctx.moveTo(px, py);
+      rctx.lineTo(bx + lx, by + ly);
+      rctx.lineTo(bx - lx, by - ly);
+      rctx.closePath();
+      rctx.stroke();
+    }
   }
   rctx.shadowBlur = 0;
 

@@ -22,8 +22,10 @@ e aparece no console do navegador quando o jogo abre.
 - Espirro: com o dash (Shift), a 1,5 m da água ou menos, a espuma abre pros dois lados
 - As 7 esferas: a de 4 estrelas perto de onde você começa, as outras 6 espalhadas
   (de 1500 a 5000 de distância), todas no radar; se cair no mar, a esfera volta pro lugar
+- Esferas de vidro laranja com volume (miolo claro, borda funda)
+- No radar, cada esfera tem um triângulo vazado apontando pra ela: maior = mais perto
 - Captura: perto da esfera aparece o botão direito do mouse; clicou, ela vai pra caixinha
-  embaixo do radar (uma casa pra cada número de estrelas)
+  redonda embaixo do radar, mostrando as estrelas dela
 
 ## 1.0.0 — 10/11/2026
 
