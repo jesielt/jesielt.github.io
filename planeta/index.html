@@ -18,6 +18,26 @@
   <!-- radar: o mapa visto de cima, girando junto com você -->
   <canvas class="radar" id="radar" aria-hidden="true"></canvas>
 
+  <!-- caixinha das esferas capturadas: uma casa pra cada número de estrelas -->
+  <div class="caixa-esferas" id="caixaEsferas" aria-label="esferas capturadas">
+    <div class="casa" data-n="1"><span class="bola">1</span></div>
+    <div class="casa" data-n="2"><span class="bola">2</span></div>
+    <div class="casa" data-n="3"><span class="bola">3</span></div>
+    <div class="casa" data-n="4"><span class="bola">4</span></div>
+    <div class="casa" data-n="5"><span class="bola">5</span></div>
+    <div class="casa" data-n="6"><span class="bola">6</span></div>
+    <div class="casa" data-n="7"><span class="bola">7</span></div>
+  </div>
+
+  <!-- aparece em cima da esfera quando dá pra capturar: clique direito -->
+  <div class="capturar" id="capturar" aria-label="capturar: botão direito do mouse">
+    <svg viewBox="0 0 26 36" aria-hidden="true">
+      <path class="apertar" d="M13 1.5 C19.4 1.5 24.5 6.6 24.5 13 V14 H13 Z" />
+      <rect x="1.5" y="1.5" width="23" height="33" rx="11.5" fill="none" stroke="currentColor" stroke-width="2.2" />
+      <path d="M1.5 14 H24.5 M13 1.5 V14" fill="none" stroke="currentColor" stroke-width="2.2" />
+    </svg>
+  </div>
+
   <!-- altura acima do mar, com o "m" no alfabeto saiyajin -->
   <div class="altura" aria-label="altura">
     <span id="alturaNum">0</span>

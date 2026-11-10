@@ -962,55 +962,71 @@ function colidir(s) {
 }
 
 // ---------------------------------------------------------------------
-// Esfera de 4 estrelas: fica numa ilha perto de onde você começa.
-// Você esbarra, ela rola; se cair no mar, afunda e some.
+// As 7 esferas: de 1 a 7 estrelas. A de 4 fica numa ilha perto de onde
+// você começa; as outras 6 ficam espalhadas pelo mundo, cada uma pra um
+// lado, de 1500 a 5000 de distância (≈85 a 285 m na sua régua).
+// O mundo só existe perto de você, então cada esfera distante "pousa" na
+// ilha grande mais perto do ponto dela quando você chega a ~1600 de lá;
+// até isso, o radar já aponta pro ponto.
+// Você esbarra, ela rola; se cair no mar, afunda e volta pro lugar dela.
+// Chegando perto, aparece o botão direito do mouse: clicou, capturou.
 // Tamanho: um pouco maior que uma cabeça (~30 cm na sensação).
 // ---------------------------------------------------------------------
 const R_ESFERA = 2.6;      // raio, em unidades daqui de dentro
 const RAIO_CORPO = 2;      // "tamanho" do seu corpo pra esbarrar nela
 const GRAVIDADE = 170;     // ≈ 9,8 m/s² na escala sentida
-const esfera = {
-  pos: new THREE.Vector3(), vel: new THREE.Vector3(),
-  ilha: null,              // a ilha onde ela está (guardada mesmo se a ilha sair da memória)
-  afundando: false, sumiu: false,
-  casca: null, estrelas: null,
-};
+const DIST_POUSO = 1600;   // a essa distância do ponto, a esfera escolhe a ilha e aparece
+const DIST_CAPTURA = 24;   // perto assim (~1,4 m), dá pra capturar
+const esferas = [];        // uma por número de estrelas (1 a 7)
+for (let n = 1; n <= 7; n++) {
+  esferas.push({
+    n,
+    alvo: new THREE.Vector3(),  // ponto do mundo onde ela deve ficar
+    pos: new THREE.Vector3(), vel: new THREE.Vector3(),
+    origem: new THREE.Vector3(),// onde ela pousou (volta pra cá se afundar)
+    ilha: null,                 // a ilha onde ela está (guardada mesmo se a ilha sair da memória)
+    afundando: false, capturada: false,
+    sumindo: 0,                 // > 0: animação de captura em andamento
+    casca: null, estrelas: null,
+  });
+}
 
-function texturaDasEstrelas() {
+// estrelas vermelhas arrumadas de 1 a 7, "flutuando" dentro da bola
+const ARRUMACAO = {
+  1: [[0, 0]],
+  2: [[-12, -12], [12, 12]],
+  3: [[0, -17], [-15, 11], [15, 11]],
+  4: [[-12, -19], [17, -10], [-17, 10], [12, 19]], // losango meio torto, como na referência
+  5: [[0, 0], [-19, -16], [19, -16], [-19, 16], [19, 16]],
+  6: [[-19, -12], [0, -21], [19, -12], [-19, 12], [0, 21], [19, 12]],
+  7: [[0, 0], [-20, -11], [0, -22], [20, -11], [-20, 11], [0, 22], [20, 11]],
+};
+function texturaDasEstrelas(n) {
   const t = 128, c = document.createElement('canvas');
   c.width = c.height = t;
   const g = c.getContext('2d');
-  const estrela = (x, y, r) => {
+  const r = n <= 4 ? 10 : n === 5 ? 9 : 8;
+  g.fillStyle = '#d8261c';
+  for (const [x, y] of ARRUMACAO[n]) {
     g.beginPath();
     for (let k = 0; k < 10; k++) {
       const a = -Math.PI / 2 + (k * Math.PI) / 5;
       const rr = k % 2 ? r * 0.45 : r;
-      g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      g.lineTo(64 + x + Math.cos(a) * rr, 64 + y + Math.sin(a) * rr);
     }
     g.closePath();
     g.fill();
-  };
-  g.fillStyle = '#d8261c';
-  // as 4 estrelas num losango meio torto, como na referência
-  for (const [x, y] of [[-12, -19], [17, -10], [-17, 10], [12, 19]]) estrela(64 + x, 64 + y, 10);
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
-function criarEsfera() {
-  // escolhe uma ilha GRANDE (raio médio de 90 pra cima) entre as carregadas,
-  // pra ter espaço pra brincar; se não tiver, fica a maior que tiver
-  const raio = il => (il.solidos[0].rx + il.solidos[0].rz) / 2;
-  const todas = [...ilhas.values()].filter(Boolean);
-  if (!todas.length) return;
-  const grandes = todas.filter(il => raio(il) >= 90);
-  const ilha = grandes.length
-    ? grandes[Math.floor(Math.random() * grandes.length)]
-    : todas.reduce((a, b) => (raio(b) > raio(a) ? b : a));
-  const s = ilha.solidos[0];
+const raioDaIlha = il => (il.solidos[0].rx + il.solidos[0].rz) / 2;
 
-  // um lugar livre na ilha, num lado qualquer
+// põe a esfera num lugar livre da ilha (num lado qualquer) e cria a bola
+function pousarNaIlha(e, ilha) {
+  const s = ilha.solidos[0];
   const angBase = Math.random() * Math.PI * 2;
   let lugar = null;
   for (let tent = 0; tent < 40 && !lugar; tent++) {
@@ -1019,53 +1035,105 @@ function criarEsfera() {
     const px = s.x + Math.cos(ang) * t * s.rx, pz = s.z + Math.sin(ang) * t * s.rz;
     if (!encostaEmRocha(px, pz, R_ESFERA + 3, ilha.solidos)) lugar = { px, pz, ang };
   }
-  if (!lugar) return;
-
-  esfera.ilha = ilha;
-  esfera.pos.set(lugar.px, s.h + R_ESFERA, lugar.pz);
-
+  if (!lugar) return null;
+  e.ilha = ilha;
+  e.pos.set(lugar.px, s.h + R_ESFERA, lugar.pz);
+  e.origem.copy(e.pos);
+  e.vel.set(0, 0, 0);
   // casca: vidro laranja brilhante, meio translúcido
-  esfera.casca = new THREE.Mesh(
+  e.casca = new THREE.Mesh(
     new THREE.SphereGeometry(R_ESFERA, 32, 20),
     new THREE.MeshPhongMaterial({
       color: '#f7a02c', emissive: '#6e2c00', specular: '#fff6e0', shininess: 90,
       transparent: true, opacity: 0.9, depthWrite: false,
     })
   );
-  esfera.casca.renderOrder = 1;
-  // estrelas: "flutuando" lá dentro, sempre de frente pra você
-  esfera.estrelas = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaDasEstrelas(), transparent: true }));
-  esfera.estrelas.scale.set(R_ESFERA * 1.5, R_ESFERA * 1.5, 1);
-  esfera.estrelas.renderOrder = 2;
-  cena.add(esfera.casca, esfera.estrelas);
+  e.casca.renderOrder = 1;
+  // estrelas: sempre de frente pra você
+  e.estrelas = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaDasEstrelas(e.n), transparent: true }));
+  e.estrelas.scale.set(R_ESFERA * 1.5, R_ESFERA * 1.5, 1);
+  e.estrelas.renderOrder = 2;
+  e.casca.position.copy(e.pos);
+  e.estrelas.position.copy(e.pos);
+  cena.add(e.casca, e.estrelas);
+  return lugar;
+}
 
-  // você começa no alto, a uma distância em que ela aparece no radar,
+function criarEsferas() {
+  // a de 4: numa ilha GRANDE (raio médio de 90 pra cima) entre as carregadas
+  const todas = [...ilhas.values()].filter(Boolean);
+  if (!todas.length) return;
+  const grandes = todas.filter(il => raioDaIlha(il) >= 90);
+  const ilha = grandes.length
+    ? grandes[Math.floor(Math.random() * grandes.length)]
+    : todas.reduce((a, b) => (raioDaIlha(b) > raioDaIlha(a) ? b : a));
+  const quatro = esferas[3];
+  const lugar = pousarNaIlha(quatro, ilha);
+  if (!lugar) return;
+  quatro.alvo.copy(quatro.pos);
+
+  // as outras 6: cada uma pra um lado (com uma folguinha), a distâncias variadas
+  const distancias = [1500, 2200, 2900, 3600, 4300, 5000].sort(() => Math.random() - 0.5);
+  const giro = Math.random() * Math.PI * 2;
+  esferas.filter(e => e.n !== 4).forEach((e, k) => {
+    const ang = giro + (k * Math.PI * 2) / 6 + (Math.random() - 0.5) * 0.6;
+    e.alvo.set(quatro.pos.x + Math.cos(ang) * distancias[k], 0, quatro.pos.z + Math.sin(ang) * distancias[k]);
+    e.pos.copy(e.alvo); // até pousar, o radar aponta pra cá
+  });
+
+  // você começa no alto, a uma distância em que a de 4 aparece no radar,
   // pro lado de fora da ilha (mais ou menos) e olhando pra frente,
   // não pra ela: tem que procurar o pontinho laranja
   const angVoce = lugar.ang + (Math.random() - 0.5) * 2;
   const longe = 200 + Math.random() * 300;
-  camera.position.set(esfera.pos.x + Math.cos(angVoce) * longe, 40, esfera.pos.z + Math.sin(angVoce) * longe);
+  camera.position.set(quatro.pos.x + Math.cos(angVoce) * longe, 40, quatro.pos.z + Math.sin(angVoce) * longe);
   atualizarIlhas(); // carrega o mundo em volta do novo começo
+}
 
+// esfera distante: quando você chega perto do ponto dela, escolhe a ilha
+function tentarPousar(e) {
+  if (Math.hypot(e.alvo.x - camera.position.x, e.alvo.z - camera.position.z) > DIST_POUSO) return;
+  let melhor = null, nota = Infinity;
+  for (const ilha of ilhas.values()) {
+    if (!ilha) continue;
+    const s = ilha.solidos[0];
+    const d = Math.hypot(s.x - e.alvo.x, s.z - e.alvo.z);
+    if (d > 1200) continue;
+    const n = d + (raioDaIlha(ilha) >= 90 ? 0 : 400); // prefere as grandes
+    if (n < nota) { nota = n; melhor = ilha; }
+  }
+  if (melhor) pousarNaIlha(e, melhor);
 }
 
 // a esfera está em cima da plataforma da ilha dela?
-function emCimaDaIlha(x, z) {
-  const s = esfera.ilha.solidos[0];
+function emCimaDaIlha(e, x, z) {
+  const s = e.ilha.solidos[0];
   const lx = (x - s.x) / s.rx, lz = (z - s.z) / s.rz;
   return Math.hypot(lx, lz) < contorno(Math.atan2(lz, lx), s.ondas);
 }
 
 const _n = new THREE.Vector3();
-function atualizarEsfera(dt) {
-  if (!esfera.casca || esfera.sumiu) return;
-  const p = esfera.pos, v = esfera.vel;
+function atualizarUmaEsfera(e, dt) {
+  const p = e.pos, v = e.vel;
+
+  // capturando: encolhe e sobe pra perto de você, depois some
+  if (e.sumindo > 0) {
+    e.sumindo -= dt;
+    const k = Math.max(0, e.sumindo / 0.35);
+    p.lerp(camera.position, 1 - Math.exp(-10 * dt));
+    e.casca.scale.setScalar(k);
+    e.estrelas.scale.set(R_ESFERA * 1.5 * k, R_ESFERA * 1.5 * k, 1);
+    e.casca.position.copy(p);
+    e.estrelas.position.copy(p);
+    if (e.sumindo <= 0) cena.remove(e.casca, e.estrelas);
+    return;
+  }
 
   // você esbarrou nela? empurra (e você não atravessa)
   _n.subVectors(p, camera.position);
   const dist = _n.length();
   const min = R_ESFERA + RAIO_CORPO;
-  if (dist < min && !esfera.afundando) {
+  if (dist < min && !e.afundando) {
     _n.divideScalar(dist || 1);
     camera.position.copy(p).addScaledVector(_n, -min);
     const aproxima = vel.dot(_n) - v.dot(_n); // quão rápido você vinha na direção dela
@@ -1075,21 +1143,25 @@ function atualizarEsfera(dt) {
     }
   }
 
-  const s = esfera.ilha.solidos[0];
-  const sobreIlha = emCimaDaIlha(p.x, p.z);
+  const s = e.ilha.solidos[0];
+  const sobreIlha = emCimaDaIlha(e, p.x, p.z);
 
-  if (esfera.afundando) {
-    // na água: freia, desce devagar e vai sumindo
+  if (e.afundando) {
+    // na água: freia, desce devagar e vai sumindo...
     v.x *= Math.exp(-2.5 * dt);
     v.z *= Math.exp(-2.5 * dt);
     v.y = suavizar(v.y, -3, 3, dt);
     p.addScaledVector(v, dt);
     const fundo = Math.min(1, Math.max(0, -p.y / (R_ESFERA * 3)));
-    esfera.casca.material.opacity = 0.9 * (1 - fundo);
-    esfera.estrelas.material.opacity = 1 - fundo;
+    e.casca.material.opacity = 0.9 * (1 - fundo);
+    e.estrelas.material.opacity = 1 - fundo;
     if (fundo >= 1) {
-      cena.remove(esfera.casca, esfera.estrelas);
-      esfera.sumiu = true;
+      // ...e volta pro lugar dela na ilha
+      p.copy(e.origem);
+      v.set(0, 0, 0);
+      e.afundando = false;
+      e.casca.material.opacity = 0.9;
+      e.estrelas.material.opacity = 1;
     }
   } else {
     v.y -= GRAVIDADE * dt;
@@ -1103,11 +1175,11 @@ function atualizarEsfera(dt) {
       v.z *= Math.exp(-0.7 * dt);
       if (Math.hypot(v.x, v.z) < 0.05) { v.x = 0; v.z = 0; }
     } else if (!sobreIlha && p.y - R_ESFERA <= 0) {
-      esfera.afundando = true; // tchibum
+      e.afundando = true; // tchibum
     }
 
     // bate nos troncos das árvores (só a esfera: você atravessa, pra não enroscar voando)
-    for (const arv of esfera.ilha.copas) {
+    for (const arv of e.ilha.copas) {
       if (p.y - R_ESFERA > arv.topo || p.y + R_ESFERA < arv.chao) continue;
       const dx = p.x - arv.x, dz = p.z - arv.z;
       const d = Math.hypot(dx, dz), min = arv.grossura + R_ESFERA;
@@ -1120,8 +1192,8 @@ function atualizarEsfera(dt) {
     }
 
     // bate nas rochas da ilha e volta
-    for (let n = 1; n < esfera.ilha.solidos.length; n++) {
-      const r = esfera.ilha.solidos[n];
+    for (let n = 1; n < e.ilha.solidos.length; n++) {
+      const r = e.ilha.solidos[n];
       if (p.y - R_ESFERA >= r.h) continue;
       const dx = p.x - r.x, dz = p.z - r.z;
       const c = Math.cos(r.giro), sn = Math.sin(r.giro);
@@ -1142,13 +1214,59 @@ function atualizarEsfera(dt) {
   if (vh > 0.01) {
     _n.set(v.z, 0, -v.x).normalize();
     const giro = (vh * dt) / R_ESFERA;
-    esfera.casca.rotateOnWorldAxis(_n, giro);
+    e.casca.rotateOnWorldAxis(_n, giro);
     // as estrelas viram junto, pro lado que ela rola na sua tela
     const lado = Math.sign(v.x * Math.cos(yaw) - v.z * Math.sin(yaw)) || 1;
-    esfera.estrelas.material.rotation -= giro * lado;
+    e.estrelas.material.rotation -= giro * lado;
   }
-  esfera.casca.position.copy(p);
-  esfera.estrelas.position.copy(p);
+  e.casca.position.copy(p);
+  e.estrelas.position.copy(p);
+}
+
+// ---------- captura ----------
+const iconeCaptura = document.getElementById('capturar');
+const caixaEsferas = document.getElementById('caixaEsferas');
+let capturavel = null; // a esfera que dá pra capturar agora (ou null)
+const _tela = new THREE.Vector3();
+
+function capturar() {
+  const e = capturavel;
+  if (!e || e.capturada) return;
+  e.capturada = true;
+  e.sumindo = 0.35;
+  capturavel = null;
+  iconeCaptura.classList.remove('visivel');
+  const casa = caixaEsferas.querySelector(`[data-n="${e.n}"]`);
+  if (casa) casa.classList.add('pegou');
+}
+document.addEventListener('mousedown', ev => { if (ev.button === 2) capturar(); });
+iconeCaptura.addEventListener('click', capturar); // no celular / sem mouse: toca no ícone
+
+function atualizarEsfera(dt) {
+  capturavel = null;
+  let maisPerto = DIST_CAPTURA;
+  for (const e of esferas) {
+    if (e.capturada && e.sumindo <= 0) continue;
+    if (!e.casca) { tentarPousar(e); continue; }
+    atualizarUmaEsfera(e, dt);
+    if (e.capturada || e.afundando) continue;
+    const d = camera.position.distanceTo(e.pos);
+    if (d < maisPerto) { maisPerto = d; capturavel = e; }
+  }
+  // ícone do botão direito em cima da esfera capturável
+  if (capturavel) {
+    _tela.copy(capturavel.pos);
+    _tela.y += R_ESFERA * 1.8;
+    _tela.project(camera);
+    const naFrente = _tela.z < 1 && Math.abs(_tela.x) < 1.1 && Math.abs(_tela.y) < 1.1;
+    iconeCaptura.classList.toggle('visivel', naFrente);
+    if (naFrente) {
+      iconeCaptura.style.left = ((_tela.x + 1) / 2 * window.innerWidth) + 'px';
+      iconeCaptura.style.top = ((1 - _tela.y) / 2 * window.innerHeight) + 'px';
+    }
+  } else {
+    iconeCaptura.classList.remove('visivel');
+  }
 }
 
 // copa da árvore: uma bola que te empurra pra fora (o tronco fino dá pra atravessar)
@@ -1322,22 +1440,23 @@ function desenharRadar(tempo) {
   }
   rctx.restore();
 
-  // esfera: ponto laranja piscando (se estiver longe, fica grudado na borda do radar)
-  if (esfera.casca && !esfera.sumiu) {
-    const dx = esfera.pos.x - cx, dz = esfera.pos.z - cz;
+  // esferas: pontos laranja piscando (as longe ficam grudadas na borda do radar)
+  const pisca = 0.5 + 0.5 * Math.sin(tempo * 7);
+  for (const e of esferas) {
+    if (e.capturada) continue;
+    const dx = e.pos.x - cx, dz = e.pos.z - cz;
     let ex = (dx * Math.cos(yaw) - dz * Math.sin(yaw)) * esc;
     let ey = (dx * Math.sin(yaw) + dz * Math.cos(yaw)) * esc;
     const longe = Math.hypot(ex, ey), maximo = R - 9;
     if (longe > maximo) { ex *= maximo / longe; ey *= maximo / longe; }
-    const pisca = 0.5 + 0.5 * Math.sin(tempo * 7);
     rctx.shadowColor = '#ff8a1c';
     rctx.shadowBlur = 6 + pisca * 10;
     rctx.fillStyle = `rgba(255, 140, 30, ${0.45 + pisca * 0.55})`;
     rctx.beginPath();
     rctx.arc(R + ex, R + ey, 4, 0, Math.PI * 2);
     rctx.fill();
-    rctx.shadowBlur = 0;
   }
+  rctx.shadowBlur = 0;
 
   // você: um pontinho amarelo pulsando, com um leque mostrando pra onde olha
   rctx.fillStyle = 'rgba(255, 245, 160, 0.18)';
@@ -1855,7 +1974,7 @@ function quadro(agora) {
   requestAnimationFrame(quadro);
 }
 atualizarIlhas();
-criarEsfera();
+criarEsferas();
 // Monta já na abertura os "programas" de desenho de tudo (inclusive do
 // espirro, que fica escondido): senão o primeiro dash dá uma engasgada.
 jatos.visible = true;
@@ -1864,6 +1983,6 @@ jatos.visible = false;
 requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
-window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esfera,
+window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar,
   passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
 })();

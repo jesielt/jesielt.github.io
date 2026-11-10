@@ -1,5 +1,12 @@
 * { box-sizing: border-box; }
 
+:root {
+  --radar: clamp(140px, 28vw, 230px);
+  /* caixinha das esferas: 7 casas na largura do radar (6px de borda, 4px entre elas) */
+  --casa: calc((var(--radar) - 12px - 24px) / 7);
+  --caixa: calc(var(--casa) + 12px);
+}
+
 html, body {
   margin: 0;
   height: 100%;
@@ -70,10 +77,10 @@ html, body {
 
 .radar {
   position: fixed;
-  bottom: 16px;
+  bottom: calc(16px + var(--caixa) + 8px);
   right: 16px;
-  width: clamp(140px, 28vw, 230px);
-  height: clamp(140px, 28vw, 230px);
+  width: var(--radar);
+  height: var(--radar);
   border-radius: 50%;
   border: 4px solid rgba(240, 245, 235, 0.75);
   box-shadow: 0 3px 10px rgba(30, 60, 50, 0.25), inset 0 0 12px rgba(0, 40, 10, 0.5);
@@ -87,7 +94,7 @@ html, body {
 .velocidade {
   position: fixed;
   right: 16px;
-  bottom: calc(16px + clamp(140px, 28vw, 230px) + 10px);
+  bottom: calc(16px + var(--caixa) + 8px + var(--radar) + 10px);
   display: flex;
   align-items: center;
   gap: 7px;
@@ -104,7 +111,7 @@ html, body {
   pointer-events: none;
 }
 .velocidade {
-  right: calc(16px + clamp(140px, 28vw, 230px));
+  right: calc(16px + var(--radar));
   transform: translateX(100%);
 }
 .m-saiyajin,
@@ -113,6 +120,75 @@ html, body {
   height: 17px;
   fill: currentColor;
 }
+
+/* ---------- esferas capturadas: caixinha (bento) embaixo do radar ---------- */
+
+.caixa-esferas {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: var(--radar);
+  height: var(--caixa);
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  pointer-events: none;
+}
+.casa {
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: rgba(30, 70, 50, 0.12);
+  box-shadow: inset 0 1px 2px rgba(30, 60, 50, 0.18);
+}
+.bola {
+  width: 84%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe2a4 0%, #f7a02c 45%, #c8650f 100%);
+  box-shadow: 0 1px 3px rgba(110, 44, 0, 0.45);
+  color: #c41c12;
+  font-size: calc(var(--casa) * 0.48);
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0;
+  transform: scale(0.3);
+  transition: opacity 0.3s, transform 0.35s cubic-bezier(.3, 1.6, .5, 1);
+}
+.casa.pegou .bola { opacity: 1; transform: scale(1); }
+
+/* ícone do botão direito do mouse, em cima da esfera que dá pra capturar */
+.capturar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 34px;
+  height: 47px;
+  transform: translate(-50%, -100%);
+  color: rgba(255, 255, 255, 0.95);
+  filter: drop-shadow(0 1px 3px rgba(30, 60, 50, 0.5));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  cursor: pointer;
+}
+.capturar.visivel {
+  opacity: 1;
+  pointer-events: auto;
+  animation: boiar 0.9s ease-in-out infinite alternate;
+}
+.capturar svg { width: 100%; height: 100%; }
+.capturar .apertar { fill: #ff8a1c; animation: piscar 0.6s ease-in-out infinite alternate; }
+@keyframes boiar { to { translate: 0 -4px; } }
+@keyframes piscar { to { fill: #ffd36b; } }
 
 /* ---------- painel de teclas ---------- */
 
