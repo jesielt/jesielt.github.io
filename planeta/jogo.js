@@ -22,7 +22,7 @@ const AJUSTE = {
   inclinaLado: 0.07,      // a câmera tomba um pouco quando vai de lado (A/D)
   inclinaCurva: 0.04,     // ...e tomba pra dentro da curva quando você vira o mouse
   inclinaMax: 0.2,
-  neblinaPerto: 120,      // onde a perspectiva atmosférica começa
+  neblinaPerto: 650,      // onde a perspectiva atmosférica começa
   neblinaLonge: 2200,     // onde tudo já virou cor de horizonte
 };
 
@@ -178,6 +178,82 @@ function criarSatelite(listras, azimute, elevacao, graus) {
 const satelites = [
   criarSatelite(true, 0.5, 0.42, 9),    // o planetão listrado
 ];
+
+// ---------------------------------------------------------------------
+// Nuvens: poucas e ralas, achatadas embaixo, branco-esverdeadas como no
+// anime. Também ficam "pregadas" no céu, um pouco na frente do planetão,
+// e deslizam bem devagar pro lado.
+// ---------------------------------------------------------------------
+function texturaDaNuvem(semente) {
+  const L = 512, A = 160, c = document.createElement('canvas');
+  c.width = L; c.height = A;
+  const g = c.getContext('2d');
+  let s = semente;
+  const aleatorio = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const base = A * 0.78; // linha de baixo, quase reta
+  // bolotas macias lado a lado, maiores no meio
+  const n = 6 + Math.floor(aleatorio() * 5);
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    const x = L * (0.12 + 0.76 * t) + (aleatorio() - 0.5) * 30;
+    const meio = 1 - Math.abs(t - 0.5) * 1.6;
+    const r = (22 + aleatorio() * 22) * (0.55 + meio * 0.7);
+    const y = base - r * (0.45 + aleatorio() * 0.4);
+    const grad = g.createRadialGradient(x, y - r * 0.3, r * 0.1, x, y, r * 1.6);
+    grad.addColorStop(0, 'rgba(250, 255, 240, 0.85)');
+    grad.addColorStop(0.5, 'rgba(228, 246, 222, 0.55)');
+    grad.addColorStop(1, 'rgba(210, 238, 210, 0)');
+    g.fillStyle = grad;
+    g.beginPath(); g.ellipse(x, y, r * 1.6, r * 1.15, 0, 0, Math.PI * 2); g.fill();
+  }
+  // um fiapo comprido embaixo, que deixa a nuvem rala e esticada
+  const fiapo = g.createRadialGradient(L / 2, base, 10, L / 2, base, L * 0.45);
+  fiapo.addColorStop(0, 'rgba(225, 245, 220, 0.5)');
+  fiapo.addColorStop(1, 'rgba(225, 245, 220, 0)');
+  g.save(); g.translate(L / 2, base); g.scale(1, 0.09); g.translate(-L / 2, -base);
+  g.fillStyle = fiapo; g.fillRect(0, 0, L, A * 12); g.restore();
+  // corta a parte de baixo devagarinho: base achatada, sem borda seca
+  g.globalCompositeOperation = 'destination-in';
+  const corte = g.createLinearGradient(0, base - 6, 0, base + 12);
+  corte.addColorStop(0, 'rgba(0,0,0,1)');
+  corte.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = corte; g.fillRect(0, 0, L, A);
+  g.globalCompositeOperation = 'source-over';
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const DIST_NUVEM = 2800;
+const nuvens = [];
+{
+  let s = 11;
+  const aleatorio = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 11; i++) {
+    const graus = 14 + aleatorio() * 18;           // largura no céu
+    const tam = 2 * DIST_NUVEM * Math.tan((graus * Math.PI / 180) / 2);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: texturaDaNuvem(101 + i * 977), fog: false, depthWrite: false, transparent: true,
+      opacity: 0.45 + aleatorio() * 0.3,
+    }));
+    sprite.scale.set(tam, tam * 160 / 512, 1);
+    cena.add(sprite);
+    nuvens.push({
+      sprite,
+      azimute: (i / 11) * Math.PI * 2 + aleatorio() * 0.5,
+      elevacao: 0.07 + aleatorio() * 0.38,
+      vento: 0.004 + aleatorio() * 0.004,           // radianos por segundo
+    });
+  }
+}
+function posicionarNuvens(dt) {
+  for (const n of nuvens) {
+    n.azimute += n.vento * dt;
+    n.sprite.position.set(
+      Math.sin(n.azimute) * Math.cos(n.elevacao), Math.sin(n.elevacao), -Math.cos(n.azimute) * Math.cos(n.elevacao)
+    ).multiplyScalar(DIST_NUVEM).add(camera.position);
+  }
+}
 
 // ---------------------------------------------------------------------
 // Água: um plano enorme que acompanha você (então nunca acaba)
@@ -1039,6 +1115,7 @@ function atualizar(dt) {
   // céu e água acompanham você
   ceu.position.copy(camera.position);
   for (const sat of satelites) sat.sprite.position.copy(camera.position).add(sat.dir);
+  posicionarNuvens(dt);
   agua.position.x = Math.round(camera.position.x / LADRILHO) * LADRILHO;
   agua.position.z = Math.round(camera.position.z / LADRILHO) * LADRILHO;
   atualizarIlhas();
