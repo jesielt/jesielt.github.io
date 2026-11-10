@@ -1448,8 +1448,9 @@ function animarAgua(tempo) {
 //     (e um pouco pra fora). Como está sempre encostado no mar, não aparece
 //     corte de nenhum ângulo;
 //   - a altura vai baixando da frente pra trás até sumir (a hipotenusa).
-// São 3 paredes desse jeito de cada lado, cada uma inclinada pra fora num
+// São 5 paredes desse jeito de cada lado, cada uma inclinada pra fora num
 // ângulo diferente e um pouco curvada: juntas têm volume de qualquer ângulo.
+// Mais uma deitada no mar (a "cama"), abrindo pra fora: o tapete de espuma.
 // Por cima, GOTAS saem do topo e da ponta de trás, e NÉVOA fica boiando.
 // Medidas em "alturas dos olhos" (h = sua altura sobre a água), pra ficar
 // igual na tela tanto colado no mar quanto a 1 m.
@@ -1462,7 +1463,7 @@ const ESPIRRO = {
   comprimento: 3.5,              // quanto o lado comprido vai pra trás (× h)
   abre: 1.2,                     // ...e quanto se afasta pro lado no caminho (× h)
   altura: 1.6,                   // altura do lado curto, na frente (× h)
-  nevoaPorSegundo: 35,
+  nevoaPorSegundo: 55,
   maxNevoa: 300,
 };
 let forcaEspirro = 0;            // 0 a 1: sobe e desce suave (não liga/desliga seco)
@@ -1484,8 +1485,9 @@ const SEG_U = 26, SEG_V = 7; // pedaços ao longo (u: ponta -> trás) e pra cima
 const PAREDES = [];
 for (const lado of [-1, 1]) {
   // [inclinação pra fora (graus), desvio pro lado (× h), altura relativa, fase]
-  [[25, 0.0, 1.15, 0.0], [40, 0.12, 0.95, 2.7], [55, 0.25, 0.8, 5.3]].forEach(([inc, dLado, alt, fase]) => {
-    PAREDES.push({ lado, inc: inc * Math.PI / 180, dLado, alt, fase: fase + (lado > 0 ? 9 : 0) });
+  [[18, 0.0, 1.15, 0.0], [30, 0.06, 1.05, 2.7], [42, 0.12, 0.95, 5.3], [54, 0.18, 0.85, 7.1], [66, 0.24, 0.75, 1.3],
+   [88, 0.0, 1.1, 3.9]].forEach(([inc, dLado, alt, fase]) => {
+    PAREDES.push({ lado, inc: inc * Math.PI / 180, dLado, alt, fase: fase + (lado > 0 ? 9 : 0), cama: inc > 80 });
   });
 }
 const geoJatos = new THREE.BufferGeometry();
@@ -1554,13 +1556,16 @@ const jatos = new THREE.Mesh(geoJatos, new THREE.ShaderMaterial({
               + ruido( p * 2.7 + tempo * 1.1 ) * 0.3
               + ruido( p * 6.5 - tempo * 2.2 ) * 0.2;
       float ponta = smoothstep( 0.0, 0.14, u + ( n - 0.5 ) * 0.22 );              // lado curto estourando (esfiapado)
-      float topo = 1.0 - smoothstep( 0.5, 1.0, v + ( n - 0.5 ) * 0.6 );           // topo esfiapado
+      float topo = 1.0 - smoothstep( 0.6, 1.0, v + ( n - 0.5 ) * 0.6 );           // topo esfiapado
       float estouro = 1.0 - smoothstep( 0.7, 1.0, u );                            // some aos poucos lá atrás
-      float a = ponta * topo * estouro * ( 0.5 + 0.5 * smoothstep( 0.25, 0.7, n ) ) * forca * 0.9;
+      // espuma: perto do mar a água é revolta, branca e quase opaca
+      float espuma = 1.0 - smoothstep( 0.0, 0.4, v + ( n - 0.5 ) * 0.25 );
+      float corpo = 0.6 + 0.4 * smoothstep( 0.25, 0.7, n );
+      float a = ponta * topo * estouro * min( 1.0, corpo + espuma * 0.4 ) * forca;
       if ( a < 0.01 ) discard;
-      // embaixo mais espuma (branca), no meio aparece um pouco da cor da água
+      // no meio aparece um pouco da cor da água; embaixo, espuma branca
       vec3 cor = mix( vec3( 0.80, 0.92, 0.86 ), vec3( 0.98, 1.0, 0.98 ),
-                      clamp( smoothstep( 0.25, 0.75, n ) + ( 1.0 - v ) * 0.35, 0.0, 1.0 ) );
+                      clamp( smoothstep( 0.25, 0.75, n ) + espuma * 0.7, 0.0, 1.0 ) );
       gl_FragColor = vec4( cor, a );
     }`,
 }));
@@ -1582,7 +1587,7 @@ function pontoDaParede(p, u, v, alvo) {
   const alt = h * ESPIRRO.altura * p.alt * Math.pow(1 - u, 0.8) * treme * forcaEspirro * v;
   alvo.set(c.x, 0, c.z).addScaledVector(_rumo, frente).addScaledVector(_lado, lateral * p.lado);
   // sobe inclinado pra fora (cada parede num ângulo)
-  alvo.y += alt * Math.cos(p.inc);
+  alvo.y += alt * Math.cos(p.inc) + (p.cama ? 0.03 * h : 0); // a cama fica um tiquinho acima do mar
   alvo.addScaledVector(_lado, alt * Math.sin(p.inc) * p.lado);
   return alvo;
 }
@@ -1675,7 +1680,7 @@ function soltarNevoa(rapidez) {
 // ---------- gotas ----------
 // Gotinhas e pedaços de espuma que saltam do topo e do lado curto das
 // paredes (onde a água estoura) e caem. São a "bagunça" por cima.
-const MAX_GOTAS = 1500;
+const MAX_GOTAS = 2400;
 const gotas = {
   pos: new Float32Array(MAX_GOTAS * 3),
   vel: new Float32Array(MAX_GOTAS * 3),
@@ -1745,12 +1750,12 @@ function soltarGota(rapidez) {
   gotas.vida[i] = dura;
   gotas.dura[i] = dura;
   // a maioria gotinha; algumas são pedaços maiores de espuma
-  gotas.tam[i] = h * (Math.random() < 0.85 ? 0.04 + Math.random() * 0.06 : 0.12 + Math.random() * 0.12);
+  gotas.tam[i] = h * (Math.random() < 0.72 ? 0.04 + Math.random() * 0.06 : 0.12 + Math.random() * 0.16);
 }
 
 function atualizarGotas(dt, rapidez) {
   if (forcaEspirro > 0.05) {
-    gotas.acumulado += 1200 * forcaEspirro * dt;
+    gotas.acumulado += 1900 * forcaEspirro * dt;
     while (gotas.acumulado >= 1) { gotas.acumulado -= 1; soltarGota(rapidez); }
   } else {
     gotas.acumulado = 0;
@@ -1815,7 +1820,7 @@ function atualizarEspirro(dt) {
     nevoa.pos[i * 3 + 1] = Math.max(0.5, nevoa.pos[i * 3 + 1] + nevoa.vel[i * 3 + 1] * dt);
     nevoa.pos[i * 3 + 2] += nevoa.vel[i * 3 + 2] * dt;
     const t = nevoa.vida[i] / nevoa.dura[i]; // 1 = nasceu agora, 0 = sumindo
-    nevoa.alfa[i] = Math.min(1, (1 - t) * 6) * t * 0.16; // acende rápido, apaga devagar
+    nevoa.alfa[i] = Math.min(1, (1 - t) * 6) * t * 0.24; // acende rápido, apaga devagar
     nevoa.tam[i] += dt * camera.position.y * 0.6; // a névoa se espalha
   }
   geoNevoa.attributes.position.needsUpdate = true;
