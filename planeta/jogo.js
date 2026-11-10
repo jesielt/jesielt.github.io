@@ -180,78 +180,106 @@ const satelites = [
 ];
 
 // ---------------------------------------------------------------------
-// Nuvens: poucas e ralas, achatadas embaixo, branco-esverdeadas como no
-// anime. Também ficam "pregadas" no céu, um pouco na frente do planetão,
-// e deslizam bem devagar pro lado.
+// Nuvens: coisas de verdade no mundo, lá no alto. Cada uma é um montinho
+// de bolotas macias (sprites); embaixo, bolotas largas e achatadas fazem a
+// base reta. Ficam espalhadas num quadriculado próprio, como as ilhas, e
+// o vento leva todas juntas bem devagar. Dá pra subir e atravessar.
 // ---------------------------------------------------------------------
-function texturaDaNuvem(semente) {
-  const L = 512, A = 160, c = document.createElement('canvas');
-  c.width = L; c.height = A;
+const NUVEM = {
+  alturaMin: 650,   // base da nuvem mais baixa (~37 m na sua régua)
+  alturaMax: 850,
+  celula: 900,      // uma chance de nuvem a cada 900 x 900
+  chance: 0.45,
+  opacidade: 0.6,   // rala: dá pra ver o céu através
+  vento: new THREE.Vector3(4, 0, 1.5), // unidades por segundo
+};
+function texturaDaBolota() {
+  const t = 128, c = document.createElement('canvas');
+  c.width = c.height = t;
   const g = c.getContext('2d');
-  let s = semente;
-  const aleatorio = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  const base = A * 0.78; // linha de baixo, quase reta
-  // bolotas macias lado a lado, maiores no meio
-  const n = 6 + Math.floor(aleatorio() * 5);
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n;
-    const x = L * (0.12 + 0.76 * t) + (aleatorio() - 0.5) * 30;
-    const meio = 1 - Math.abs(t - 0.5) * 1.6;
-    const r = (22 + aleatorio() * 22) * (0.55 + meio * 0.7);
-    const y = base - r * (0.45 + aleatorio() * 0.4);
-    const grad = g.createRadialGradient(x, y - r * 0.3, r * 0.1, x, y, r * 1.6);
-    grad.addColorStop(0, 'rgba(250, 255, 240, 0.85)');
-    grad.addColorStop(0.5, 'rgba(228, 246, 222, 0.55)');
-    grad.addColorStop(1, 'rgba(210, 238, 210, 0)');
-    g.fillStyle = grad;
-    g.beginPath(); g.ellipse(x, y, r * 1.6, r * 1.15, 0, 0, Math.PI * 2); g.fill();
-  }
-  // um fiapo comprido embaixo, que deixa a nuvem rala e esticada
-  const fiapo = g.createRadialGradient(L / 2, base, 10, L / 2, base, L * 0.45);
-  fiapo.addColorStop(0, 'rgba(225, 245, 220, 0.5)');
-  fiapo.addColorStop(1, 'rgba(225, 245, 220, 0)');
-  g.save(); g.translate(L / 2, base); g.scale(1, 0.09); g.translate(-L / 2, -base);
-  g.fillStyle = fiapo; g.fillRect(0, 0, L, A * 12); g.restore();
-  // corta a parte de baixo devagarinho: base achatada, sem borda seca
-  g.globalCompositeOperation = 'destination-in';
-  const corte = g.createLinearGradient(0, base - 6, 0, base + 12);
-  corte.addColorStop(0, 'rgba(0,0,0,1)');
-  corte.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = corte; g.fillRect(0, 0, L, A);
-  g.globalCompositeOperation = 'source-over';
+  const grad = g.createRadialGradient(t / 2, t / 2, 0, t / 2, t / 2, t / 2);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0.75)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, t, t);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+const texBolota = texturaDaBolota();
+const matNuvemTopo = new THREE.SpriteMaterial({
+  map: texBolota, color: '#fbfff2', transparent: true, depthWrite: false, opacity: NUVEM.opacidade,
+});
+const matNuvemBase = new THREE.SpriteMaterial({
+  map: texBolota, color: '#d3ebcf', transparent: true, depthWrite: false, opacity: NUVEM.opacidade,
+});
+const ceuDasNuvens = new THREE.Group(); // anda com o vento
+cena.add(ceuDasNuvens);
+const nuvens = new Map(); // "i,j" -> grupo ou null
+const ALCANCE_NUVEM = Math.ceil(AJUSTE.neblinaLonge / NUVEM.celula);
+let celulaNuvemAtual = '';
 
-const DIST_NUVEM = 2800;
-const nuvens = [];
-{
-  let s = 11;
-  const aleatorio = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 11; i++) {
-    const graus = 14 + aleatorio() * 18;           // largura no céu
-    const tam = 2 * DIST_NUVEM * Math.tan((graus * Math.PI / 180) / 2);
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: texturaDaNuvem(101 + i * 977), fog: false, depthWrite: false, transparent: true,
-      opacity: 0.45 + aleatorio() * 0.3,
-    }));
-    sprite.scale.set(tam, tam * 160 / 512, 1);
-    cena.add(sprite);
-    nuvens.push({
-      sprite,
-      azimute: (i / 11) * Math.PI * 2 + aleatorio() * 0.5,
-      elevacao: 0.07 + aleatorio() * 0.38,
-      vento: 0.004 + aleatorio() * 0.004,           // radianos por segundo
-    });
+function criarNuvem(i, j) {
+  if (hash(i, j, 900) > NUVEM.chance) return null;
+  const grupo = new THREE.Group();
+  const cx = (i + 0.2 + hash(i, j, 901) * 0.6) * NUVEM.celula;
+  const cz = (j + 0.2 + hash(i, j, 902) * 0.6) * NUVEM.celula;
+  const base = NUVEM.alturaMin + hash(i, j, 903) * (NUVEM.alturaMax - NUVEM.alturaMin);
+  grupo.position.set(cx, base, cz);
+  grupo.rotation.y = hash(i, j, 904) * Math.PI;
+  const rx = 160 + hash(i, j, 905) * 220;   // comprimento
+  const rz = rx * (0.35 + hash(i, j, 906) * 0.3);
+  const alto = 70 + hash(i, j, 907) * 90;   // o quanto ela estufa pra cima no meio
+  // bolotas de cima: mais altas e maiores no meio
+  const n = 8 + Math.floor(hash(i, j, 908) * 9);
+  for (let k = 0; k < n; k++) {
+    const a = hash(i, j, 910 + k) * Math.PI * 2;
+    const d = Math.sqrt(hash(i, j, 930 + k)) * 0.85;
+    const meio = 1 - d * d;
+    const r = (45 + hash(i, j, 950 + k) * 50) * (0.6 + meio * 0.6);
+    const b = new THREE.Sprite(matNuvemTopo);
+    b.position.set(Math.cos(a) * d * rx, r * 0.45 + meio * alto * hash(i, j, 970 + k), Math.sin(a) * d * rz);
+    b.scale.set(r * 2.4, r * 2, 1);
+    grupo.add(b);
   }
+  // base: bolotas largas e baixinhas, um pouco mais escuras (sombra de baixo)
+  const nb = 3 + Math.floor(hash(i, j, 990) * 3);
+  for (let k = 0; k < nb; k++) {
+    const t = nb === 1 ? 0 : k / (nb - 1) - 0.5;
+    const b = new THREE.Sprite(matNuvemBase);
+    b.position.set(t * rx * 1.3, 0, (hash(i, j, 991 + k) - 0.5) * rz * 0.6);
+    const largura = rx * (1.1 - Math.abs(t));
+    b.scale.set(largura, largura * 0.22, 1);
+    b.renderOrder = -0.5; // a base fica atrás das bolotas de cima
+    grupo.add(b);
+  }
+  ceuDasNuvens.add(grupo);
+  return grupo;
 }
-function posicionarNuvens(dt) {
-  for (const n of nuvens) {
-    n.azimute += n.vento * dt;
-    n.sprite.position.set(
-      Math.sin(n.azimute) * Math.cos(n.elevacao), Math.sin(n.elevacao), -Math.cos(n.azimute) * Math.cos(n.elevacao)
-    ).multiplyScalar(DIST_NUVEM).add(camera.position);
+
+function atualizarNuvens(dt) {
+  ceuDasNuvens.position.addScaledVector(NUVEM.vento, dt);
+  // posição de quem joga "dentro" do céu que está andando
+  const px = camera.position.x - ceuDasNuvens.position.x;
+  const pz = camera.position.z - ceuDasNuvens.position.z;
+  const ci = Math.floor(px / NUVEM.celula), cj = Math.floor(pz / NUVEM.celula);
+  const chave = ci + ',' + cj;
+  if (chave === celulaNuvemAtual) return;
+  celulaNuvemAtual = chave;
+  const precisa = new Set();
+  for (let di = -ALCANCE_NUVEM; di <= ALCANCE_NUVEM; di++) {
+    for (let dj = -ALCANCE_NUVEM; dj <= ALCANCE_NUVEM; dj++) {
+      if (di * di + dj * dj > ALCANCE_NUVEM * ALCANCE_NUVEM) continue;
+      const k = (ci + di) + ',' + (cj + dj);
+      precisa.add(k);
+      if (!nuvens.has(k)) nuvens.set(k, criarNuvem(ci + di, cj + dj));
+    }
+  }
+  for (const [k, grupo] of nuvens) {
+    if (precisa.has(k)) continue;
+    if (grupo) ceuDasNuvens.remove(grupo);
+    nuvens.delete(k);
   }
 }
 
@@ -1115,7 +1143,7 @@ function atualizar(dt) {
   // céu e água acompanham você
   ceu.position.copy(camera.position);
   for (const sat of satelites) sat.sprite.position.copy(camera.position).add(sat.dir);
-  posicionarNuvens(dt);
+  atualizarNuvens(dt);
   agua.position.x = Math.round(camera.position.x / LADRILHO) * LADRILHO;
   agua.position.z = Math.round(camera.position.z / LADRILHO) * LADRILHO;
   atualizarIlhas();
@@ -1332,6 +1360,6 @@ criarEsfera();
 requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
-window.planeta = { camera, vel, apertar, soltar, ilhas, esfera,
+window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esfera,
   passo(seg = 1 / 60) { atualizar(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
 })();
