@@ -27,7 +27,7 @@ const AJUSTE = {
 };
 
 const CORES = {
-  horizonte: '#f4cdd2',
+  horizonte: '#edf0d2',
   agua: '#a6dba0',
   rocha: '#e9aab3',
   grama: '#7d9ce2',
@@ -88,11 +88,12 @@ const ceu = new THREE.Mesh(
       varying vec3 vDir;
       void main() {
         float h = vDir.y;
-        vec3 rosa    = vec3(0.957, 0.804, 0.824);
-        vec3 amarelo = vec3(0.933, 0.918, 0.698);
+        // de baixo pra cima: quase branco esverdeado -> verde-amarelado -> verde
+        vec3 claro   = vec3(0.929, 0.941, 0.824); // = CORES.horizonte (#edf0d2)
+        vec3 amarelo = vec3(0.855, 0.902, 0.616);
         vec3 verdeCl = vec3(0.624, 0.824, 0.478);
         vec3 verde   = vec3(0.310, 0.702, 0.322);
-        vec3 c = rosa;
+        vec3 c = claro;
         c = mix(c, amarelo, smoothstep(0.00, 0.08, h));
         c = mix(c, verdeCl, smoothstep(0.08, 0.30, h));
         c = mix(c, verde,   smoothstep(0.30, 0.75, h));
