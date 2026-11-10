@@ -1437,7 +1437,7 @@ function animarAgua(tempo) {
 }
 
 // ---------------------------------------------------------------------
-// Espirro: com o dash (Shift), rente ao mar (1 m ou menos), a água abre
+// Espirro: com o dash (Shift), rente ao mar (1,5 m ou menos), a água abre
 // pros lados:  \\\ você ///
 //
 // Visto de lado, cada esguicho é um TRIÂNGULO preso no mar:
@@ -1456,7 +1456,7 @@ function animarAgua(tempo) {
 // igual na tela tanto colado no mar quanto a 1 m.
 // ---------------------------------------------------------------------
 const ESPIRRO = {
-  alturaMax: 1 * ESCALA_SENTIDA, // só espirra a 1 m da água ou menos
+  alturaMax: 1.5 * ESCALA_SENTIDA, // só espirra a 1,5 m da água ou menos
   velMin: 25,                    // devagar não espirra
   pontaFrente: 1.5,              // spawn (pé do lado curto): à frente de você (× h)...
   pontaLado: 1.3,                // ...e pro lado (× h): bem separados, embaixo na tela
