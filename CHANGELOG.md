@@ -66,7 +66,7 @@ e aparece embaixo do nome, no canto da tela (e no console do navegador).
   verde com faixas claras tortas espalhadas por ele todo e um brilho azul na borda, e ele passa embaixo de você conforme
   você voa. Descendo, tudo volta
 - No espaço não tem ar: acima de 500 m a barra de fôlego (40 s) aparece; acabou, recomeça
-- Versão na tela, embaixo do nome; nome e versão na fonte Alata
+- Versão na tela, embaixo do nome; nome e versão na fonte Orbitron
 
 ## 1.0.0 — 10/11/2026
 

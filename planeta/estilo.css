@@ -123,20 +123,23 @@ html, body {
   position: fixed;
   left: 16px;
   top: 14px;
-  font-family: "Alata", system-ui, sans-serif;
-  font-size: 13px;
-  letter-spacing: 0.04em;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-align: center; /* a versão fica centralizada embaixo do nome */
   color: rgba(255, 255, 255, 0.85);
   text-shadow: 0 1px 3px rgba(30, 60, 50, 0.45);
   pointer-events: none;
   user-select: none;
 }
-/* versão, menorzinha, embaixo do nome */
+/* versão, menorzinha, centralizada embaixo do nome */
 .creditos .versao {
   display: block;
   margin-top: 1px;
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
   opacity: 0.7;
 }
 
