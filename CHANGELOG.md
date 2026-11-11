@@ -34,7 +34,7 @@ e aparece no console do navegador quando o jogo abre.
   fraco, choque ao entrar na água e sem espirro
 - Fôlego: barra azul de 40 s; se acabar, você volta pro começo e perde as esferas
 - As esferas também afundam devagar e rolam pelo fundo (não somem mais)
-- Grama das ilhas lisa, com manchas largas em degradê (sem pinceladas); as manchas viraram
+- Grama das ilhas lisa, com manchas escuras em degradê espalhadas sem padrão (sem pinceladas); as manchas viraram
   terra compactada (sem grama em cima), com uma borda escura separando da grama
 - Mergulhou rápido (com dash): estouro de centenas de bolhas espalhadas numa bola à sua frente,
   também mergulhando na vertical

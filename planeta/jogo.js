@@ -469,8 +469,8 @@ const geoTopo = new THREE.CylinderGeometry(1.1, 1.1, 1, 16);
 const matRocha = new THREE.MeshLambertMaterial({ color: CORES.rocha });
 const matGrama = new THREE.MeshLambertMaterial({ color: CORES.grama });
 
-// Grama de Namek: azul liso com manchas largas em degradê, umas mais claras
-// e outras mais escuras (sem pinceladas). A textura é "carimbada" pela posição no mundo
+// Grama de Namek: azul liso com manchas escuras em degradê, de tamanhos e
+// forças variados (sem pinceladas). A textura é "carimbada" pela posição no mundo
 // (de cima), então é igual em todas as ilhas, de qualquer tamanho.
 function texturaDaGrama() {
   const t = 512, c = document.createElement('canvas');
@@ -481,19 +481,25 @@ function texturaDaGrama() {
   let semente = 31;
   const aleatorio = () => (semente = (semente * 16807) % 2147483647) / 2147483647;
   const emVolta = (desenhar) => { for (const dx of [-t, 0, t]) for (const dy of [-t, 0, t]) desenhar(dx, dy); }; // emenda sem costura
-  // 1) variação larga de tom: áreas grandes e bem suaves, um pouco mais claras ou escuras
-  for (let i = 0; i < 26; i++) {
-    const x = aleatorio() * t, y = aleatorio() * t, r = 70 + aleatorio() * 120;
-    const claro = aleatorio() < 0.5;
+  // manchas escuras, bem suaves, de tamanhos e forças bem diferentes, umas
+  // esticadas pra um lado (nada de bolinhas iguais)
+  for (let i = 0; i < 18; i++) {
+    const x = aleatorio() * t, y = aleatorio() * t, r = 40 + Math.pow(aleatorio(), 1.5) * 150;
+    const forca = 0.1 + aleatorio() * 0.22;
+    const estica = 0.55 + aleatorio() * 0.9, giro = aleatorio() * Math.PI;
     emVolta((dx, dy) => {
-      const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+      g.save();
+      g.translate(x + dx, y + dy);
+      g.rotate(giro);
+      g.scale(estica, 1 / estica);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, r);
       // a borda do degradê é a MESMA cor, só transparente: terminar em
       // "preto transparente" suja o meio do caminho de cinza/escuro
-      const cor = claro ? '170, 198, 245' : '80, 112, 200';
-      gr.addColorStop(0, `rgba(${cor}, 0.18)`);
-      gr.addColorStop(1, `rgba(${cor}, 0)`);
+      gr.addColorStop(0, `rgba(72, 102, 196, ${forca})`);
+      gr.addColorStop(1, 'rgba(72, 102, 196, 0)');
       g.fillStyle = gr;
-      g.fillRect(x + dx - r, y + dy - r, r * 2, r * 2);
+      g.fillRect(-r, -r, r * 2, r * 2);
+      g.restore();
     });
   }
   const tex = new THREE.CanvasTexture(c);
@@ -510,7 +516,11 @@ function pintarGrama(sh) {
     vChaoXZ = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;
   `);
   sh.fragmentShader = 'uniform sampler2D texGrama;\nvarying vec2 vChaoXZ;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
-    diffuseColor.rgb = texture2D( texGrama, vChaoXZ / 110.0 ).rgb;
+    // duas camadas da mesma textura, em tamanhos e giros que nunca "batem"
+    // (a mais escura de cada ponto vale): a repetição não aparece mais
+    vec3 g1 = texture2D( texGrama, vChaoXZ / 170.0 ).rgb;
+    vec3 g2 = texture2D( texGrama, mat2( 0.6, -0.8, 0.8, 0.6 ) * vChaoXZ / 397.0 + vec2( 0.31, 0.77 ) ).rgb;
+    diffuseColor.rgb = min( g1, g2 );
   `);
 }
 // Embaixo d'água a cor some rápido na cor do fundo: a água é turva,
