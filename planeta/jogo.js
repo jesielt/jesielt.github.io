@@ -4,10 +4,18 @@
 // A biblioteca de 3D vem de um link. Carregando assim, o jogo funciona
 // tanto no site quanto abrindo o index.html direto (duplo clique).
 // Versão oficial (a que vai pro ar no próximo push). Ver CHANGELOG.md.
-const VERSAO = '2.0.1';
+const VERSAO = '2.1.0';
 console.log(`Planeta v${VERSAO}`);
 // aparece na tela, embaixo do nome (o número vem só daqui)
 document.getElementById('versao').textContent = 'v' + VERSAO;
+
+// Tela de toque (celular/tablet): troca teclado e mouse por joystick, arrastar pra
+// olhar e botões grandes. No computador nada muda.
+const TOQUE = matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0;
+if (TOQUE) {
+  document.body.classList.add('toque');
+  document.getElementById('convite').textContent = 'toque pra voar';
+}
 
 (async () => {
 const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
@@ -17,6 +25,8 @@ const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/thr
 // ---------------------------------------------------------------------
 const AJUSTE = {
   sensibilidade: 0.0022,  // quanto o olhar gira por pixel de mouse
+  sensibilidadeToque: 0.005, // ...e por pixel de dedo arrastado (celular)
+  raioJoystick: 55,       // px: quanto o dedo anda do centro do joystick até a força máxima
   acel: 100,              // força do "empurrão" quando segura uma tecla
   arrasto: 1.2,           // inércia: menor = desliza mais depois de soltar
   velMax: 90,             // m/s
@@ -51,7 +61,8 @@ const canvas = document.getElementById('tela');
 // tanto perto quanto longe. Sem isso, lá do alto o topo das ilhas "briga"
 // com a água (z-fighting) e as ilhas piscam/somem.
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+// no celular, resolução um pouco menor: a tela é pequena e o processador é mais fraco
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, TOQUE ? 1.5 : 2));
 
 const cena = new THREE.Scene();
 // neblina na cor do horizonte = quanto mais longe, mais desbotado
@@ -1266,7 +1277,7 @@ document.querySelectorAll('[data-tecla]').forEach(el => {
   const codigo = el.dataset.tecla;
   el.addEventListener('pointerdown', e => {
     e.preventDefault();
-    el.setPointerCapture(e.pointerId);
+    try { el.setPointerCapture(e.pointerId); } catch (erro) { /* tudo bem */ }
     apertar(codigo);
   });
   const fim = () => soltar(codigo);
@@ -1371,6 +1382,97 @@ document.addEventListener('mouseup', e => {
   if (e.button === 2) botaoDir.classList.remove('ativa');
 });
 document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------------------------------------------------------------------
+// Celular: dedo do lado esquerdo da tela = joystick (anda);
+// dedo em qualquer outro lugar = arrastar pra olhar. Cada dedo é seguido
+// separado, então dá pra andar e olhar ao mesmo tempo.
+// ---------------------------------------------------------------------
+const joy = { f: 0, l: 0, dedo: null, cx: 0, cy: 0 };
+const joyBase = document.getElementById('joystick');
+const joyBola = joyBase.querySelector('.joy-bola');
+const olhares = new Map(); // dedo → última posição
+
+function moverJoystick(x, y) {
+  let dx = x - joy.cx, dy = y - joy.cy;
+  const d = Math.hypot(dx, dy), r = AJUSTE.raioJoystick;
+  if (d > r) { dx *= r / d; dy *= r / d; }
+  joyBola.style.transform = `translate(${dx}px, ${dy}px)`;
+  // zona morta pequena pra não sair andando com o dedo só encostado
+  const forca = d < 6 ? 0 : 1;
+  joy.l = forca * dx / r;
+  joy.f = forca * -dy / r;
+}
+function soltarJoystick() {
+  joy.dedo = null; joy.f = 0; joy.l = 0;
+  joyBola.style.transform = '';
+  joyBase.classList.remove('ativo');
+  joyBase.style.left = joyBase.style.top = '';
+}
+if (TOQUE) {
+  canvas.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return;
+    e.preventDefault(); // sem "mouse de mentirinha" depois do toque
+    try { canvas.setPointerCapture(e.pointerId); } catch (erro) { /* tudo bem */ }
+    if (joy.dedo === null && e.clientX < window.innerWidth * 0.42) {
+      joy.dedo = e.pointerId;
+      joy.cx = e.clientX; joy.cy = e.clientY;
+      joyBase.style.left = e.clientX + 'px';
+      joyBase.style.top = e.clientY + 'px';
+      joyBase.classList.add('ativo');
+      moverJoystick(e.clientX, e.clientY);
+    } else {
+      olhares.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (e.pointerId === joy.dedo) { moverJoystick(e.clientX, e.clientY); return; }
+    const antes = olhares.get(e.pointerId);
+    if (!antes) return;
+    const dx = e.clientX - antes.x, dy = e.clientY - antes.y;
+    antes.x = e.clientX; antes.y = e.clientY;
+    yaw -= dx * AJUSTE.sensibilidadeToque;
+    pitch -= dy * AJUSTE.sensibilidadeToque;
+    const limite = Math.PI / 2 - 0.01;
+    pitch = Math.max(-limite, Math.min(limite, pitch));
+  });
+  const fimDedo = e => {
+    if (e.pointerId === joy.dedo) soltarJoystick();
+    olhares.delete(e.pointerId);
+  };
+  canvas.addEventListener('pointerup', fimDedo);
+  canvas.addEventListener('pointercancel', fimDedo);
+  window.addEventListener('blur', () => {
+    soltarJoystick(); olhares.clear();
+    document.getElementById('toqueDash').classList.remove('ativa');
+  });
+
+  // primeiro toque: tela cheia e (se o celular deixar) trava deitado
+  canvas.addEventListener('pointerdown', () => {
+    if (document.fullscreenElement) return;
+    const el = document.documentElement;
+    const pedir = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!pedir) return;
+    try {
+      const p = pedir.call(el, { navigationUI: 'hide' });
+      if (p && p.then) p.then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
+    } catch (erro) { /* sem tela cheia: segue normal */ }
+  });
+
+  // dash: um toque liga, outro desliga (o dedão já está ocupado no joystick)
+  MAPA.ToqueDash = 'dash';
+  const botaoDash = document.getElementById('toqueDash');
+  botaoDash.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (apertadas.has('ToqueDash')) soltar('ToqueDash'); else apertar('ToqueDash');
+    botaoDash.classList.toggle('ativa', apertadas.has('ToqueDash'));
+  });
+
+  // recomeçar pede confirmação (perde as esferas)
+  document.getElementById('toqueRecomecar').addEventListener('click', () => {
+    if (confirm('Recomeçar do início? Você perde as esferas.')) recomecar();
+  });
+}
 
 // ---------------------------------------------------------------------
 // Voo
@@ -1810,8 +1912,10 @@ function atualizar(dt) {
   frente.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
   direita.set(Math.cos(yaw), 0, -Math.sin(yaw));
 
-  const f = (segurando('frente') ? 1 : 0) - (segurando('tras') ? 1 : 0);
-  const l = (segurando('direita') ? 1 : 0) - (segurando('esquerda') ? 1 : 0);
+  // teclas + joystick do celular (que tem força de 0 a 1, conforme o dedo afasta)
+  const lim1 = x => Math.max(-1, Math.min(1, x));
+  const f = lim1((segurando('frente') ? 1 : 0) - (segurando('tras') ? 1 : 0) + joy.f);
+  const l = lim1((segurando('direita') ? 1 : 0) - (segurando('esquerda') ? 1 : 0) + joy.l);
   const u = (segurando('subir') ? 1 : 0) - (segurando('descer') ? 1 : 0);
 
   desejo.set(0, 0, 0)
@@ -2689,6 +2793,7 @@ try { semMergulho = localStorage.getItem('planeta.semMergulho') === '1'; } catch
 const botaoMergulho = document.getElementById('semMergulho');
 function mostrarMergulho() {
   botaoMergulho.classList.toggle('ligado', semMergulho);
+  document.getElementById('toqueMergulho').classList.toggle('ligado', semMergulho);
   botaoMergulho.setAttribute('aria-checked', String(semMergulho));
 }
 // aviso: ligou, dois anéis saem do botão e somem; desligou, dois anéis
@@ -2724,6 +2829,7 @@ document.addEventListener('mousedown', ev => {
   else ultimoDireito = agora;
 });
 botaoMergulho.addEventListener('click', alternarMergulho);
+document.getElementById('toqueMergulho').addEventListener('click', alternarMergulho);
 
 // acabou o ar (ou apertou R): volta pro começo e perde as esferas
 function recomecar() {

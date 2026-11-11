@@ -11,6 +11,18 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
+## 2.1.0 — ainda não publicada
+
+- Celular e tablet: o jogo agora funciona no toque (no computador nada muda)
+  - Joystick: encosta o dedão no lado esquerdo da tela e arrasta pra andar (quanto mais longe, mais forte)
+  - Arrastar o dedo no resto da tela vira a câmera; dá pra andar e olhar ao mesmo tempo
+  - Botões grandes à direita: ▲ subir, ▼ descer, ⚡ dash (um toque liga, outro desliga)
+  - Botões pequenos: recomeçar (caveira, pede confirmação) e não mergulhar (nadador)
+  - Pra capturar uma esfera, toca no ícone que aparece em cima dela (agora maior)
+  - Radar, altura, velocidade e esferas sobem pro canto de cima; o painel de teclado e mouse some
+  - Primeiro toque abre em tela cheia e, se o celular deixar, trava deitado; em pé aparece "vire o celular de lado"
+  - Resolução um pouco menor no celular, pra rodar mais leve
+
 ## 2.0.1 — 10/11/2026
 
 - Correção: logo depois de uma atualização, o navegador podia misturar a página nova

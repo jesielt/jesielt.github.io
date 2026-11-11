@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Planeta</title>
   <!-- fonte do nome e da versão: Orbitron, quadradona (cara de tela de scouter) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,7 +11,7 @@
   <!-- ?v=versão: cada versão tem um endereço novo, então o navegador não
        mistura a página nova com o estilo/jogo antigos guardados no cache.
        Mudou a VERSAO no jogo.js? Muda aqui também (nos dois). -->
-  <link rel="stylesheet" href="estilo.css?v=2.0.1">
+  <link rel="stylesheet" href="estilo.css?v=2.1.0">
 </head>
 <body>
   <canvas id="tela"></canvas>
@@ -130,6 +130,32 @@
     </div>
   </div>
 
-  <script src="jogo.js?v=2.0.1"></script>
+  <!-- Celular: joystick (aparece onde o dedão encosta, do lado esquerdo) e
+       botões grandes do lado direito. No computador ficam escondidos. -->
+  <div class="joystick" id="joystick" aria-hidden="true"><span class="joy-bola"></span></div>
+  <div class="toque-botoes">
+    <span class="tbotao pequeno perigo" id="toqueRecomecar" aria-label="recomeçar do início"><svg class="caveira-toque" viewBox="0 0 16 16" aria-hidden="true">
+          <path fill="currentColor" d="M8 1.6C4.5 1.6 2.1 4 2.1 7.2c0 1.8.8 3.1 2.1 3.8V13c0 .6.4 1 1 1h5.6c.6 0 1-.4 1-1v-2c1.3-.7 2.1-2 2.1-3.8C13.9 4 11.5 1.6 8 1.6z" />
+          <circle cx="5.7" cy="7.5" r="1.6" fill="#fff" />
+          <circle cx="10.3" cy="7.5" r="1.6" fill="#fff" />
+          <path d="M8 9.4 7.1 11h1.8z" fill="#fff" />
+          <path d="M6.5 12.1v1.9M8 12.1v1.9M9.5 12.1v1.9" stroke="#fff" stroke-width=".8" />
+        </svg></span>
+    <span class="tbotao pequeno" id="toqueMergulho" role="switch" aria-label="não mergulhar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="18.6" cy="11" r="2.7" fill="currentColor" stroke="none" />
+        <path d="M4.5 15.2 L14.5 12.4" stroke-width="3.6" />
+        <path d="M13.2 12.4 L15.6 6.2 L21.2 5.4" stroke-width="2.6" />
+        <path d="M2 19.6 q2.5 -2 5 0 t5 0 t5 0 t5 0" stroke-width="2.6" />
+        <path class="x" d="M3 3 L8 8 M8 3 L3 8" />
+      </svg>
+    </span>
+    <span class="tbotao" data-tecla="Space" aria-label="subir">▲</span>
+    <span class="tbotao" id="toqueDash" aria-label="dash (liga/desliga)">⚡</span>
+    <span class="tbotao" data-tecla="KeyC" aria-label="descer">▼</span>
+  </div>
+  <div class="gire" aria-hidden="true">vire o celular de lado</div>
+
+  <script src="jogo.js?v=2.1.0"></script>
 </body>
 </html>

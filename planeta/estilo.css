@@ -471,3 +471,149 @@ html, body {
   100% { transform: scale(0.45); opacity: 0; }
 }
 
+
+/* ---------- celular (tela de toque) ---------- */
+/* fora do celular, os controles de toque nem aparecem */
+.joystick, .toque-botoes, .gire { display: none; }
+
+body.toque { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+body.toque #tela { touch-action: none; }
+/* teclado e mouse desenhados não fazem sentido no celular */
+body.toque .teclas { display: none; }
+
+/* radar, altura e caixinha sobem pro canto de cima à direita (embaixo ficam os botões) */
+body.toque {
+  --radar: clamp(84px, 24vmin, 150px);
+  /* recalcula aqui: as variáveis do :root já vêm resolvidas com o radar grande */
+  --casa: calc((var(--radar) - 8px - 18px) / 7);
+  --caixa: calc(var(--casa) + 8px);
+  --topo: max(10px, env(safe-area-inset-top));
+  --lado: max(12px, env(safe-area-inset-right));
+}
+body.toque .altura,
+body.toque .velocidade {
+  top: var(--topo);
+  bottom: auto;
+  right: var(--lado);
+  padding: 3px 9px;
+  font-size: 15px;
+}
+/* velocidade à esquerda do radar, sem encostar na altura */
+body.toque .velocidade { right: calc(var(--lado) + var(--radar) + 8px); transform: none; }
+body.toque .radar {
+  top: calc(var(--topo) + 32px);
+  bottom: auto;
+  right: var(--lado);
+  border-width: 3px;
+}
+body.toque .caixa-esferas {
+  top: calc(var(--topo) + 32px + var(--radar) + 6px);
+  bottom: auto;
+  right: var(--lado);
+  padding: 4px;
+  gap: 3px;
+}
+/* o ícone de capturar fica maior: é nele que se toca */
+body.toque .capturar { width: 52px; height: 72px; }
+
+/* joystick: aparece onde o dedão encosta; parado, fica uma marquinha no canto */
+body.toque .joystick {
+  display: block;
+  position: fixed;
+  left: calc(max(16px, env(safe-area-inset-left)) + 70px);
+  top: calc(100% - 100px);
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+body.toque .joystick.ativo { opacity: 1; background: rgba(255, 255, 255, 0.22); }
+.joy-bola {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 2px 8px rgba(30, 60, 50, 0.35);
+}
+
+/* botões do lado direito: ▲ subir, ▼ descer, ⚡ dash (liga/desliga),
+   e pequenos: recomeçar (caveira) e não mergulhar (nadador) */
+body.toque .toque-botoes {
+  --b: 58px;
+  display: grid;
+  grid-template-columns: var(--b) var(--b);
+  grid-template-rows: var(--b) var(--b) var(--b);
+  grid-template-areas: "rec sobe" "dash ." "merg desce";
+  gap: 6px 10px;
+  place-items: center;
+  position: fixed;
+  right: calc(var(--lado) + 4px);
+  bottom: max(14px, env(safe-area-inset-bottom));
+}
+.tbotao {
+  display: grid;
+  place-items: center;
+  width: var(--b);
+  height: var(--b);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 3px 0 rgba(30, 60, 50, 0.18);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  color: rgba(40, 70, 60, 0.75);
+  font-size: 22px;
+  touch-action: none;
+  transition: background 0.1s, transform 0.1s;
+}
+.tbotao[data-tecla="Space"] { grid-area: sobe; }
+.tbotao[data-tecla="KeyC"] { grid-area: desce; }
+#toqueDash { grid-area: dash; }
+#toqueRecomecar { grid-area: rec; }
+#toqueMergulho { grid-area: merg; }
+.tbotao.pequeno { width: 40px; height: 40px; font-size: 16px; }
+.tbotao svg { width: 62%; height: 62%; }
+.tbotao.ativa {
+  background: rgba(255, 255, 255, 0.85);
+  color: #1f6040;
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(30, 60, 50, 0.18);
+}
+#toqueDash.ativa { color: #e08a00; box-shadow: 0 0 0 2px rgba(255, 190, 60, 0.8), 0 0 12px rgba(255, 210, 120, 0.8); }
+#toqueRecomecar { color: rgba(200, 60, 50, 0.85); }
+#toqueMergulho .x { stroke: rgba(40, 70, 60, 0.45); }
+#toqueMergulho.ligado {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f6fc0;
+  box-shadow: 0 0 0 2px rgba(47, 143, 224, 0.75), 0 0 12px rgba(127, 208, 255, 0.8);
+}
+#toqueMergulho.ligado .x { stroke: #e0453a; }
+
+/* em pé: pede pra deitar o celular (não trava nada, só avisa) */
+@media (orientation: portrait) {
+  body.toque .gire {
+    display: block;
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, 64px);
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    color: rgba(40, 70, 60, 0.85);
+    font-size: 13px;
+    pointer-events: none;
+  }
+}
+/* o aviso some junto com o "toque pra voar" (depois disso, a escolha é sua) */
+body.toque .convite.escondido ~ .gire { display: none; }
