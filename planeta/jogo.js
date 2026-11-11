@@ -2478,6 +2478,11 @@ function mostrarMergulho() {
 const interruptor = botaoMergulho.querySelector('.interruptor');
 function avisarMergulho() {
   interruptor.querySelectorAll('.anel').forEach(a => a.remove());
+  // até onde o anel vai: do centro do botão até a ponta de cima-esquerda da tecla A
+  const b = interruptor.getBoundingClientRect();
+  const a = document.querySelector('[data-tecla="KeyA"]').getBoundingClientRect();
+  const raio = Math.hypot(a.left - (b.left + b.width / 2), a.top - (b.top + b.height / 2));
+  interruptor.style.setProperty('--alem', Math.max(40, raio - b.width / 2) + 'px');
   for (let k = 0; k < 2; k++) {
     const anel = document.createElement('span');
     anel.className = 'anel ' + (semMergulho ? 'sai' : 'entra');
