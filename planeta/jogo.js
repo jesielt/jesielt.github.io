@@ -422,16 +422,16 @@ const leito = new THREE.Mesh(
   new THREE.MeshBasicMaterial({ color: CORES.aguaFunda })
 );
 leito.rotation.x = -Math.PI / 2;
-leito.position.y = -80; // bem abaixo do fundo do mar (só pra nunca aparecer buraco)
+leito.position.y = -150; // bem abaixo do fundo do mar (só pra nunca aparecer buraco)
 cena.add(leito);
 
 // ---------------------------------------------------------------------
-// Fundo do mar: um chão a ~60 de profundidade (≈3,4 m na sua régua), com
+// Fundo do mar: um chão a ~120 de profundidade (≈6,9 m na sua régua), com
 // ondulações e montinhos de terra espalhados — nunca 100% plano.
 // A mesma conta existe em JS (pra você e as esferas pisarem nele) e no
 // shader (pra desenhar), então os dois batem certinho.
 // ---------------------------------------------------------------------
-const PROF = 60;
+const PROF = 120;
 function alturaDoFundo(x, z) {
   return -PROF
     + 3.5 * Math.sin(x * 0.021 + 1.3) * Math.sin(z * 0.017 + 0.4)
@@ -441,7 +441,7 @@ function alturaDoFundo(x, z) {
 }
 const FUNDO_GLSL = `
   float alturaDoFundo( vec2 p ) {
-    return -60.0
+    return -120.0
       + 3.5 * sin( p.x * 0.021 + 1.3 ) * sin( p.y * 0.017 + 0.4 )
       + 2.0 * sin( p.x * 0.053 + p.y * 0.041 + 2.1 )
       + 1.2 * sin( p.x * 0.11 - p.y * 0.09 + 0.7 )
@@ -1146,6 +1146,7 @@ const MAPA = {
   Space: 'subir',
   KeyC: 'descer',
   ShiftLeft: 'dash', ShiftRight: 'dash',
+  KeyR: 'recomecar', // volta pro começo (como se o ar tivesse acabado)
 };
 // o Shift da direita acende o mesmo desenho do Shift da esquerda
 const DESENHO = { ShiftRight: 'ShiftLeft' };
@@ -1165,6 +1166,7 @@ function marcarTecla(codigo, ligada) {
 
 function apertar(codigo) {
   if (!(codigo in MAPA)) return false;
+  if (codigo === 'KeyR' && !apertadas.has(codigo)) recomecar();
   apertadas.add(codigo);
   marcarTecla(codigo, true);
   return true;
@@ -2451,7 +2453,7 @@ const AGUA = {
   dash: 1.35,            // o dash debaixo d'água (fora d'água é 2)
   arrasto: 1.5,          // a água freia mais (× normal)
   choque: 0.3,           // ao entrar na água, sobra só isso do embalo
-  ar: 25,                // segundos de fôlego
+  ar: 40,                // segundos de fôlego
   gravidadeEsfera: 0.22, // esfera afunda devagar
   arrastoEsfera: 2.0,
 };
@@ -2528,7 +2530,8 @@ function soltarBolha(frente, lado, alto, tam, sobe) {
   const i = bolhas.proxima;
   bolhas.proxima = (i + 1) % MAX_BOLHAS;
   const x = camera.position.x + _fr.x * frente + _ld.x * lado;
-  const y = Math.min(-0.6, camera.position.y + _fr.y * frente + alto);
+  let y = camera.position.y + _fr.y * frente + alto;
+  if (y > -0.6) y = -0.6 - Math.random() * 3; // acima da superfície não pode: desce um pouco (sem formar uma camada lisa)
   const z = camera.position.z + _fr.z * frente + _ld.z * lado;
   bolhas.pos[i * 3] = x; bolhas.pos[i * 3 + 1] = y; bolhas.pos[i * 3 + 2] = z;
   bolhas.tam[i] = tam;
@@ -2578,12 +2581,17 @@ function atualizarBolhas(dt) {
 
 // mergulhou rápido: um estouro de bolhas em volta de você, subindo depressa
 function explosaoDeBolhas(embalo) {
-  const n = Math.max(0, Math.min(260, Math.floor((embalo - 40) * 1.6)));
+  const n = Math.max(0, Math.min(600, Math.floor((embalo - 40) * 4)));
   if (!n) return;
   direcoesDaCamera();
+  // espalhadas numa bola em volta de um ponto um pouco à sua frente e abaixo
+  // da superfície (não num plano), mais juntas no meio e mais raras na beirada
+  const raio = 16, centro = -10 - camera.position.y; // centro a 10 de profundidade
   for (let i = 0; i < n; i++) {
-    soltarBolha(1.5 + Math.random() * 22, (Math.random() - 0.5) * 18, -1 - Math.random() * 9,
-      0.2 + Math.random() * 0.7, 10 + Math.random() * 16);
+    const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2;
+    const s = Math.sqrt(1 - u * u), r = raio * Math.pow(Math.random(), 0.6);
+    const bx = s * Math.cos(a) * r, by = u * r * 0.6, bz = s * Math.sin(a) * r;
+    soltarBolha(7 + bz, bx, centro + by, 0.15 + Math.pow(Math.random(), 1.5) * 0.8, 6 + Math.random() * 18);
   }
 }
 
@@ -2630,8 +2638,8 @@ document.addEventListener('mousedown', ev => {
 });
 botaoMergulho.addEventListener('click', alternarMergulho);
 
-// acabou o ar: volta pro começo e perde as esferas
-function afogar() {
+// acabou o ar (ou apertou R): volta pro começo e perde as esferas
+function recomecar() {
   camera.position.copy(inicio);
   vel.set(0, 0, 0);
   yaw = yawInicio;
@@ -2835,7 +2843,7 @@ function atualizarDebaixoDagua(dt) {
   barraAr.classList.toggle('visivel', submerso || ar < AGUA.ar - 0.05);
   nivelAr.style.width = (Math.max(0, ar) / AGUA.ar * 100).toFixed(1) + '%';
   barraAr.classList.toggle('pouco', ar < AGUA.ar * 0.2);
-  if (ar <= 0) afogar();
+  if (ar <= 0) recomecar();
 
   atualizarBolhas(dt);
 }
@@ -2867,6 +2875,6 @@ jatos.visible = false;
 requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
-window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar, chaoDoMar, escurecerCeu, get ar() { return ar; }, set ar(v) { ar = v; }, alternarMergulho, get semMergulho() { return semMergulho; },
+window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar, chaoDoMar, escurecerCeu, bolhas, explosaoDeBolhas, get ar() { return ar; }, set ar(v) { ar = v; }, alternarMergulho, get semMergulho() { return semMergulho; },
   passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
 })();

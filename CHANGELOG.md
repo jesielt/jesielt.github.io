@@ -28,15 +28,15 @@ e aparece no console do navegador quando o jogo abre.
   redonda embaixo do radar, mostrando as estrelas dela
 - Juntou as 7: o céu escurece aos poucos (verde-escuro, quase noite) e o planeta perde o
   brilho; caem raios de verdade das nuvens até o mar, iluminando tudo
-- Fundo do mar: dá pra mergulhar. As ilhas descem como montanhas até um chão irregular,
+- Fundo do mar: dá pra mergulhar, até uns 7 m de fundo. As ilhas descem como montanhas até um chão irregular,
   com montinhos e algas balançando
 - Debaixo d'água: tudo esverdeado, bolhinhas (mais quanto mais rápido), movimento mais
   fraco, choque ao entrar na água e sem espirro
-- Fôlego: barra azul de 25 s; se acabar, você volta pro começo e perde as esferas
+- Fôlego: barra azul de 40 s; se acabar, você volta pro começo e perde as esferas
 - As esferas também afundam devagar e rolam pelo fundo (não somem mais)
 - Grama das ilhas com pinceladas finas, como nos cenários de Namek; as manchas viraram
   terra compactada (sem grama em cima), com uma borda escura separando da grama
-- Mergulhou rápido (com dash): estouro de bolhas em volta de você
+- Mergulhou rápido (com dash): estouro de centenas de bolhas espalhadas numa bola em volta de você
 - Bolhas de verdade na água (não mais desenhadas na tela): ficam no lugar delas e você
   passa por elas nadando
 - "Não mergulhar": clique duplo com o botão direito liga/desliga, com um botão de ícone
@@ -55,6 +55,7 @@ e aparece no console do navegador quando o jogo abre.
 - Terra seca das ilhas com textura de terra batida (tom esfumado, granulado fino e
   pedrinhas miúdas); a borda entre a terra e a grama ficou
   com metade da largura, em azul escuro
+- Tecla R (também no painel, ao lado do W): recomeça do ponto de partida
 
 ## 1.0.0 — 10/11/2026
 
