@@ -57,7 +57,7 @@ e aparece no console do navegador quando o jogo abre.
   pedrinhas miúdas) e beirada recortada, com pontas de terra entrando na grama como
   pinceladas; a borda entre a terra e a grama ficou
   com metade da largura, em azul escuro
-- Tecla R (também no painel, ao lado do W, com uma caveirinha cinza de aviso): recomeça do
+- Tecla R (também no painel, ao lado do W, com uma caveirinha cinza-clara de aviso): recomeça do
   ponto de partida
 - Mar mais opaco visto de cima: as encostas das ilhas não aparecem mais lá embaixo
 - Embaixo d'água, a beira da ilha não sobra mais pra fora da encosta
