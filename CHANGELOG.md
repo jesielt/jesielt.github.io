@@ -40,6 +40,11 @@ e aparece no console do navegador quando o jogo abre.
 - "Não mergulhar": clique duplo com o botão direito liga/desliga, com um botão de ícone
   (nadador com X) embaixo dos controles; ligado, dá pra voar rente à água à vontade
 - Controles do canto um pouco menores
+- Pegou a última esfera debaixo d'água: o céu só começa a escurecer quando você sai
+- Céu escuro: as copas das árvores escurecem junto com o resto
+- Fôlego em 20% ou menos: a barra fica vermelha e pisca
+- Ícone do nadador mais grosso e legível
+- Para testes: 1, 2, 3 no teclado numérico pega todas as esferas de uma vez
 
 ## 1.0.0 — 10/11/2026
 

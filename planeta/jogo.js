@@ -1119,8 +1119,14 @@ function soltar(codigo) {
   if (apertadas.delete(codigo)) marcarTecla(codigo, false);
 }
 
+// ferramenta de teste: 1, 2, 3 no teclado numérico pega todas as esferas
+let codigoTeste = '';
 window.addEventListener('keydown', e => {
   if (apertar(e.code)) e.preventDefault(); // impede a página de rolar com setas/espaço
+  if (/^Numpad\d$/.test(e.code)) {
+    codigoTeste = (codigoTeste + e.code.slice(-1)).slice(-3);
+    if (codigoTeste === '123') { codigoTeste = ''; pegarTodasAsEsferas(); }
+  }
 });
 window.addEventListener('keyup', e => soltar(e.code));
 window.addEventListener('blur', () => [...apertadas].forEach(soltar));
@@ -1560,7 +1566,19 @@ function capturar() {
   iconeCaptura.classList.remove('visivel');
   const casa = caixaEsferas.querySelector(`[data-n="${e.n}"]`);
   if (casa) casa.classList.add('pegou');
-  if (esferas.every(x => x.capturada)) escurecerCeu();
+  // pegou a última debaixo d'água: o céu só muda quando você sair (senão não dá pra ver)
+  if (esferas.every(x => x.capturada)) {
+    if (submerso) ceuPendente = true;
+    else escurecerCeu();
+  }
+}
+// dev: pega todas de uma vez (1-2-3 no teclado numérico)
+function pegarTodasAsEsferas() {
+  for (const e of esferas) {
+    if (e.capturada) continue;
+    capturavel = e;
+    capturar();
+  }
 }
 document.addEventListener('mousedown', ev => { if (ev.button === 2) capturar(); });
 iconeCaptura.addEventListener('click', capturar); // no celular / sem mouse: toca no ícone
@@ -2448,11 +2466,13 @@ function afogar() {
     if (casa) casa.classList.remove('pegou');
   }
   escuroAlvo = 0;
+  ceuPendente = false;
   atualizarIlhas();
 }
 
 // ---------- céu escuro + raios quando junta as 7 ----------
 let escuroAlvo = 0;
+let ceuPendente = false; // juntou as 7 debaixo d'água: escurece quando sair
 let proximoRaio = 0, clarao = 0;
 const telaClarao = document.getElementById('clarao');
 let raios = [];
@@ -2577,6 +2597,7 @@ function atualizarRaios(dt) {
 const _corNeblina = new THREE.Color();
 function atualizarDebaixoDagua(dt) {
   if (!(dt > 0)) return;
+  if (ceuPendente && !submerso) { ceuPendente = false; escurecerCeu(); }
   // céu escurecendo (ou clareando de volta) aos poucos
   uniEscuro.value = suavizar(uniEscuro.value, escuroAlvo, 0.9, dt);
   if (Math.abs(uniEscuro.value - escuroAlvo) < 0.002) uniEscuro.value = escuroAlvo;
@@ -2588,6 +2609,8 @@ function atualizarDebaixoDagua(dt) {
     sat.sprite.material.opacity = 0.82 * (1 - 0.55 * esc);
     sat.sprite.material.color.setRGB(1 - 0.5 * esc, 1 - 0.42 * esc, 1 - 0.48 * esc);
   }
+  // a copa das árvores é uma figura sem luz: escurece na mão, junto com o resto
+  for (const m of matsCopa) m.color.setRGB(1 - 0.8 * esc, 1 - 0.7 * esc, 1 - 0.82 * esc);
   matNuvemTopo.color.copy(corNuvemTopo).lerp(corNuvemEscura, esc);
   matNuvemBase.color.copy(corNuvemBase).lerp(corNuvemBaseEscura, esc);
   atualizarRaios(dt);

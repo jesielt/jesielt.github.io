@@ -76,8 +76,14 @@ html, body {
   border-radius: 999px;
   background: linear-gradient(#7fd0ff, #2f8fe0);
 }
-.ar.pouco .ar-nivel { animation: piscarAr 0.5s ease-in-out infinite alternate; }
-@keyframes piscarAr { to { opacity: 0.45; } }
+/* 20% ou menos: barra vermelha piscando */
+.ar.pouco { border-color: rgba(255, 140, 130, 0.9); animation: piscarBordaAr 0.45s ease-in-out infinite alternate; }
+.ar.pouco .ar-nivel {
+  background: linear-gradient(#ff7a6e, #d8261b);
+  animation: piscarAr 0.45s ease-in-out infinite alternate;
+}
+@keyframes piscarAr { to { opacity: 0.3; } }
+@keyframes piscarBordaAr { to { box-shadow: 0 0 12px rgba(255, 60, 40, 0.85); } }
 .apagao {
   position: fixed;
   inset: 0;
