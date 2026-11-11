@@ -50,6 +50,8 @@ e aparece no console do navegador quando o jogo abre.
 - Triângulos do radar em branco
 - Abertura: no primeiro clique, "FIND", "THE", "BALLS" em letras saiyajin semitransparentes, uma por cima
   da outra, chegando grandes e diminuindo até sumir
+- Terra seca das ilhas com manchinhas ovais leves; a borda entre a terra e a grama ficou
+  com metade da largura, em azul escuro
 
 ## 1.0.0 — 10/11/2026
 

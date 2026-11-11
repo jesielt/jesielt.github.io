@@ -579,12 +579,43 @@ turvarEmbaixoDagua(matFundo, (sh) => {
 // no meio da grama, como nos cenários de Namek. Ali não nasce grama.
 // Formato de café derramado: borda ondulada.
 // É uma "folha" fininha deitada um tiquinho acima da grama.
+// Textura da terra: manchinhas ovais leves, umas mais claras e outras mais
+// escuras, de tamanho médio. Repete sem emenda (uma folha a cada 60 de chão).
+function texturaDaTerra() {
+  const t = 512, c = document.createElement('canvas');
+  c.width = c.height = t;
+  const g = c.getContext('2d');
+  g.fillStyle = CORES.mancha;
+  g.fillRect(0, 0, t, t);
+  let semente = 77;
+  const aleatorio = () => (semente = (semente * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 70; i++) {
+    const x = aleatorio() * t, y = aleatorio() * t;
+    const rx = 12 + aleatorio() * 20, ry = rx * (0.45 + aleatorio() * 0.25), giro = aleatorio() * Math.PI;
+    const claro = aleatorio() < 0.45;
+    g.fillStyle = claro
+      ? `rgba(232, 214, 196, ${0.25 + aleatorio() * 0.2})`
+      : `rgba(150, 126, 108, ${0.18 + aleatorio() * 0.17})`;
+    for (const dx of [-t, 0, t]) for (const dy of [-t, 0, t]) { // emenda sem costura
+      g.beginPath();
+      g.ellipse(x + dx, y + dy, rx, ry, giro, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(1 / 60, 1 / 60); // as coordenadas da mancha já são o próprio chão da ilha
+  tex.anisotropy = 4;
+  return tex;
+}
 const matMancha = new THREE.MeshLambertMaterial({
-  color: CORES.mancha,
+  map: texturaDaTerra(),
   polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, // nunca "briga" com a grama
 });
+// borda fininha entre a terra e a grama, no azul escuro das pinceladas da grama
 const matManchaBorda = new THREE.MeshLambertMaterial({
-  color: '#8d7666',
+  color: '#5674c8',
   polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, // por baixo da mancha, por cima da grama
 });
 // (cx, cz) = centro da mancha na ilha; a parte que passar da borda é
@@ -898,7 +929,7 @@ function criarIlha(i, j) {
     geosManchas.push(gm);
     // borda: a mesma forma um pouco maior, mais escura, por baixo — vira a
     // "fronteira" entre a terra e a grama
-    const gb = geometriaMancha(r, cxm, czm, { sx, sz, ondas }, i, j, sm + 3, 1.6);
+    const gb = geometriaMancha(r, cxm, czm, { sx, sz, ondas }, i, j, sm + 3, 0.8);
     const borda = new THREE.Mesh(gb, matManchaBorda);
     borda.position.y = alt + 0.11;
     grupo.add(borda);
