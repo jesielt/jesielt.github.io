@@ -61,6 +61,11 @@ e aparece no console do navegador quando o jogo abre.
   ponto de partida
 - Mar mais opaco visto de cima: as encostas das ilhas não aparecem mais lá embaixo
 - Embaixo d'água, a beira da ilha não sobra mais pra fora da encosta
+- Dá pra subir até o espaço: de 200 m pra cima o céu vai ficando rarefeito e escuro, e em
+  500 m vira espaço, preto e cheio de estrelas. Lá embaixo aparece o planeta Namek inteiro,
+  verde com faixas claras e um brilho azul na borda, e ele passa embaixo de você conforme
+  você voa. Descendo, tudo volta
+- No espaço não tem ar: acima de 500 m a barra de fôlego (40 s) aparece; acabou, recomeça
 
 ## 1.0.0 — 10/11/2026
 
