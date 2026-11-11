@@ -36,7 +36,9 @@ e aparece no console do navegador quando o jogo abre.
 - As esferas também afundam devagar e rolam pelo fundo (não somem mais)
 - Grama das ilhas com pinceladas finas, como nos cenários de Namek; as manchas viraram
   terra compactada (sem grama em cima), com uma borda escura separando da grama
-- Mergulhou rápido (com dash): estouro de bolhas na tela
+- Mergulhou rápido (com dash): estouro de bolhas em volta de você
+- Bolhas de verdade na água (não mais desenhadas na tela): ficam no lugar delas e você
+  passa por elas nadando
 - "Não mergulhar": clique duplo com o botão direito liga/desliga, com um botão de ícone
   (nadador com X) embaixo dos controles; ligado, dá pra voar rente à água à vontade
 - Controles do canto um pouco menores
@@ -50,7 +52,8 @@ e aparece no console do navegador quando o jogo abre.
 - Triângulos do radar em branco
 - Abertura: no primeiro clique, "FIND", "THE", "BALLS" em letras saiyajin semitransparentes, uma por cima
   da outra, chegando grandes e diminuindo até sumir
-- Terra seca das ilhas com manchinhas ovais leves; a borda entre a terra e a grama ficou
+- Terra seca das ilhas com textura de terra batida (tom esfumado, granulado fino e
+  pedrinhas miúdas); a borda entre a terra e a grama ficou
   com metade da largura, em azul escuro
 
 ## 1.0.0 — 10/11/2026

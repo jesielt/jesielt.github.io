@@ -579,8 +579,10 @@ turvarEmbaixoDagua(matFundo, (sh) => {
 // no meio da grama, como nos cenários de Namek. Ali não nasce grama.
 // Formato de café derramado: borda ondulada.
 // É uma "folha" fininha deitada um tiquinho acima da grama.
-// Textura da terra: manchinhas ovais leves, umas mais claras e outras mais
-// escuras, de tamanho médio. Repete sem emenda (uma folha a cada 60 de chão).
+// Textura da terra: nada de formas com contorno (viravam "biscoito"). São
+// três camadas que se misturam: variações de tom bem largas e esfumadas,
+// um granulado fininho de terra batida e umas pedrinhas miúdas espalhadas.
+// Repete sem emenda (uma folha a cada 80 de chão).
 function texturaDaTerra() {
   const t = 512, c = document.createElement('canvas');
   c.width = c.height = t;
@@ -589,23 +591,45 @@ function texturaDaTerra() {
   g.fillRect(0, 0, t, t);
   let semente = 77;
   const aleatorio = () => (semente = (semente * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 70; i++) {
-    const x = aleatorio() * t, y = aleatorio() * t;
-    const rx = 12 + aleatorio() * 20, ry = rx * (0.45 + aleatorio() * 0.25), giro = aleatorio() * Math.PI;
-    const claro = aleatorio() < 0.45;
-    g.fillStyle = claro
-      ? `rgba(232, 214, 196, ${0.25 + aleatorio() * 0.2})`
-      : `rgba(150, 126, 108, ${0.18 + aleatorio() * 0.17})`;
-    for (const dx of [-t, 0, t]) for (const dy of [-t, 0, t]) { // emenda sem costura
-      g.beginPath();
-      g.ellipse(x + dx, y + dy, rx, ry, giro, 0, Math.PI * 2);
-      g.fill();
-    }
+  const emVolta = (desenhar) => { for (const dx of [-t, 0, t]) for (const dy of [-t, 0, t]) desenhar(dx, dy); }; // emenda sem costura
+  // 1) tom: nuvens largas e sem borda, um pouco mais claras ou mais escuras
+  for (let i = 0; i < 22; i++) {
+    const x = aleatorio() * t, y = aleatorio() * t, r = 60 + aleatorio() * 110;
+    const claro = aleatorio() < 0.5;
+    const a = 0.1 + aleatorio() * 0.08;
+    emVolta((dx, dy) => {
+      const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+      gr.addColorStop(0, claro ? `rgba(226, 210, 192, ${a})` : `rgba(160, 136, 118, ${a})`);
+      gr.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      g.fillStyle = gr;
+      g.fillRect(x + dx - r, y + dy - r, r * 2, r * 2);
+    });
+  }
+  // 2) granulado: pontinhos de 1 a 2 px, claros e escuros, bem fracos
+  for (let i = 0; i < 9000; i++) {
+    const x = aleatorio() * t, y = aleatorio() * t, s = aleatorio() < 0.8 ? 1 : 2;
+    g.fillStyle = aleatorio() < 0.5
+      ? `rgba(240, 226, 210, ${0.12 + aleatorio() * 0.12})`
+      : `rgba(120, 98, 84, ${0.1 + aleatorio() * 0.12})`;
+    g.fillRect(x, y, s, s);
+  }
+  // 3) pedrinhas: miúdas, com sombra embaixo e um brilho em cima
+  for (let i = 0; i < 55; i++) {
+    const x = aleatorio() * t, y = aleatorio() * t, r = 1.6 + aleatorio() * 2.4;
+    emVolta((dx, dy) => {
+      if (x + dx < -8 || x + dx > t + 8 || y + dy < -8 || y + dy > t + 8) return;
+      g.fillStyle = 'rgba(110, 88, 74, 0.35)';
+      g.beginPath(); g.ellipse(x + dx + 0.6, y + dy + 1, r * 1.1, r * 0.75, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(214, 198, 182, 0.9)';
+      g.beginPath(); g.ellipse(x + dx, y + dy, r, r * 0.7, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(246, 236, 224, 0.7)';
+      g.beginPath(); g.ellipse(x + dx - r * 0.25, y + dy - r * 0.25, r * 0.45, r * 0.3, 0, 0, Math.PI * 2); g.fill();
+    });
   }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(1 / 60, 1 / 60); // as coordenadas da mancha já são o próprio chão da ilha
+  tex.repeat.set(1 / 80, 1 / 80); // as coordenadas da mancha já são o próprio chão da ilha
   tex.anisotropy = 4;
   return tex;
 }
@@ -2442,56 +2466,124 @@ const barraAr = document.getElementById('ar');
 const nivelAr = document.getElementById('arNivel');
 const apagao = document.getElementById('apagao');
 
-// ---------- bolhas: anéis subindo e balançando na frente da tela ----------
-const telaBolhas = document.getElementById('bolhas');
-const bctx = telaBolhas.getContext('2d');
-let bolhas = [], acumBolhas = 0;
+// ---------- bolhas: partículas de verdade na água, subindo e balançando ----------
+// Nascem espalhadas na sua frente (mais quanto mais rápido você vai) e ficam
+// paradas no lugar delas: avançando, você passa por elas e elas ficam pra trás.
+const MAX_BOLHAS = 900;
+const bolhas = {
+  pos: new Float32Array(MAX_BOLHAS * 3),
+  tam: new Float32Array(MAX_BOLHAS),
+  alfa: new Float32Array(MAX_BOLHAS),
+  sobe: new Float32Array(MAX_BOLHAS),
+  fase: new Float32Array(MAX_BOLHAS),
+  idade: new Float32Array(MAX_BOLHAS),
+  proxima: 0,
+  acumulado: 0,
+};
+const geoBolhas = new THREE.BufferGeometry();
+geoBolhas.setAttribute('position', new THREE.BufferAttribute(bolhas.pos, 3));
+geoBolhas.setAttribute('tam', new THREE.BufferAttribute(bolhas.tam, 1));
+geoBolhas.setAttribute('alfa', new THREE.BufferAttribute(bolhas.alfa, 1));
+const uniBolhas = { escala: { value: 1 } };
+const pontosBolhas = new THREE.Points(geoBolhas, new THREE.ShaderMaterial({
+  uniforms: uniBolhas,
+  transparent: true,
+  depthWrite: false,
+  vertexShader: `
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
+    attribute float tam;
+    attribute float alfa;
+    uniform float escala;
+    varying float vAlfa;
+    void main() {
+      vAlfa = alfa;
+      vec4 mv = modelViewMatrix * vec4( position, 1.0 );
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = alfa > 0.0 ? clamp( tam * escala / -mv.z, 2.0, 90.0 ) : 0.0;
+      #include <logdepthbuf_vertex>
+    }`,
+  fragmentShader: `
+    #include <logdepthbuf_pars_fragment>
+    varying float vAlfa;
+    void main() {
+      #include <logdepthbuf_fragment>
+      vec2 p = gl_PointCoord - 0.5;
+      float d = length( p ) * 2.0;
+      if ( d > 1.0 ) discard;
+      // anel claro na borda, miolo quase transparente e um brilhinho em cima
+      float anel = smoothstep( 0.55, 0.8, d ) * ( 1.0 - smoothstep( 0.85, 1.0, d ) );
+      float brilho = 1.0 - smoothstep( 0.0, 0.2, length( p - vec2( -0.17, -0.17 ) ) );
+      float a = ( anel * 0.85 + 0.1 + brilho * 0.7 ) * vAlfa;
+      gl_FragColor = vec4( 0.92, 1.0, 0.96, a );
+    }`,
+}));
+pontosBolhas.frustumCulled = false;
+pontosBolhas.renderOrder = 2;
+cena.add(pontosBolhas);
+
+const _fr = new THREE.Vector3(), _ld = new THREE.Vector3(), _cm = new THREE.Vector3();
+// uma bolha em: frente (distância na sua frente), lado e altura em volta de você
+function soltarBolha(frente, lado, alto, tam, sobe) {
+  const i = bolhas.proxima;
+  bolhas.proxima = (i + 1) % MAX_BOLHAS;
+  const x = camera.position.x + _fr.x * frente + _ld.x * lado;
+  const y = Math.min(-0.6, camera.position.y + _fr.y * frente + alto);
+  const z = camera.position.z + _fr.z * frente + _ld.z * lado;
+  bolhas.pos[i * 3] = x; bolhas.pos[i * 3 + 1] = y; bolhas.pos[i * 3 + 2] = z;
+  bolhas.tam[i] = tam;
+  bolhas.sobe[i] = sobe;
+  bolhas.fase[i] = Math.random() * 6.3;
+  bolhas.idade[i] = 0;
+  bolhas.alfa[i] = 0.001; // acende aos poucos
+}
+function direcoesDaCamera() {
+  camera.getWorldDirection(_fr);
+  _ld.crossVectors(_fr, camera.up).normalize();
+}
 function atualizarBolhas(dt) {
-  const W = window.innerWidth, H = window.innerHeight;
-  if (telaBolhas.width !== W || telaBolhas.height !== H) { telaBolhas.width = W; telaBolhas.height = H; }
+  uniBolhas.escala.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
   if (submerso) {
-    // parado: quase nada; nadando: algumas; dash: bastante
+    direcoesDaCamera();
+    // parado: poucas; nadando: um bocado; dash: bastante — e nascem mais longe
+    // quanto mais rápido, pra dar tempo de você chegar nelas
     const r = Math.min(vel.length() / AJUSTE.velMax, 1.5);
-    acumBolhas += (0.12 + 9 * Math.pow(r, 1.6)) * dt;
-    while (acumBolhas >= 1) {
-      acumBolhas -= 1;
-      bolhas.push({
-        x: W * (0.1 + Math.random() * 0.8), y: H * (0.75 + Math.random() * 0.3),
-        r: 2 + Math.random() * 6, sobe: 60 + Math.random() * 90, fase: Math.random() * 6.3, t: 0,
-      });
+    bolhas.acumulado += (6 + 160 * Math.pow(r, 1.3)) * dt;
+    while (bolhas.acumulado >= 1) {
+      bolhas.acumulado -= 1;
+      const longe = 6 + Math.random() * (25 + 70 * r);
+      soltarBolha(longe, (Math.random() - 0.5) * (14 + longe * 0.7), (Math.random() - 0.5) * (10 + longe * 0.5),
+        0.15 + Math.pow(Math.random(), 2) * 0.6, 2 + Math.random() * 4);
     }
   } else {
-    acumBolhas = 0;
-    bolhas.length = 0;
+    bolhas.acumulado = 0;
   }
-  bctx.clearRect(0, 0, W, H);
-  bolhas = bolhas.filter(b => b.y > -20);
-  for (const b of bolhas) {
-    b.t += dt;
-    b.y -= b.sobe * dt;
-    b.x += Math.sin(b.t * 3 + b.fase) * 18 * dt;
-    b.r += dt * 0.6;
-    bctx.strokeStyle = 'rgba(235, 255, 245, 0.75)';
-    bctx.lineWidth = 1.5;
-    bctx.beginPath();
-    bctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-    bctx.stroke();
-    bctx.fillStyle = 'rgba(255, 255, 255, 0.6)'; // brilhinho
-    bctx.beginPath();
-    bctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.22, 0, Math.PI * 2);
-    bctx.fill();
+  for (let i = 0; i < MAX_BOLHAS; i++) {
+    if (bolhas.alfa[i] <= 0) continue;
+    if (!submerso) { bolhas.alfa[i] = 0; continue; } // saiu da água: some tudo
+    bolhas.idade[i] += dt;
+    const t = bolhas.idade[i], k = i * 3;
+    bolhas.pos[k + 1] += bolhas.sobe[i] * dt;
+    bolhas.pos[k] += Math.sin(t * 3 + bolhas.fase[i]) * 0.6 * dt;
+    bolhas.pos[k + 2] += Math.cos(t * 2.6 + bolhas.fase[i]) * 0.6 * dt;
+    _cm.set(bolhas.pos[k], bolhas.pos[k + 1], bolhas.pos[k + 2]);
+    // chegou na superfície, ficou muito pra trás ou velha demais: some
+    if (bolhas.pos[k + 1] > -0.3 || _cm.distanceTo(camera.position) > 160 || t > 9) { bolhas.alfa[i] = 0; continue; }
+    bolhas.alfa[i] = Math.min(1, t * 3) * Math.min(1, (-0.3 - bolhas.pos[k + 1]) * 2);
   }
+  geoBolhas.attributes.position.needsUpdate = true;
+  geoBolhas.attributes.tam.needsUpdate = true;
+  geoBolhas.attributes.alfa.needsUpdate = true;
 }
 
-// mergulhou rápido: um estouro de bolhas subindo depressa, como uma transição
+// mergulhou rápido: um estouro de bolhas em volta de você, subindo depressa
 function explosaoDeBolhas(embalo) {
-  const n = Math.max(0, Math.min(170, Math.floor((embalo - 40) * 1.1)));
-  const W = window.innerWidth, H = window.innerHeight;
+  const n = Math.max(0, Math.min(260, Math.floor((embalo - 40) * 1.6)));
+  if (!n) return;
+  direcoesDaCamera();
   for (let i = 0; i < n; i++) {
-    bolhas.push({
-      x: W * Math.random(), y: H * (0.25 + Math.random() * 0.85),
-      r: 3 + Math.random() * 12, sobe: 280 + Math.random() * 520, fase: Math.random() * 6.3, t: 0,
-    });
+    soltarBolha(1.5 + Math.random() * 22, (Math.random() - 0.5) * 18, -1 - Math.random() * 9,
+      0.2 + Math.random() * 0.7, 10 + Math.random() * 16);
   }
 }
 
