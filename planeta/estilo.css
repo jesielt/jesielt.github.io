@@ -297,7 +297,7 @@ html, body {
 }
 
 .tecla.vazia { visibility: hidden; }
-/* R recomeça do zero: caveirinha vermelha no canto, pra ninguém apertar "pra ver" */
+/* R recomeça do zero: caveirinha cinza no canto, pra ninguém apertar "pra ver" */
 .tecla.perigo { position: relative; }
 .tecla.perigo .caveira {
   position: absolute;
@@ -308,7 +308,7 @@ html, body {
   padding: 1px;
   border-radius: 50%;
   background: #fff;
-  color: #d8352a;
+  color: #7c8a85;
   box-shadow: 0 1px 3px rgba(30, 60, 50, 0.35);
   pointer-events: none;
 }

@@ -815,7 +815,7 @@ function contorno(a, ondas) {
 
 // plataforma: um cilindro achatado com a borda "amassada" pelo contorno
 function geometriaPlataforma(ondas) {
-  const geo = new THREE.CylinderGeometry(1, 1.06, 1, 40);
+  const geo = new THREE.CylinderGeometry(1, BASE_PLATAFORMA, 1, LADOS_PLATAFORMA);
   const pos = geo.attributes.position;
   for (let v = 0; v < pos.count; v++) {
     const x = pos.getX(v), z = pos.getZ(v);
@@ -846,16 +846,20 @@ function vizinhaDeEnorme(i, j) {
 // de rocha. A largura que ela abre varia em volta (saia.E, f, g).
 // ---------------------------------------------------------------------
 const SAIA_TOPO = -3;
+// a base da plataforma é 6% mais larga que o topo (CylinderGeometry(1, 1.06)):
+// a encosta começa exatamente nessa largura, com os mesmos 40 lados, senão a
+// beira da plataforma fica sobrando pra fora da encosta
+const BASE_PLATAFORMA = 1.06, LADOS_PLATAFORMA = 40;
 function larguraDaSaia(saia, a) {
   return saia.E * (1 + 0.25 * Math.sin(5 * a + saia.f) + 0.15 * Math.sin(11 * a + saia.g));
 }
 function geometriaSaia(ondas, sx, sz, saia) {
-  const geo = new THREE.CylinderGeometry(1, 1, 1, 48, 8, true);
+  const geo = new THREE.CylinderGeometry(1, 1, 1, LADOS_PLATAFORMA, 8, true);
   const pos = geo.attributes.position;
   for (let v = 0; v < pos.count; v++) {
     const a = Math.atan2(pos.getZ(v), pos.getX(v));
     const t = 0.5 - pos.getY(v); // 0 = rente à plataforma, 1 = no fundo
-    const k = contorno(a, ondas);
+    const k = contorno(a, ondas) * BASE_PLATAFORMA;
     const extra = larguraDaSaia(saia, a) * Math.pow(t, 0.8) + 3 * Math.sin(a * 17 + t * 9) * t;
     pos.setXYZ(v, Math.cos(a) * (k * sx + extra), SAIA_TOPO - t * (PROF + 8), Math.sin(a) * (k * sz + extra));
   }
@@ -866,7 +870,7 @@ function geometriaSaia(ondas, sx, sz, saia) {
 function alturaDaSaia(s, x, z) {
   const dx = x - s.x, dz = z - s.z;
   const a = Math.atan2(dz / s.rz, dx / s.rx);
-  const k = contorno(a, s.ondas);
+  const k = contorno(a, s.ondas) * BASE_PLATAFORMA;
   const r0 = Math.hypot(Math.cos(a) * k * s.rx, Math.sin(a) * k * s.rz);
   const r = Math.hypot(dx, dz);
   const E = larguraDaSaia(s.saia, a);
