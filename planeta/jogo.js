@@ -469,8 +469,8 @@ const geoTopo = new THREE.CylinderGeometry(1.1, 1.1, 1, 16);
 const matRocha = new THREE.MeshLambertMaterial({ color: CORES.rocha });
 const matGrama = new THREE.MeshLambertMaterial({ color: CORES.grama });
 
-// Grama de Namek: azul pintado à mão, com pinceladas mais claras e mais
-// escuras, curtas e deitadas. A textura é "carimbada" pela posição no mundo
+// Grama de Namek: azul liso com manchas largas em degradê, umas mais claras
+// e outras mais escuras (sem pinceladas). A textura é "carimbada" pela posição no mundo
 // (de cima), então é igual em todas as ilhas, de qualquer tamanho.
 function texturaDaGrama() {
   const t = 512, c = document.createElement('canvas');
@@ -487,26 +487,13 @@ function texturaDaGrama() {
     const claro = aleatorio() < 0.5;
     emVolta((dx, dy) => {
       const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
-      gr.addColorStop(0, claro ? 'rgba(170, 198, 245, 0.16)' : 'rgba(80, 112, 200, 0.16)');
-      gr.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      // a borda do degradê é a MESMA cor, só transparente: terminar em
+      // "preto transparente" suja o meio do caminho de cinza/escuro
+      const cor = claro ? '170, 198, 245' : '80, 112, 200';
+      gr.addColorStop(0, `rgba(${cor}, 0.18)`);
+      gr.addColorStop(1, `rgba(${cor}, 0)`);
       g.fillStyle = gr;
       g.fillRect(x + dx - r, y + dy - r, r * 2, r * 2);
-    });
-  }
-  // 2) pinceladas: traços finos, compridos, um pouco curvos e quase deitados
-  const tons = ['rgba(175, 202, 248, A)', 'rgba(198, 222, 252, A)', 'rgba(86, 120, 206, A)', 'rgba(112, 168, 228, A)'];
-  g.lineCap = 'round';
-  for (let i = 0; i < 1100; i++) {
-    const x = aleatorio() * t, y = aleatorio() * t;
-    const comp = 18 + aleatorio() * 40, giro = (aleatorio() - 0.5) * 0.6, curva = (aleatorio() - 0.5) * 8;
-    const cx = Math.cos(giro) * comp / 2, cy = Math.sin(giro) * comp / 2;
-    g.strokeStyle = tons[Math.floor(aleatorio() * tons.length)].replace('A', (0.10 + aleatorio() * 0.14).toFixed(2));
-    g.lineWidth = 1.2 + aleatorio() * 2.4;
-    emVolta((dx, dy) => {
-      g.beginPath();
-      g.moveTo(x + dx - cx, y + dy - cy);
-      g.quadraticCurveTo(x + dx, y + dy + curva, x + dx + cx, y + dy + cy);
-      g.stroke();
     });
   }
   const tex = new THREE.CanvasTexture(c);
@@ -599,8 +586,9 @@ function texturaDaTerra() {
     const a = 0.1 + aleatorio() * 0.08;
     emVolta((dx, dy) => {
       const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
-      gr.addColorStop(0, claro ? `rgba(226, 210, 192, ${a})` : `rgba(160, 136, 118, ${a})`);
-      gr.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      const cor = claro ? '226, 210, 192' : '176, 154, 136'; // borda na mesma cor, transparente (sem "queimar")
+      gr.addColorStop(0, `rgba(${cor}, ${a})`);
+      gr.addColorStop(1, `rgba(${cor}, 0)`);
       g.fillStyle = gr;
       g.fillRect(x + dx - r, y + dy - r, r * 2, r * 2);
     });
@@ -2524,15 +2512,20 @@ pontosBolhas.frustumCulled = false;
 pontosBolhas.renderOrder = 2;
 cena.add(pontosBolhas);
 
-const _fr = new THREE.Vector3(), _ld = new THREE.Vector3(), _cm = new THREE.Vector3();
-// uma bolha em: frente (distância na sua frente), lado e altura em volta de você
+const _fr = new THREE.Vector3(), _ld = new THREE.Vector3(), _ac = new THREE.Vector3(), _cm = new THREE.Vector3();
+// uma bolha em: frente (distância na sua frente), lado e acima, nos eixos
+// da SUA visão (funciona olhando reto, pra baixo ou pra cima)
 function soltarBolha(frente, lado, alto, tam, sobe) {
+  soltarBolhaEm(
+    camera.position.x + _fr.x * frente + _ld.x * lado + _ac.x * alto,
+    camera.position.y + _fr.y * frente + _ld.y * lado + _ac.y * alto,
+    camera.position.z + _fr.z * frente + _ld.z * lado + _ac.z * alto,
+    tam, sobe);
+}
+function soltarBolhaEm(x, y, z, tam, sobe) {
   const i = bolhas.proxima;
   bolhas.proxima = (i + 1) % MAX_BOLHAS;
-  const x = camera.position.x + _fr.x * frente + _ld.x * lado;
-  let y = camera.position.y + _fr.y * frente + alto;
   if (y > -0.6) y = -1.2 - (y + 0.6); // acima da superfície: espelha pra baixo dela (mantém o espalhado, sem formar camada)
-  const z = camera.position.z + _fr.z * frente + _ld.z * lado;
   bolhas.pos[i * 3] = x; bolhas.pos[i * 3 + 1] = y; bolhas.pos[i * 3 + 2] = z;
   bolhas.tam[i] = tam;
   bolhas.sobe[i] = sobe;
@@ -2541,8 +2534,12 @@ function soltarBolha(frente, lado, alto, tam, sobe) {
   bolhas.alfa[i] = 0.001; // acende aos poucos
 }
 function direcoesDaCamera() {
+  // os três eixos da câmera (frente, direita, cima). Antes o "lado" saía de
+  // frente × vertical, que zera olhando reto pra baixo: as bolhas caíam
+  // todas num plano só
   camera.getWorldDirection(_fr);
-  _ld.crossVectors(_fr, camera.up).normalize();
+  _ld.set(1, 0, 0).applyQuaternion(camera.quaternion);
+  _ac.set(0, 1, 0).applyQuaternion(camera.quaternion);
 }
 function atualizarBolhas(dt) {
   uniBolhas.escala.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
@@ -2584,14 +2581,17 @@ function explosaoDeBolhas(embalo) {
   const n = Math.max(0, Math.min(600, Math.floor((embalo - 40) * 4)));
   if (!n) return;
   direcoesDaCamera();
-  // espalhadas numa bola em volta de um ponto um pouco à sua frente e abaixo
-  // da superfície (não num plano), mais juntas no meio e mais raras na beirada
-  const raio = 16, centro = -10 - camera.position.y; // centro a 10 de profundidade
+  // espalhadas numa bola (no mundo, nos 3 eixos) em volta de um ponto à sua
+  // frente — na direção em que você olha, seja reto ou pra baixo — sempre
+  // inteira debaixo d'água; mais juntas no meio, mais raras na beirada
+  const raio = 16;
+  const cx = camera.position.x + _fr.x * 18, cz = camera.position.z + _fr.z * 18;
+  const cy = Math.min(camera.position.y + _fr.y * 18, -raio - 2);
   for (let i = 0; i < n; i++) {
     const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2;
     const s = Math.sqrt(1 - u * u), r = raio * Math.pow(Math.random(), 0.6);
-    const bx = s * Math.cos(a) * r, by = u * r * 0.8, bz = s * Math.sin(a) * r;
-    soltarBolha(18 + bz, bx, centro + by, 0.15 + Math.pow(Math.random(), 1.5) * 0.8, 6 + Math.random() * 18);
+    soltarBolhaEm(cx + s * Math.cos(a) * r, cy + u * r, cz + s * Math.sin(a) * r,
+      0.15 + Math.pow(Math.random(), 1.5) * 0.8, 6 + Math.random() * 18);
   }
 }
 
