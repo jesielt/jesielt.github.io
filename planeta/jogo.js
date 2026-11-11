@@ -402,7 +402,7 @@ matAgua.onBeforeCompile = (sh) => {
 
     diffuseColor.rgb = cor;
     // turva: de cima mostra só um pouco do que está embaixo; rente, nada
-    diffuseColor.a = mix( 0.62, 1.0, espelho );
+    diffuseColor.a = mix( 0.88, 1.0, espelho );
     // vista de baixo (você mergulhou): um teto claro, com a luz vindo de cima
     if ( cameraPosition.y < 0.0 ) {
       diffuseColor.rgb = mix( vec3( 0.42, 0.80, 0.66 ), vec3( 0.75, 0.95, 0.85 ), 1.0 - espelho ) + ( tA.rgb - corBase ) * 0.25;
@@ -2531,7 +2531,7 @@ function soltarBolha(frente, lado, alto, tam, sobe) {
   bolhas.proxima = (i + 1) % MAX_BOLHAS;
   const x = camera.position.x + _fr.x * frente + _ld.x * lado;
   let y = camera.position.y + _fr.y * frente + alto;
-  if (y > -0.6) y = -0.6 - Math.random() * 3; // acima da superfície não pode: desce um pouco (sem formar uma camada lisa)
+  if (y > -0.6) y = -1.2 - (y + 0.6); // acima da superfície: espelha pra baixo dela (mantém o espalhado, sem formar camada)
   const z = camera.position.z + _fr.z * frente + _ld.z * lado;
   bolhas.pos[i * 3] = x; bolhas.pos[i * 3 + 1] = y; bolhas.pos[i * 3 + 2] = z;
   bolhas.tam[i] = tam;
@@ -2590,8 +2590,8 @@ function explosaoDeBolhas(embalo) {
   for (let i = 0; i < n; i++) {
     const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2;
     const s = Math.sqrt(1 - u * u), r = raio * Math.pow(Math.random(), 0.6);
-    const bx = s * Math.cos(a) * r, by = u * r * 0.6, bz = s * Math.sin(a) * r;
-    soltarBolha(7 + bz, bx, centro + by, 0.15 + Math.pow(Math.random(), 1.5) * 0.8, 6 + Math.random() * 18);
+    const bx = s * Math.cos(a) * r, by = u * r * 0.8, bz = s * Math.sin(a) * r;
+    soltarBolha(18 + bz, bx, centro + by, 0.15 + Math.pow(Math.random(), 1.5) * 0.8, 6 + Math.random() * 18);
   }
 }
 

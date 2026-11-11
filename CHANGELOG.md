@@ -56,6 +56,7 @@ e aparece no console do navegador quando o jogo abre.
   pedrinhas miúdas); a borda entre a terra e a grama ficou
   com metade da largura, em azul escuro
 - Tecla R (também no painel, ao lado do W): recomeça do ponto de partida
+- Mar mais opaco visto de cima: as encostas das ilhas não aparecem mais lá embaixo
 
 ## 1.0.0 — 10/11/2026
 
