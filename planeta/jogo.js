@@ -1120,10 +1120,10 @@ function criarIlha(i, j) {
     solidos.push({ x: x + px, z: z + pz, rx, rz, base: alt - 1, h: alt - 1 + rh + 1.25, afina, giro });
   }
 
-  // árvores: poucas e espalhadas, de 0 a 7 conforme o tamanho da ilha
+  // árvores: poucas e espalhadas, de 0 a 5 conforme o tamanho da ilha
   const copas = [];
-  // (nas enormes, proporcional: de ~6 a ~20)
-  const maxArvores = enorme ? Math.floor(tam / 15) : Math.min(7, Math.floor(tam / 15));
+  // (nas enormes, proporcional: de ~4 a ~12)
+  const maxArvores = enorme ? Math.floor(tam / 24) : Math.min(5, Math.floor(tam / 24));
   const nArvores = enorme
     ? Math.floor(maxArvores / 2) + Math.floor(hash(i, j, 8) * (maxArvores / 2 + 1))
     : Math.floor(hash(i, j, 8) * (maxArvores + 1));
@@ -1308,6 +1308,8 @@ const FAUNA = {
     maxPorIlha: 3,
     tamanho: 1,            // escala do modelo (1 ≈ 45 cm de comprimento)
     medo: 44,              // ~2,5 m: chegou mais perto que isso, foge
+    raio: 3.4,             // "tamanho" pra esbarrar (esfera e você), já na escala 1
+    altura: 3.6,
     pulo: { dur: 0.42, altura: 5, perto: [8, 18], fuga: [16, 26] },
     atualizar: atualizarSapo,
     criar() {
@@ -1390,6 +1392,32 @@ function lugarBomPraBicho(ilha, px, pz) {
     if (Math.hypot(ilha.x + px - c.x, ilha.z + pz - c.z) < c.grossura + 4) return false;
   }
   return true;
+}
+
+// levou uma bolada ou um esbarrão: foge na hora
+function assustar(b) {
+  b.fugindo = 2.5;
+  if (b.estado === 'parado') b.espera = 0;
+}
+// andando, você não atravessa os bichos (empurra você pra fora)
+function esbarrarNaFauna() {
+  const p = camera.position;
+  for (const ilha of ilhasPerto()) {
+    for (const b of ilha.fauna || []) {
+      const sc = b.g.scale.x;
+      if (pesY > b.g.position.y + b.esp.altura * sc || pesY + olhosAgora < b.g.position.y) continue;
+      const bx = ilha.x + b.g.position.x, bz = ilha.z + b.g.position.z;
+      const dx = p.x - bx, dz = p.z - bz;
+      const d = Math.hypot(dx, dz), min = b.esp.raio * sc + ANDAR.raioPe;
+      if (d >= min) continue;
+      const nx = dx / (d || 1), nz = dz / (d || 1);
+      p.x = bx + nx * min;
+      p.z = bz + nz * min;
+      const contra = vel.x * nx + vel.z * nz;
+      if (contra < 0) { vel.x -= contra * nx; vel.z -= contra * nz; }
+      assustar(b);
+    }
+  }
 }
 
 const _faunaVoce = new THREE.Vector3();
@@ -1998,6 +2026,7 @@ function atualizarAndar(dt, f, l, u) {
   p.x += vel.x * dt;
   p.z += vel.z * dt;
   for (const ilha of ilhasPerto()) for (const s of ilha.solidos) empurrarDaParede(s);
+  esbarrarNaFauna();
 
   const c = chaoSob(p.x, p.z, pesY + ANDAR.degrau);
   if (!c) { comecarEscorregar(null); escorregar(dt); return; }
@@ -2086,12 +2115,13 @@ function colidir(s) {
 // Chegando perto, aparece o botão direito do mouse: clicou, capturou.
 // Tamanho: um pouco maior que uma cabeça (~30 cm na sensação).
 // ---------------------------------------------------------------------
-const R_ESFERA = 3.3;      // raio, em unidades daqui de dentro (~38 cm de diâmetro na sensação)
+const R_ESFERA = 4.3;      // raio, em unidades daqui de dentro (~49 cm de diâmetro na sensação)
 const RAIO_CORPO = 2;      // "tamanho" do seu corpo pra esbarrar nela (voando)
 const RAIO_CORPO_ANDANDO = 8; // andando: o corpo todo (~45 cm pros lados), pra dar pra chutar fácil
 const GRAVIDADE = 170;     // ≈ 9,8 m/s² na escala sentida
 const DIST_POUSO = 1600;   // a essa distância do ponto, a esfera escolhe a ilha e aparece
 const DIST_CAPTURA = 24;   // perto assim (~1,4 m), dá pra capturar
+const AVISO_CAPTURA = 3;   // segundos que o aviso "clique pra capturar" aparece em cada esfera
 const esferas = [];        // uma por número de estrelas (1 a 7)
 const inicio = new THREE.Vector3(); // onde você começou (volta pra cá se o ar acabar)
 let yawInicio = 0;
@@ -2291,6 +2321,7 @@ function atualizarUmaEsfera(e, dt) {
     if (aproxima > 0) {
       v.addScaledVector(_n, aproxima * 1.3);
       vel.addScaledVector(_n, -aproxima * 0.35); // você perde um pouco de velocidade
+      somDaEsfera(e, aproxima);
     }
   }
 
@@ -2342,7 +2373,25 @@ function atualizarUmaEsfera(e, dt) {
       p.x = arv.x + nx * min;
       p.z = arv.z + nz * min;
       const contra = v.x * nx + v.z * nz;
-      if (contra < 0) { v.x -= 1.5 * contra * nx; v.z -= 1.5 * contra * nz; } // quica e perde metade
+      if (contra < 0) { v.x -= 1.5 * contra * nx; v.z -= 1.5 * contra * nz; somDaEsfera(e, -contra); } // quica e perde metade
+    }
+
+    // 3) bate nos bichos (sapo de tabela!): quica neles e eles fogem
+    for (const ilha of ilhasPerto()) {
+      for (const b of ilha.fauna || []) {
+        const sc = b.g.scale.x, raio = b.esp.raio * sc;
+        const bx = ilha.x + b.g.position.x, bz = ilha.z + b.g.position.z, by = b.g.position.y;
+        if (p.y - R_ESFERA > by + b.esp.altura * sc || p.y + R_ESFERA < by) continue;
+        const dx = p.x - bx, dz = p.z - bz;
+        const d = Math.hypot(dx, dz), min = raio + R_ESFERA;
+        if (d >= min) continue;
+        const nx = dx / (d || 1), nz = dz / (d || 1);
+        p.x = bx + nx * min;
+        p.z = bz + nz * min;
+        const contra = v.x * nx + v.z * nz;
+        if (contra < 0) { v.x -= 1.7 * contra * nx; v.z -= 1.7 * contra * nz; somDaEsfera(e, -contra); }
+        assustar(b);
+      }
     }
 
     // bate nas rochas da ilha e volta
@@ -2359,7 +2408,7 @@ function atualizarUmaEsfera(e, dt) {
       const d = Math.hypot(dx, dz) || 1;
       const nx = dx / d, nz = dz / d;
       const contra = v.x * nx + v.z * nz;
-      if (contra < 0) { v.x -= 1.5 * contra * nx; v.z -= 1.5 * contra * nz; }
+      if (contra < 0) { v.x -= 1.5 * contra * nx; v.z -= 1.5 * contra * nz; somDaEsfera(e, -contra); }
     }
   }
 
@@ -2453,9 +2502,16 @@ function atualizarEsfera(dt) {
     const d = pontoDoCorpo().distanceTo(e.pos);
     if (d < maisPerto) { maisPerto = d; capturavel = e; }
   }
+  // o aviso (ícone do mouse / anel) aparece só nos primeiros 3 s perto de
+  // cada esfera e depois some de vez; capturar continua funcionando igual
+  let aviso = capturavel;
+  if (aviso) {
+    aviso.avisoVisto = (aviso.avisoVisto || 0) + dt;
+    if (aviso.avisoVisto > AVISO_CAPTURA) aviso = null;
+  }
   // celular: em vez do ícone de mouse, um anel pulsando em volta da esfera ("toca aqui")
   if (TOQUE) {
-    const t = capturavel && esferaNaTela(capturavel);
+    const t = aviso && esferaNaTela(aviso);
     iconeCaptura.classList.toggle('visivel', !!t);
     if (t) {
       const d = Math.max(t.r * 2.4, 56);
@@ -2466,8 +2522,8 @@ function atualizarEsfera(dt) {
     return;
   }
   // ícone do botão direito em cima da esfera capturável
-  if (capturavel) {
-    _tela.copy(capturavel.pos);
+  if (aviso) {
+    _tela.copy(aviso.pos);
     _tela.y += R_ESFERA * 1.8;
     _tela.project(camera);
     const naFrente = _tela.z < 1 && Math.abs(_tela.x) < 1.1 && Math.abs(_tela.y) < 1.1;
@@ -3854,6 +3910,7 @@ const SOM = {
   filtroDash: 1300,
   rajada: 0.35,      // quanto as rajadas mexem no volume (0 = nada)
   passo: 0.3,        // volume do passo (clac-nhec)
+  vidro: 0.09,       // volume do choque com a esfera (vidro grave)
 };
 let vento = null;
 function criarVento() {
@@ -4025,6 +4082,33 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   osc.connect(bp2).connect(g3).connect(vento.passos);
   osc.start(t2); vib.start(t2);
   osc.stop(t2 + dur + 0.02); vib.stop(t2 + dur + 0.02);
+}
+
+// Choque com a esfera: "tim" de vidro, mas grave e baixinho (pra não
+// cansar). Parciais desafinadas entre si = som de vidro/cristal. Mais
+// forte quanto maior a pancada; cada esfera espera um pouquinho entre um
+// som e outro (rolando encostada não vira metralhadora).
+function somDaEsfera(e, forca) {
+  if (forca < 6 || !vento || vento.ctx.state !== 'running') return;
+  const agora = performance.now();
+  if (agora - (e.ultimoSom || 0) < 140) return;
+  e.ultimoSom = agora;
+  const ctx = vento.ctx, t = ctx.currentTime;
+  const vol = SOM.vidro * Math.min(1, Math.max(0.2, forca / 90));
+  const f0 = 430 * (0.94 + Math.random() * 0.12);
+  const parciais = [[1, 1, 0.45], [2.76, 0.45, 0.28], [5.4, 0.2, 0.16], [8.93, 0.08, 0.1]];
+  for (const [mult, amp, dur] of parciais) {
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = f0 * mult;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol * amp, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(vento.passos);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
 }
 
 function atualizarSom(dt) {

@@ -32,10 +32,14 @@ e aparece embaixo do nome, no canto da tela (e no console do navegador).
   - Mais alta = mais velha = copa maior (da menor pra maior a copa dobra) e tronco mais grosso
 - Montanhas: às vezes a ilha ganha uma rocha enorme e encorpada perto do centro (12 a 28 m; nas ilhas enormes até 35 m, às vezes duas; as bem altas são raras), com topo plano pra pousar
 - C duas vezes rápido: desiste do voo e cai. No chão pousa (abaixadinha mais forte quanto maior a queda), na água mergulha; Espaço volta a voar
-- Esferas um pouco maiores (~38 cm) e, andando, seu corpo esbarra nelas de mais longe (dá pra jogar futebol)
+- Esferas maiores (~49 cm) e, andando, seu corpo esbarra nelas de mais longe (dá pra jogar futebol)
+- Choque com a esfera faz um "tim" de vidro grave e baixinho (em você, nas árvores, nas rochas e nos sapos)
+- O aviso de capturar aparece só nos primeiros 3 s perto de cada esfera e some de vez (capturar continua igual)
+- Menos árvores por ilha (até 5 nas comuns, até ~12 nas enormes)
 - Correndo na ilha o vento fica bem mais baixo que voando
 - Fauna de Namek: sapos nas ilhas (só no chão, longe da água e das rochas). Ficam olhando em volta, dão pulinhos
   e fogem pulando quando você chega perto. Como todo bicho de Namek, têm anteninhas
+  - Têm corpo: a esfera quica neles (dá pra tabelar) e você não atravessa; quem leva bolada ou esbarrão foge
 
 ## 2.0.3 — 11/11/2026
 
