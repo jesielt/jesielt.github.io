@@ -4,7 +4,7 @@
 // A biblioteca de 3D vem de um link. Carregando assim, o jogo funciona
 // tanto no site quanto abrindo o index.html direto (duplo clique).
 // Versão oficial (a que vai pro ar no próximo push). Ver CHANGELOG.md.
-const VERSAO = '2.0.3';
+const VERSAO = '2.1.0';
 console.log(`Planeta v${VERSAO}`);
 // aparece na tela, embaixo do nome (o número vem só daqui)
 document.getElementById('versao').textContent = 'v' + VERSAO;
@@ -3273,6 +3273,106 @@ function atualizarDebaixoDagua(dt) {
 }
 
 // ---------------------------------------------------------------------
+// Som do vento: ruído rosa filtrado, feito na hora (sem arquivo de áudio).
+// Parado é um sopro baixinho, tipo orla; voando devagar cresce um pouco;
+// rápido (e no dash) fica forte e mais "chiado". Rajadas lentas e aleatórias
+// pra não soar como um chiado parado. Debaixo d'água fica abafado e no
+// espaço some (não tem ar). O navegador só deixa tocar som depois do
+// primeiro clique/tecla/toque, então ele liga aí.
+// ---------------------------------------------------------------------
+const SOM = {
+  volParado: 0.05,   // volume parado (orla)
+  volMax: 0.32,      // volume na velocidade normal máxima
+  volDash: 0.5,      // volume no máximo do dash
+  filtroParado: 380, // Hz: parado o vento é grave e macio...
+  filtroMax: 2200,   // ...rápido ele abre e chia
+  filtroDash: 4200,
+  rajada: 0.35,      // quanto as rajadas mexem no volume (0 = nada)
+};
+let vento = null;
+function criarVento() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  const ctx = new Ctx();
+  // ruído rosa (filtro do Paul Kellet), um pedaço de 6 s que fica em laço;
+  // um diferente pra cada ouvido, pro vento ter largura
+  function ruidoRosa(seg) {
+    const n = Math.floor(ctx.sampleRate * seg);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < n; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759;
+      b2 = 0.96900 * b2 + w * 0.1538520; b3 = 0.86650 * b3 + w * 0.3104856;
+      b4 = 0.55000 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.0168980;
+      d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
+      b6 = w * 0.115926;
+    }
+    // emenda o fim no começo sem estalo
+    const f = Math.floor(ctx.sampleRate * 0.05);
+    for (let i = 0; i < f; i++) { const t = i / f; d[n - f + i] = d[n - f + i] * (1 - t) + d[i] * t; }
+    return buf;
+  }
+  const filtro = ctx.createBiquadFilter();
+  filtro.type = 'lowpass';
+  filtro.Q.value = 0.7;
+  const ressoa = ctx.createBiquadFilter(); // um "assobio" leve que sobe com a velocidade
+  ressoa.type = 'peaking';
+  ressoa.Q.value = 1.2;
+  ressoa.gain.value = 5;
+  const volume = ctx.createGain();
+  volume.gain.value = 0;
+  filtro.connect(ressoa).connect(volume).connect(ctx.destination);
+  const lados = [-0.7, 0.7].map(lado => {
+    const fonte = ctx.createBufferSource();
+    fonte.buffer = ruidoRosa(6 + lado); // tamanhos diferentes: não se repetem juntos
+    fonte.loop = true;
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = lado;
+    const g = ctx.createGain();
+    fonte.connect(g).connect(pan).connect(filtro);
+    fonte.start();
+    return g;
+  });
+  return { ctx, filtro, ressoa, volume, lados, rajada: [1, 1], alvoRajada: [1, 1], troca: [0, 0] };
+}
+function ligarSom() {
+  if (!vento) vento = criarVento();
+  if (vento && vento.ctx.state !== 'running') vento.ctx.resume();
+}
+['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, ligarSom, { passive: true }));
+
+function atualizarSom(dt) {
+  if (!vento || vento.ctx.state !== 'running') return;
+  const rapidez = vel.length() / AJUSTE.velMax; // 1 = normal, 2 = dash
+  const r1 = Math.min(rapidez, 1);
+  const r2 = Math.max(0, Math.min(rapidez - 1, 1));
+  // curva: começa devagar (voar devagar só aumenta um pouco) e cresce perto do máximo
+  const curva = r1 * r1 * 0.7 + r1 * 0.3;
+  let vol = SOM.volParado + (SOM.volMax - SOM.volParado) * curva + (SOM.volDash - SOM.volMax) * r2;
+  let freq = SOM.filtroParado + (SOM.filtroMax - SOM.filtroParado) * curva + (SOM.filtroDash - SOM.filtroMax) * r2;
+  // rajadas: cada ouvido vai pra um alvo aleatório de tempos em tempos
+  for (let i = 0; i < 2; i++) {
+    vento.troca[i] -= dt;
+    if (vento.troca[i] <= 0) {
+      vento.troca[i] = 1.5 + Math.random() * 3;
+      vento.alvoRajada[i] = 1 + (Math.random() * 2 - 1) * SOM.rajada;
+    }
+    vento.rajada[i] = suavizar(vento.rajada[i], vento.alvoRajada[i], 0.8, dt);
+  }
+  if (submerso) { vol *= 0.35; freq = 220; }   // abafado debaixo d'água
+  vol *= 1 - uniAlto.value;                     // vai sumindo até o espaço
+  const t = vento.ctx.currentTime;
+  const media = (vento.rajada[0] + vento.rajada[1]) / 2;
+  vento.volume.gain.setTargetAtTime(vol, t, 0.12);
+  vento.filtro.frequency.setTargetAtTime(freq * (0.85 + 0.15 * media), t, 0.12);
+  vento.ressoa.frequency.setTargetAtTime(freq * 0.6, t, 0.2);
+  vento.lados[0].gain.setTargetAtTime(vento.rajada[0], t, 0.3);
+  vento.lados[1].gain.setTargetAtTime(vento.rajada[1], t, 0.3);
+}
+
+// ---------------------------------------------------------------------
 // Laço principal
 // ---------------------------------------------------------------------
 let antes = performance.now();
@@ -3282,6 +3382,7 @@ function quadro(agora) {
   atualizar(dt);
   atualizarEspirro(dt);
   atualizarDebaixoDagua(dt);
+  atualizarSom(dt);
   animarAgua(agora / 1000);
   renderer.render(cena, camera);
   desenharRadar(agora / 1000);
@@ -3300,5 +3401,5 @@ requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
 window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar, chaoDoMar, escurecerCeu, bolhas, explosaoDeBolhas, get ar() { return ar; }, set ar(v) { ar = v; }, alternarMergulho, get semMergulho() { return semMergulho; },
-  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
+  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); atualizarSom(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get vento() { return vento; }, SOM, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
 })();

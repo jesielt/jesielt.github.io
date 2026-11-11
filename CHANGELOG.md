@@ -11,6 +11,14 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
+## 2.1.0 — ainda não publicada
+
+- Som de vento, feito na hora com ruído rosa (sem arquivo de áudio)
+  - Parado: um sopro baixinho, tipo orla. Voando devagar sobe um pouco; rápido e no dash fica forte e chiado
+  - Rajadas lentas e diferentes em cada ouvido, pra não soar como chiado parado
+  - Debaixo d'água fica abafado; subindo pro espaço vai sumindo (lá não tem ar)
+  - Liga no primeiro clique, tecla ou toque (regra do navegador)
+
 ## 2.0.3 — 11/11/2026
 
 - Celular: pra capturar, toca na própria esfera (com folga em volta, pro dedo não errar).
