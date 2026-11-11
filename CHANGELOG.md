@@ -11,7 +11,7 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
-## 2.1.0 — ainda não publicada
+## 2.1.0 — 11/11/2026
 
 - Som de vento, feito na hora com ruído rosa (sem arquivo de áudio)
   - Parado: um sopro baixinho, tipo orla. Voando devagar sobe um pouco; rápido e no dash fica forte e encorpado (grave, sem chiado)
@@ -22,17 +22,17 @@ e aparece embaixo do nome, no canto da tela (e no console do navegador).
 - Tecla M liga/desliga o som (fica lembrado); no painel, um M com alto-falante cortado em cinza
 - Andar: voando a 1 m do topo de uma ilha ou rocha, você pousa
   - A câmera dá uma abaixadinha (pancada no joelho) e levanta pra altura de pé (1,7 m)
-  - Anda a ~1,4 m/s; com Shift corre a ~4 m/s; Espaço decola de volta pro voo (segurando Espaço, passa rente sem pousar)
+  - Anda a ~1,4 m/s; com Shift corre a ~4,9 m/s; Espaço decola de volta pro voo (segurando Espaço, passa rente sem pousar)
   - A cabeça balança a cada passo; rochas viram parede (só sobe voando) e degrauzinhos sobe andando
   - Saiu da ponta de uma rocha: cai no chão de baixo, com abaixadinha na chegada
   - Escorregar: chegou na beira da ilha, escorrega sentado pro mar e lá vira o nado de sempre
   - Andando dá pra chutar a esfera e capturar de pé
 - Som de passo robótico "clac-nhec" de corpo pesado (tum grave e encorpado + estalo metálico + servo rangendo baixinho), mais forte no pouso
 - Árvores com tamanho de gente: distribuição natural de 2 a 20 m (a maioria entre ~4 e ~11 m)
-  - Mais alta = mais velha = copa maior (da menor pra maior a copa dobra) e tronco mais grosso
+  - Mais alta = mais velha = copa maior (da menor pra maior a copa dobra) e tronco um pouco mais grosso
 - Montanhas: às vezes a ilha ganha uma rocha enorme e encorpada perto do centro (12 a 28 m; nas ilhas enormes até 35 m, às vezes duas; as bem altas são raras), com topo plano pra pousar
 - C duas vezes rápido: desiste do voo e cai. No chão pousa (abaixadinha mais forte quanto maior a queda), na água mergulha; Espaço volta a voar
-- Esferas maiores (~49 cm) e, andando, seu corpo esbarra nelas de mais longe (dá pra jogar futebol)
+- Esferas maiores (~49 cm) e, andando, seu corpo esbarra nelas de mais longe e chuta mais forte (dá pra jogar futebol)
 - Choque com a esfera faz um "tim" de vidro grave e baixinho (em você, nas árvores, nas rochas e nos sapos)
 - O aviso de capturar aparece só nos primeiros 3 s perto de cada esfera e some de vez (capturar continua igual)
 - Menos árvores por ilha (até 5 nas comuns, até ~12 nas enormes)

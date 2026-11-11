@@ -1221,7 +1221,7 @@ function sortearArvore(sorteio1, sorteio2) {
   const total = metros * M_ARVORE;
   // a copa vai de th + 0,6r - 1,15r até th + 0,6r + 1,15r: o topo dela é th + 1,75r
   const th = Math.max(6, total - r * 1.75);
-  return { r, th, grossura: 0.8 + metros * 0.22 };
+  return { r, th, grossura: 0.8 + metros * 0.115 }; // a de 20 m: ~3 de raio (40% mais fino que antes)
 }
 
 // esse ponto (com essa folga) fica em cima de alguma rocha?
@@ -1827,7 +1827,7 @@ const ANDAR = {
   pousa: 17.5,         // 1 m: voando a essa altura de um chão, você pousa
   olhos: 29.75,        // 1,7 m: altura dos olhos de pé
   vel: 25,             // ~1,4 m/s: andando
-  correr: 70,          // ~4 m/s: com Shift
+  correr: 85,          // ~4,9 m/s: com Shift
   acel: 10,            // quão rápido pega/perde a velocidade (maior = mais firme)
   degrau: 8,           // ~45 cm: sobe sem precisar voar
   passoAndando: 13,    // ~75 cm entre um passo e outro
@@ -2319,7 +2319,8 @@ function atualizarUmaEsfera(e, dt) {
     if (modo === 'voo') camera.position.y += ey;
     const aproxima = vel.dot(_n) - v.dot(_n); // quão rápido você vinha na direção dela
     if (aproxima > 0) {
-      v.addScaledVector(_n, aproxima * 1.3);
+      // andando/correndo o chute pega mais (o corpo todo empurra); voando, o toque é mais leve
+      v.addScaledVector(_n, aproxima * (modo === 'voo' ? 1.3 : 2.2));
       vel.addScaledVector(_n, -aproxima * 0.35); // você perde um pouco de velocidade
       somDaEsfera(e, aproxima);
     }
