@@ -332,6 +332,8 @@ html, body {
   box-shadow: 0 1px 3px rgba(30, 60, 50, 0.35);
   pointer-events: none;
 }
+/* M com o som desligado: a tecla fica acesa */
+.tecla[data-tecla="KeyM"].ligado { background: rgba(255, 255, 255, 0.7); }
 .tecla.shift { width: calc(var(--k) * 1.6); }
 .tecla.espaco { flex: 1; width: auto; }
 

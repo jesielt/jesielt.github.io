@@ -1229,6 +1229,7 @@ const MAPA = {
   KeyC: 'descer',
   ShiftLeft: 'dash', ShiftRight: 'dash',
   KeyR: 'recomecar', // volta pro começo (como se o ar tivesse acabado)
+  KeyM: 'mudo',      // liga/desliga o som
 };
 // o Shift da direita acende o mesmo desenho do Shift da esquerda
 const DESENHO = { ShiftRight: 'ShiftLeft' };
@@ -1249,6 +1250,7 @@ function marcarTecla(codigo, ligada) {
 function apertar(codigo) {
   if (!(codigo in MAPA)) return false;
   if (codigo === 'KeyR' && !apertadas.has(codigo)) recomecar();
+  if (codigo === 'KeyM' && !apertadas.has(codigo)) alternarMudo();
   apertadas.add(codigo);
   marcarTecla(codigo, true);
   return true;
@@ -3281,12 +3283,12 @@ function atualizarDebaixoDagua(dt) {
 // primeiro clique/tecla/toque, então ele liga aí.
 // ---------------------------------------------------------------------
 const SOM = {
-  volParado: 0.05,   // volume parado (orla)
-  volMax: 0.32,      // volume na velocidade normal máxima
-  volDash: 0.5,      // volume no máximo do dash
-  filtroParado: 380, // Hz: parado o vento é grave e macio...
-  filtroMax: 2200,   // ...rápido ele abre e chia
-  filtroDash: 4200,
+  volParado: 0.06,   // volume parado (orla)
+  volMax: 0.38,      // volume na velocidade normal máxima
+  volDash: 0.55,     // volume no máximo do dash
+  filtroParado: 300, // Hz: parado o vento é grave e macio...
+  filtroMax: 850,    // ...rápido ele abre um pouco (sem chegar no chiado de rádio)
+  filtroDash: 1300,
   rajada: 0.35,      // quanto as rajadas mexem no volume (0 = nada)
 };
 let vento = null;
@@ -3314,16 +3316,25 @@ function criarVento() {
     for (let i = 0; i < f; i++) { const t = i / f; d[n - f + i] = d[n - f + i] * (1 - t) + d[i] * t; }
     return buf;
   }
+  // dois passa-baixas em fila: corta o agudo com força (é o que tirava o
+  // "rádio fora do ar") e deixa o vento redondo
   const filtro = ctx.createBiquadFilter();
   filtro.type = 'lowpass';
-  filtro.Q.value = 0.7;
-  const ressoa = ctx.createBiquadFilter(); // um "assobio" leve que sobe com a velocidade
+  filtro.Q.value = 0.5;
+  const filtro2 = ctx.createBiquadFilter();
+  filtro2.type = 'lowpass';
+  filtro2.Q.value = 0.5;
+  const ressoa = ctx.createBiquadFilter(); // um "uuu" leve que sobe com a velocidade
   ressoa.type = 'peaking';
-  ressoa.Q.value = 1.2;
-  ressoa.gain.value = 5;
+  ressoa.Q.value = 0.9;
+  ressoa.gain.value = 3;
+  const corpo = ctx.createBiquadFilter();  // reforço no grave: dá corpo, tipo vento na janela do carro
+  corpo.type = 'lowshelf';
+  corpo.frequency.value = 180;
+  corpo.gain.value = 5;
   const volume = ctx.createGain();
   volume.gain.value = 0;
-  filtro.connect(ressoa).connect(volume).connect(ctx.destination);
+  filtro.connect(filtro2).connect(ressoa).connect(corpo).connect(volume).connect(ctx.destination);
   const lados = [-0.7, 0.7].map(lado => {
     const fonte = ctx.createBufferSource();
     fonte.buffer = ruidoRosa(6 + lado); // tamanhos diferentes: não se repetem juntos
@@ -3335,13 +3346,33 @@ function criarVento() {
     fonte.start();
     return g;
   });
-  return { ctx, filtro, ressoa, volume, lados, rajada: [1, 1], alvoRajada: [1, 1], troca: [0, 0] };
+  return { ctx, filtro, filtro2, ressoa, volume, lados, rajada: [1, 1], alvoRajada: [1, 1], troca: [0, 0] };
+}
+// M liga/desliga o som (fica lembrado pra próxima vez)
+let mudo = false;
+try { mudo = localStorage.getItem('planeta.mudo') === '1'; } catch (erro) { /* tudo bem */ }
+// só toca com a janela em foco, visível e sem mudo; senão pausa tudo
+function aplicarSom() {
+  if (!vento) return;
+  const tocar = !mudo && !document.hidden && document.hasFocus();
+  if (tocar && vento.ctx.state !== 'running') vento.ctx.resume();
+  if (!tocar && vento.ctx.state === 'running') vento.ctx.suspend();
 }
 function ligarSom() {
   if (!vento) vento = criarVento();
-  if (vento && vento.ctx.state !== 'running') vento.ctx.resume();
+  aplicarSom();
 }
+function alternarMudo() {
+  mudo = !mudo;
+  try { localStorage.setItem('planeta.mudo', mudo ? '1' : '0'); } catch (erro) { /* tudo bem */ }
+  document.querySelectorAll('[data-tecla="KeyM"]').forEach(el => el.classList.toggle('ligado', mudo));
+  aplicarSom();
+}
+document.querySelectorAll('[data-tecla="KeyM"]').forEach(el => el.classList.toggle('ligado', mudo));
 ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, ligarSom, { passive: true }));
+window.addEventListener('blur', aplicarSom);
+window.addEventListener('focus', aplicarSom);
+document.addEventListener('visibilitychange', aplicarSom);
 
 function atualizarSom(dt) {
   if (!vento || vento.ctx.state !== 'running') return;
@@ -3367,7 +3398,8 @@ function atualizarSom(dt) {
   const media = (vento.rajada[0] + vento.rajada[1]) / 2;
   vento.volume.gain.setTargetAtTime(vol, t, 0.12);
   vento.filtro.frequency.setTargetAtTime(freq * (0.85 + 0.15 * media), t, 0.12);
-  vento.ressoa.frequency.setTargetAtTime(freq * 0.6, t, 0.2);
+  vento.filtro2.frequency.setTargetAtTime(freq * 1.3, t, 0.12);
+  vento.ressoa.frequency.setTargetAtTime(freq * 0.45, t, 0.2);
   vento.lados[0].gain.setTargetAtTime(vento.rajada[0], t, 0.3);
   vento.lados[1].gain.setTargetAtTime(vento.rajada[1], t, 0.3);
 }
@@ -3401,5 +3433,5 @@ requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
 window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar, chaoDoMar, escurecerCeu, bolhas, explosaoDeBolhas, get ar() { return ar; }, set ar(v) { ar = v; }, alternarMergulho, get semMergulho() { return semMergulho; },
-  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); atualizarSom(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get vento() { return vento; }, SOM, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
+  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); atualizarSom(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get vento() { return vento; }, alternarMudo, get mudo() { return mudo; }, SOM, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
 })();

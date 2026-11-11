@@ -14,10 +14,12 @@ e aparece embaixo do nome, no canto da tela (e no console do navegador).
 ## 2.1.0 — ainda não publicada
 
 - Som de vento, feito na hora com ruído rosa (sem arquivo de áudio)
-  - Parado: um sopro baixinho, tipo orla. Voando devagar sobe um pouco; rápido e no dash fica forte e chiado
+  - Parado: um sopro baixinho, tipo orla. Voando devagar sobe um pouco; rápido e no dash fica forte e encorpado (grave, sem chiado)
   - Rajadas lentas e diferentes em cada ouvido, pra não soar como chiado parado
   - Debaixo d'água fica abafado; subindo pro espaço vai sumindo (lá não tem ar)
   - Liga no primeiro clique, tecla ou toque (regra do navegador)
+  - Para sozinho quando você troca de janela ou de aba, e volta quando você volta
+- Tecla M liga/desliga o som (fica lembrado); no painel, um M com alto-falante cortado em cinza
 
 ## 2.0.3 — 11/11/2026
 
