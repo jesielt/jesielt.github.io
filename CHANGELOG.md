@@ -11,7 +11,7 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
-## 2.0.3 — ainda não publicada
+## 2.0.3 — 11/11/2026
 
 - Celular: pra capturar, toca na própria esfera (com folga em volta, pro dedo não errar).
   O ícone do mouse some no celular; no lugar dele, um anel dourado pulsa em volta da esfera
