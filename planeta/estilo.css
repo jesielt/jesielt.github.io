@@ -39,7 +39,7 @@ html, body {
   transition: opacity 0.25s;
 }
 .debaixo.ligada { opacity: 1; }
-.bolhas, .raios {
+.bolhas {
   position: fixed;
   inset: 0;
   width: 100vw;

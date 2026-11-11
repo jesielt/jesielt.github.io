@@ -20,13 +20,14 @@ e aparece no console do navegador quando o jogo abre.
   a base das ilhas aparece de leve embaixo d'água
 - Velocidade em km/h no canto esquerdo de cima do radar, com o "V" saiyajin
 - Espirro: com o dash (Shift), a 1,5 m da água ou menos, a espuma abre pros dois lados
-- As 7 esferas: a de 4 estrelas perto de onde você começa, as outras 6 espalhadas
-  (de 1500 a 5000 de distância), todas no radar; se cair no mar, a esfera volta pro lugar
+- As 7 esferas sorteadas pelo mundo, cada uma pra um lado (de 600 a 5000 de distância),
+  todas no radar; metade cai numa ilha, metade no fundo do mar
 - Esferas de vidro laranja com volume (miolo claro, borda funda e levemente transparente)
 - No radar, cada esfera tem um triângulo vazado apontando pra ela: maior = mais perto
 - Captura: perto da esfera aparece o botão direito do mouse; clicou, ela vai pra caixinha
   redonda embaixo do radar, mostrando as estrelas dela
-- Juntou as 7: o céu escurece aos poucos (verde-escuro, quase noite), com raios e clarões
+- Juntou as 7: o céu escurece aos poucos (verde-escuro, quase noite) e o planeta perde o
+  brilho; caem raios de verdade das nuvens até o mar, iluminando tudo
 - Fundo do mar: dá pra mergulhar. As ilhas descem como montanhas até um chão irregular,
   com montinhos e algas balançando
 - Debaixo d'água: tudo esverdeado, bolhinhas (mais quanto mais rápido), movimento mais
@@ -34,7 +35,7 @@ e aparece no console do navegador quando o jogo abre.
 - Fôlego: barra azul de 25 s; se acabar, você volta pro começo e perde as esferas
 - As esferas também afundam devagar e rolam pelo fundo (não somem mais)
 - Grama das ilhas com pinceladas finas, como nos cenários de Namek; as manchas viraram
-  terra compactada (sem grama em cima)
+  terra compactada (sem grama em cima), com uma borda escura separando da grama
 - Mergulhou rápido (com dash): estouro de bolhas na tela
 - "Não mergulhar": clique duplo com o botão direito liga/desliga, com um botão de ícone
   (nadador com X) embaixo dos controles; ligado, dá pra voar rente à água à vontade

@@ -583,9 +583,14 @@ const matMancha = new THREE.MeshLambertMaterial({
   color: CORES.mancha,
   polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, // nunca "briga" com a grama
 });
+const matManchaBorda = new THREE.MeshLambertMaterial({
+  color: '#8d7666',
+  polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, // por baixo da mancha, por cima da grama
+});
 // (cx, cz) = centro da mancha na ilha; a parte que passar da borda é
 // "aparada" rente à borda, então a mancha nunca flutua em cima da água.
-function geometriaMancha(r, cx, cz, ilha, i, j, sem) {
+// cresce: quanto a forma aumenta pra fora (usado pra borda escura em volta)
+function geometriaMancha(r, cx, cz, ilha, i, j, sem, cresce = 0) {
   const f1 = hash(i, j, sem) * 6.3, f2 = hash(i, j, sem + 1) * 6.3, f3 = hash(i, j, sem + 2) * 6.3;
   const achata = 0.7 + hash(i, j, sem + 3) * 0.3;
   const giro = hash(i, j, sem + 4) * Math.PI * 2;
@@ -593,7 +598,7 @@ function geometriaMancha(r, cx, cz, ilha, i, j, sem) {
   const forma = new THREE.Shape();
   for (let k = 0; k <= 64; k++) {
     const a = (k / 64) * Math.PI * 2;
-    const m = r * (1 + 0.16 * Math.sin(2 * a + f1) + 0.09 * Math.sin(3 * a + f2) + 0.05 * Math.sin(7 * a + f3));
+    const m = r * (1 + 0.16 * Math.sin(2 * a + f1) + 0.09 * Math.sin(3 * a + f2) + 0.05 * Math.sin(7 * a + f3)) + cresce;
     const lx = Math.cos(a) * m, lz = Math.sin(a) * m * achata;
     let px = cx + lx * cg - lz * sg, pz = cz + lx * sg + lz * cg;
     // passou da borda? puxa o ponto de volta pra cima da borda
@@ -888,9 +893,16 @@ function criarIlha(i, j) {
     secas.push({ cx: cxm, cz: czm, r, sem: sm + 3 });
     const gm = geometriaMancha(r, cxm, czm, { sx, sz, ondas }, i, j, sm + 3);
     const mancha = new THREE.Mesh(gm, matMancha);
-    mancha.position.y = alt + 0.08;
+    mancha.position.y = alt + 0.22; // um tiquinho acima da borda (que fica acima da grama)
     grupo.add(mancha);
     geosManchas.push(gm);
+    // borda: a mesma forma um pouco maior, mais escura, por baixo — vira a
+    // "fronteira" entre a terra e a grama
+    const gb = geometriaMancha(r, cxm, czm, { sx, sz, ondas }, i, j, sm + 3, 1.6);
+    const borda = new THREE.Mesh(gb, matManchaBorda);
+    borda.position.y = alt + 0.11;
+    grupo.add(borda);
+    geosManchas.push(gb);
   }
 
   // rochas em cima: ilha maior comporta mais rochas (até 4)
@@ -1228,9 +1240,9 @@ function colidir(s) {
 }
 
 // ---------------------------------------------------------------------
-// As 7 esferas: de 1 a 7 estrelas. A de 4 fica numa ilha perto de onde
-// você começa; as outras 6 ficam espalhadas pelo mundo, cada uma pra um
-// lado, de 1500 a 5000 de distância (≈85 a 285 m na sua régua).
+// As 7 esferas: de 1 a 7 estrelas, sorteadas pelo mundo, cada uma pra um
+// lado de onde você começa, de 600 a 5000 de distância (≈35 a 285 m na
+// sua régua). Metade cai numa ilha, metade no fundo do mar.
 // O mundo só existe perto de você, então cada esfera distante "pousa" na
 // ilha grande mais perto do ponto dela quando você chega a ~1600 de lá;
 // até isso, o radar já aponta pro ponto.
@@ -1332,6 +1344,29 @@ function pousarNaIlha(e, ilha) {
   if (!lugar) return null;
   e.ilha = ilha;
   e.pos.set(lugar.px, s.h + R_ESFERA, lugar.pz);
+  criarBola(e);
+  return lugar;
+}
+
+// Todas as 7 são sorteadas do mesmo jeito: cada uma pra um lado de onde
+// você começa (com folga), a uma distância qualquer entre 600 e 5000.
+function criarEsferas() {
+  inicio.copy(camera.position);
+  yawInicio = yaw;
+  const giro = Math.random() * Math.PI * 2;
+  const ordem = esferas.map((e, k) => k).sort(() => Math.random() - 0.5);
+  ordem.forEach((k, setor) => {
+    const e = esferas[k];
+    const ang = giro + (setor * Math.PI * 2) / 7 + (Math.random() - 0.5) * 0.5;
+    const dist = 600 + Math.random() * 4400;
+    e.alvo.set(inicio.x + Math.cos(ang) * dist, 0, inicio.z + Math.sin(ang) * dist);
+    e.pos.copy(e.alvo); // até pousar, o radar aponta pra cá
+    e.querAgua = Math.random() < 0.5; // metade cai numa ilha, metade no fundo do mar
+  });
+}
+
+// cria a bola (casca + estrelas) onde a esfera está
+function criarBola(e) {
   e.origem.copy(e.pos);
   e.vel.set(0, 0, 0);
   // casca: vidro laranja grosso, com volume (ver materialDaCasca)
@@ -1344,45 +1379,28 @@ function pousarNaIlha(e, ilha) {
   e.casca.position.copy(e.pos);
   e.estrelas.position.copy(e.pos);
   cena.add(e.casca, e.estrelas);
-  return lugar;
 }
 
-function criarEsferas() {
-  // a de 4: numa ilha GRANDE (raio médio de 90 pra cima) entre as carregadas
-  const todas = [...ilhas.values()].filter(Boolean);
-  if (!todas.length) return;
-  const grandes = todas.filter(il => raioDaIlha(il) >= 90);
-  const ilha = grandes.length
-    ? grandes[Math.floor(Math.random() * grandes.length)]
-    : todas.reduce((a, b) => (raioDaIlha(b) > raioDaIlha(a) ? b : a));
-  const quatro = esferas[3];
-  const lugar = pousarNaIlha(quatro, ilha);
-  if (!lugar) return;
-  quatro.alvo.copy(quatro.pos);
-
-  // as outras 6: cada uma pra um lado (com uma folguinha), a distâncias variadas
-  const distancias = [1500, 2200, 2900, 3600, 4300, 5000].sort(() => Math.random() - 0.5);
-  const giro = Math.random() * Math.PI * 2;
-  esferas.filter(e => e.n !== 4).forEach((e, k) => {
-    const ang = giro + (k * Math.PI * 2) / 6 + (Math.random() - 0.5) * 0.6;
-    e.alvo.set(quatro.pos.x + Math.cos(ang) * distancias[k], 0, quatro.pos.z + Math.sin(ang) * distancias[k]);
-    e.pos.copy(e.alvo); // até pousar, o radar aponta pra cá
-  });
-
-  // você começa no alto, a uma distância em que a de 4 aparece no radar,
-  // pro lado de fora da ilha (mais ou menos) e olhando pra frente,
-  // não pra ela: tem que procurar o pontinho laranja
-  const angVoce = lugar.ang + (Math.random() - 0.5) * 2;
-  const longe = 200 + Math.random() * 300;
-  camera.position.set(quatro.pos.x + Math.cos(angVoce) * longe, 40, quatro.pos.z + Math.sin(angVoce) * longe);
-  inicio.copy(camera.position);
-  yawInicio = yaw;
-  atualizarIlhas(); // carrega o mundo em volta do novo começo
+// no fundo do mar: um lugar perto do ponto dela, longe da plataforma das ilhas
+function pousarNaAgua(e) {
+  for (let tent = 0; tent < 30; tent++) {
+    const r = tent * 12;
+    const a = Math.random() * Math.PI * 2;
+    const x = e.alvo.x + Math.cos(a) * r, z = e.alvo.z + Math.sin(a) * r;
+    const chao = chaoDoMar(x, z);
+    if (chao > -25) continue; // em cima de ilha ou rente à plataforma: procura mais longe
+    e.ilha = null;
+    e.pos.set(x, chao + R_ESFERA, z);
+    criarBola(e);
+    return true;
+  }
+  return false;
 }
 
-// esfera distante: quando você chega perto do ponto dela, escolhe a ilha
+// esfera distante: quando você chega perto do ponto dela, escolhe onde fica
 function tentarPousar(e) {
   if (Math.hypot(e.alvo.x - camera.position.x, e.alvo.z - camera.position.z) > DIST_POUSO) return;
+  if (e.querAgua && pousarNaAgua(e)) return;
   let melhor = null, nota = Infinity;
   for (const ilha of ilhas.values()) {
     if (!ilha) continue;
@@ -1392,11 +1410,12 @@ function tentarPousar(e) {
     const n = d + (raioDaIlha(ilha) >= 90 ? 0 : 400); // prefere as grandes
     if (n < nota) { nota = n; melhor = ilha; }
   }
-  if (melhor) pousarNaIlha(e, melhor);
+  if (!(melhor && pousarNaIlha(e, melhor))) pousarNaAgua(e); // sem ilha boa: vai pro fundo
 }
 
 // a esfera está em cima da plataforma da ilha dela?
 function emCimaDaIlha(e, x, z) {
+  if (!e.ilha) return false; // esfera do fundo do mar
   const s = e.ilha.solidos[0];
   const lx = (x - s.x) / s.rx, lz = (z - s.z) / s.rz;
   return Math.hypot(lx, lz) < contorno(Math.atan2(lz, lx), s.ondas);
@@ -1433,7 +1452,7 @@ function atualizarUmaEsfera(e, dt) {
     }
   }
 
-  const s = e.ilha.solidos[0];
+  const s = e.ilha ? e.ilha.solidos[0] : null;
   const sobreIlha = emCimaDaIlha(e, p.x, p.z);
 
   const naAgua = p.y < 0;
@@ -1472,7 +1491,7 @@ function atualizarUmaEsfera(e, dt) {
     }
 
     // bate nos troncos das árvores (só a esfera: você atravessa, pra não enroscar voando)
-    for (const arv of e.ilha.copas) {
+    for (const arv of (e.ilha ? e.ilha.copas : [])) {
       if (p.y - R_ESFERA > arv.topo || p.y + R_ESFERA < arv.chao) continue;
       const dx = p.x - arv.x, dz = p.z - arv.z;
       const d = Math.hypot(dx, dz), min = arv.grossura + R_ESFERA;
@@ -1485,7 +1504,7 @@ function atualizarUmaEsfera(e, dt) {
     }
 
     // bate nas rochas da ilha e volta
-    for (let n = 1; n < e.ilha.solidos.length; n++) {
+    for (let n = 1; n < (e.ilha ? e.ilha.solidos.length : 0); n++) {
       const r = e.ilha.solidos[n];
       if (p.y - R_ESFERA >= r.h) continue;
       const dx = p.x - r.x, dz = p.z - r.z;
@@ -2435,8 +2454,6 @@ function afogar() {
 // ---------- céu escuro + raios quando junta as 7 ----------
 let escuroAlvo = 0;
 let proximoRaio = 0, clarao = 0;
-const telaRaios = document.getElementById('raios');
-const rcx = telaRaios.getContext('2d');
 const telaClarao = document.getElementById('clarao');
 let raios = [];
 const corNuvemTopo = matNuvemTopo.color.clone(), corNuvemBase = matNuvemBase.color.clone();
@@ -2444,35 +2461,94 @@ const corNuvemEscura = new THREE.Color('#3e5e55'), corNuvemBaseEscura = new THRE
 
 function escurecerCeu() {
   escuroAlvo = 1;
-  clarao = 0.9;
+  clarao = 0.45;
   soltarRaio(); soltarRaio();
   proximoRaio = 0.2;
 }
-// um raio: zigue-zague de cima até o meio da tela, com um galho
-function soltarRaio() {
-  const W = window.innerWidth, H = window.innerHeight;
-  const fazer = (x, y, ate, larg) => {
-    const pts = [[x, y]];
-    while (y < ate) {
-      y += 14 + Math.random() * 30;
-      x += (Math.random() - 0.5) * 50;
-      pts.push([x, y]);
-    }
-    return { pts, larg };
-  };
-  const tronco = fazer(W * (0.1 + Math.random() * 0.8), -10, H * (0.3 + Math.random() * 0.35), 1);
-  const lista = [tronco];
-  const k = 2 + Math.floor(Math.random() * (tronco.pts.length - 3));
-  if (tronco.pts[k]) {
-    const [gx, gy] = tronco.pts[k];
-    lista.push(fazer(gx, gy, gy + H * (0.08 + Math.random() * 0.12), 0.6));
+// Raio de verdade, no mundo: sai da base de uma nuvem que você está vendo
+// e desce em zigue-zague até o mar (às vezes com um galho). É uma fita
+// branca virada pra você, com um brilho verde em volta, e a luz do
+// ambiente pisca junto. O clarão na tela fica só como reforço suave.
+const matRaio = new THREE.MeshBasicMaterial({
+  color: '#f4fff6', transparent: true, depthWrite: false, fog: false,
+  blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+});
+const matRaioBrilho = new THREE.MeshBasicMaterial({
+  color: '#6dffb0', transparent: true, depthWrite: false, fog: false,
+  blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+});
+let luzRaio = 0;
+const _frente = new THREE.Vector3(), _pn2 = new THREE.Vector3(), _lado2 = new THREE.Vector3(), _dir2 = new THREE.Vector3();
+
+// fita que passa pelos pontos, sempre de lado pra câmera
+function fitaDoRaio(pts, larg) {
+  const pos = [], idx = [];
+  pts.forEach((pt, n) => {
+    const a = pts[Math.max(0, n - 1)], b = pts[Math.min(pts.length - 1, n + 1)];
+    _dir2.subVectors(b, a).normalize();
+    _pn2.subVectors(camera.position, pt);
+    _lado2.crossVectors(_dir2, _pn2).normalize().multiplyScalar(larg * (n === pts.length - 1 ? 0.3 : 1) / 2);
+    pos.push(pt.x - _lado2.x, pt.y - _lado2.y, pt.z - _lado2.z, pt.x + _lado2.x, pt.y + _lado2.y, pt.z + _lado2.z);
+    if (n) { const k = (n - 1) * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  return geo;
+}
+function caminhoDoRaio(de, ate, passos, solta) {
+  const pts = [de.clone()];
+  for (let n = 1; n < passos; n++) {
+    const t = n / passos;
+    pts.push(new THREE.Vector3(
+      de.x + (ate.x - de.x) * t + (Math.random() - 0.5) * solta,
+      de.y + (ate.y - de.y) * t + (Math.random() - 0.5) * solta * 0.3,
+      de.z + (ate.z - de.z) * t + (Math.random() - 0.5) * solta,
+    ));
   }
-  raios.push({ lista, vida: 0.22, dura: 0.22 });
-  clarao = Math.max(clarao, 0.3 + Math.random() * 0.3);
+  pts.push(ate.clone());
+  return pts;
+}
+function soltarRaio() {
+  if (submerso) return; // debaixo d'água não dá pra ver
+  // uma nuvem na sua frente, nem perto nem longe demais
+  camera.getWorldDirection(_frente);
+  _frente.y = 0; _frente.normalize();
+  const visiveis = [];
+  for (const nuvem of ceuDasNuvens.children) {
+    const x = nuvem.position.x + ceuDasNuvens.position.x, z = nuvem.position.z + ceuDasNuvens.position.z;
+    const dx = x - camera.position.x, dz = z - camera.position.z, d = Math.hypot(dx, dz);
+    if (d < 250 || d > 2000) continue;
+    if ((dx * _frente.x + dz * _frente.z) / d < 0.35) continue;
+    visiveis.push(new THREE.Vector3(x, nuvem.position.y, z));
+  }
+  const de = visiveis.length
+    ? visiveis[Math.floor(Math.random() * visiveis.length)]
+    : camera.position.clone().addScaledVector(_frente, 700 + Math.random() * 800).setY(720); // sem nuvem: do alto, lá na frente
+  de.x += (Math.random() - 0.5) * 120;
+  de.z += (Math.random() - 0.5) * 120;
+  const ate = new THREE.Vector3(de.x + (Math.random() - 0.5) * 220, 0, de.z + (Math.random() - 0.5) * 220);
+  const tronco = caminhoDoRaio(de, ate, 22, 60);
+  const caminhos = [[tronco, 1]];
+  // um galho saindo do meio
+  if (Math.random() < 0.8) {
+    const k = 5 + Math.floor(Math.random() * 10);
+    const ini = tronco[k];
+    const fim = ini.clone().add(new THREE.Vector3((Math.random() - 0.5) * 260, -(120 + Math.random() * 200), (Math.random() - 0.5) * 260));
+    caminhos.push([caminhoDoRaio(ini, fim, 8, 45), 0.55]);
+  }
+  const grupo = new THREE.Group();
+  for (const [pts, grosso] of caminhos) {
+    grupo.add(new THREE.Mesh(fitaDoRaio(pts, 22 * grosso), matRaioBrilho.clone()));
+    grupo.add(new THREE.Mesh(fitaDoRaio(pts, 5 * grosso), matRaio.clone()));
+  }
+  grupo.renderOrder = 3;
+  cena.add(grupo);
+  raios.push({ grupo, vida: 0.28, dura: 0.28 });
+  luzRaio = 1;
+  clarao = Math.max(clarao, 0.12 + Math.random() * 0.12);
 }
 function atualizarRaios(dt) {
-  const W = window.innerWidth, H = window.innerHeight;
-  if (telaRaios.width !== W || telaRaios.height !== H) { telaRaios.width = W; telaRaios.height = H; }
   const transicao = escuroAlvo > 0 && uniEscuro.value < 0.98;
   if (escuroAlvo > 0) {
     proximoRaio -= dt;
@@ -2482,21 +2558,18 @@ function atualizarRaios(dt) {
       proximoRaio = transicao ? 0.15 + Math.random() * 0.4 : 5 + Math.random() * 8;
     }
   }
-  rcx.clearRect(0, 0, W, H);
-  raios = raios.filter(r => (r.vida -= dt) > 0);
-  for (const r of raios) {
-    const a = (r.vida / r.dura) * (0.6 + 0.4 * Math.random()); // pisca
-    for (const { pts, larg } of r.lista) {
-      for (const [cor, lw] of [[`rgba(190, 255, 215, ${a * 0.35})`, 8 * larg], [`rgba(255, 255, 255, ${a})`, 2.4 * larg]]) {
-        rcx.strokeStyle = cor;
-        rcx.lineWidth = lw;
-        rcx.lineJoin = 'round';
-        rcx.beginPath();
-        pts.forEach(([x, y], n) => (n ? rcx.lineTo(x, y) : rcx.moveTo(x, y)));
-        rcx.stroke();
-      }
+  raios = raios.filter(r => {
+    r.vida -= dt;
+    if (r.vida <= 0) {
+      cena.remove(r.grupo);
+      r.grupo.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); });
+      return false;
     }
-  }
+    const a = (r.vida / r.dura) * (0.55 + 0.45 * Math.random()); // pisca
+    r.grupo.children.forEach((m, n) => { m.material.opacity = a * (n % 2 ? 1 : 0.35); });
+    return true;
+  });
+  luzRaio *= Math.exp(-9 * dt);
   clarao *= Math.exp(-6 * dt);
   telaClarao.style.opacity = clarao.toFixed(3);
 }
@@ -2508,8 +2581,13 @@ function atualizarDebaixoDagua(dt) {
   uniEscuro.value = suavizar(uniEscuro.value, escuroAlvo, 0.9, dt);
   if (Math.abs(uniEscuro.value - escuroAlvo) < 0.002) uniEscuro.value = escuroAlvo;
   const esc = uniEscuro.value;
-  hemi.intensity = 2.2 * (1 - 0.62 * esc);
+  hemi.intensity = 2.2 * (1 - 0.62 * esc) + luzRaio * 1.8; // o raio ilumina tudo por um instante
   sol.intensity = 1.6 * (1 - 0.72 * esc);
+  // o planeta no céu perde o brilho (senão parece uma lua acesa)
+  for (const sat of satelites) {
+    sat.sprite.material.opacity = 0.82 * (1 - 0.55 * esc);
+    sat.sprite.material.color.setRGB(1 - 0.5 * esc, 1 - 0.42 * esc, 1 - 0.48 * esc);
+  }
   matNuvemTopo.color.copy(corNuvemTopo).lerp(corNuvemEscura, esc);
   matNuvemBase.color.copy(corNuvemBase).lerp(corNuvemBaseEscura, esc);
   atualizarRaios(dt);
