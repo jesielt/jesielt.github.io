@@ -1492,6 +1492,219 @@ function suavizar(atual, alvo, rapidez, dt) {
   return atual + (alvo - atual) * (1 - Math.exp(-rapidez * dt));
 }
 
+// ---------------------------------------------------------------------
+// Andar: chegando a 1 m de um chão (topo da ilha ou de uma rocha) voando,
+// você pousa. A câmera dá uma abaixadinha (a "pancada no joelho") e
+// levanta pra altura dos olhos de pé (1,7 m). Andando, W/A/S/D move no
+// chão, Shift corre, Espaço decola de volta. Pisou na beira da ilha:
+// escorrega pro mar (e lá dentro volta a ser o nado de sempre).
+// Saiu da ponta de uma rocha: cai no chão de baixo.
+// (17,5 unidades ≈ 1 m na sensação)
+// ---------------------------------------------------------------------
+const ANDAR = {
+  pousa: 17.5,         // 1 m: voando a essa altura de um chão, você pousa
+  olhos: 29.75,        // 1,7 m: altura dos olhos de pé
+  vel: 25,             // ~1,4 m/s: andando
+  correr: 70,          // ~4 m/s: com Shift
+  acel: 10,            // quão rápido pega/perde a velocidade (maior = mais firme)
+  degrau: 8,           // ~45 cm: sobe sem precisar voar
+  passoAndando: 13,    // ~75 cm entre um passo e outro
+  passoCorrendo: 20,
+  balanco: 0.55,       // sobe-e-desce da cabeça a cada passo (~3 cm)
+  beira: 5,            // ~30 cm da beira da ilha: escorrega
+  decola: 40,          // empurrão pra cima quando aperta Espaço
+  agacha: 5,           // quanto a câmera abaixa no pouso (~30 cm)
+  olhosEscorregando: 6,// escorregando você cai sentado
+  raioPe: 4,           // "largura" do corpo pra não atravessar paredes andando
+};
+let modo = 'voo';         // 'voo' | 'andar' | 'escorregar'
+let pesY = 0;             // altura dos seus pés (andando)
+let olhosAgora = ANDAR.olhos; // altura dos olhos acima dos pés (muda no pouso)
+let velQueda = 0;         // caindo de uma rocha / escorregando
+let fasePasso = 0;        // conta os passos (cada número inteiro = um pé no chão)
+let balancoAgora = 0;
+let tPouso = -1;          // animação do pouso (-1 = parada)
+let pouso = { alt0: 0, dip: 0 };
+const escorrega = { x: 0, z: 0, vel: 0 };
+const _corpo = new THREE.Vector3();
+
+// o chão mais alto embaixo de (x, z) que não passe de maxY: topo da ilha ou de uma rocha
+function chaoSob(x, z, maxY) {
+  let melhor = null;
+  for (const ilha of ilhasPerto()) {
+    for (const s of ilha.solidos) {
+      if (s.h > maxY || (melhor && s.h <= melhor.h)) continue;
+      const dx = x - s.x, dz = z - s.z;
+      const c = Math.cos(s.giro), sn = Math.sin(s.giro);
+      const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
+      let larg = s.afina;
+      if (s.ondas) larg *= contorno(Math.atan2(lz / s.rz, lx / s.rx), s.ondas);
+      const q = Math.hypot(lx / (s.rx * larg), lz / (s.rz * larg));
+      if (q >= 1) continue;
+      melhor = { h: s.h, s, beira: (1 - q) * Math.min(s.rx, s.rz) * larg };
+    }
+  }
+  return melhor;
+}
+
+// andando, as rochas (mais altas que um degrau) são paredes: empurra pra fora
+function empurrarDaParede(s) {
+  if (s.h <= pesY + ANDAR.degrau || pesY + olhosAgora < s.base) return;
+  const p = camera.position;
+  const dx = p.x - s.x, dz = p.z - s.z;
+  const c = Math.cos(s.giro), sn = Math.sin(s.giro);
+  const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
+  const t = Math.min(1, Math.max(0, (pesY - s.base) / (s.h - s.base)));
+  let larg = 1 + (s.afina - 1) * t;
+  if (s.ondas) larg *= contorno(Math.atan2(lz / s.rz, lx / s.rx), s.ondas);
+  const ex = s.rx * larg + ANDAR.raioPe, ez = s.rz * larg + ANDAR.raioPe;
+  const q = Math.hypot(lx / ex, lz / ez);
+  if (q >= 1) return;
+  const fx = lx / q, fz = lz / q;
+  p.x = s.x + fx * c + fz * sn;
+  p.z = s.z - fx * sn + fz * c;
+  const d = Math.hypot(dx, dz) || 1;
+  const nx = dx / d, nz = dz / d;
+  const contra = vel.x * nx + vel.z * nz;
+  if (contra < 0) { vel.x -= contra * nx; vel.z -= contra * nz; }
+}
+
+// pouso: abaixa rapidinho (joelho) e levanta pra altura de pé
+function pousar(alt0, dip) {
+  pouso.alt0 = alt0;
+  pouso.dip = Math.max(0, Math.min(dip, alt0 - 2));
+  olhosAgora = alt0;
+  tPouso = 0;
+}
+const POUSO_DESCE = 0.11, POUSO_SOBE = 0.5;
+function animarPouso(dt) {
+  if (tPouso < 0) return;
+  tPouso += dt;
+  const fundo = pouso.alt0 - pouso.dip;
+  if (tPouso < POUSO_DESCE) {
+    olhosAgora = pouso.alt0 - pouso.dip * Math.sin((tPouso / POUSO_DESCE) * Math.PI / 2);
+  } else {
+    const u = Math.min(1, (tPouso - POUSO_DESCE) / POUSO_SOBE);
+    olhosAgora = fundo + (ANDAR.olhos - fundo) * (1 - Math.pow(1 - u, 3));
+    if (u >= 1) tPouso = -1;
+  }
+}
+
+// voando: chegou a 1 m de um chão? pousa (segurando Espaço, continua voando)
+function verificarPouso() {
+  if (submerso || segurando('subir')) return;
+  const p = camera.position;
+  const c = chaoSob(p.x, p.z, p.y);
+  if (!c || p.y - c.h > ANDAR.pousa) return;
+  if (c.s.ondas && c.beira < ANDAR.beira * 2) return; // em cima da beira: não pousa (escorregaria na hora)
+  modo = 'andar';
+  pesY = c.h;
+  vel.y = 0;
+  velQueda = 0;
+  const alt0 = Math.max(2, p.y - c.h);
+  pousar(alt0, ANDAR.agacha);
+  tocarPasso(false, 0, true);
+}
+
+function comecarEscorregar(s) {
+  modo = 'escorregar';
+  tPouso = -1;
+  const p = camera.position;
+  let dx = s ? p.x - s.x : vel.x, dz = s ? p.z - s.z : vel.z;
+  if (!dx && !dz) { dx = -Math.sin(yaw); dz = -Math.cos(yaw); }
+  const d = Math.hypot(dx, dz);
+  escorrega.x = dx / d;
+  escorrega.z = dz / d;
+  escorrega.vel = Math.max(Math.hypot(vel.x, vel.z), 25);
+  velQueda = 0;
+}
+
+function escorregar(dt) {
+  const p = camera.position;
+  p.x += escorrega.x * escorrega.vel * dt;
+  p.z += escorrega.z * escorrega.vel * dt;
+  escorrega.vel = suavizar(escorrega.vel, 18, 2, dt);
+  velQueda -= GRAVIDADE * 0.6 * dt;
+  pesY += velQueda * dt;
+  const fundo = chaoDoMar(p.x, p.z);
+  if (pesY < fundo) { pesY = fundo; velQueda = 0; }
+  olhosAgora = suavizar(olhosAgora, ANDAR.olhosEscorregando, 5, dt);
+  p.y = pesY + olhosAgora;
+  vel.set(escorrega.x * escorrega.vel, velQueda, escorrega.z * escorrega.vel);
+  // chegou na água: volta pro voo (que lá dentro é o nado); o tchibum é o de sempre
+  const superficie = semMergulho ? AJUSTE.alturaOlhos : 0;
+  if (p.y < superficie) {
+    if (semMergulho) p.y = superficie;
+    modo = 'voo';
+    olhosAgora = ANDAR.olhos;
+  }
+}
+
+function atualizarAndar(dt, f, l, u) {
+  if (modo === 'escorregar') { escorregar(dt); return; }
+  const p = camera.position;
+  if (u > 0) { // Espaço: decola
+    modo = 'voo';
+    tPouso = -1;
+    olhosAgora = ANDAR.olhos;
+    vel.y = ANDAR.decola;
+    return;
+  }
+  // anda no plano do chão, pra onde você está virado (olhar pra cima/baixo não muda)
+  let dx = -Math.sin(yaw) * f + Math.cos(yaw) * l;
+  let dz = -Math.cos(yaw) * f - Math.sin(yaw) * l;
+  const m = Math.hypot(dx, dz);
+  if (m > 1) { dx /= m; dz /= m; }
+  const correndo = segurando('dash');
+  const alvo = correndo ? ANDAR.correr : ANDAR.vel;
+  // chegou embalado do voo: vai freando, sem parar seco
+  const rap = Math.hypot(vel.x, vel.z) > alvo * 1.05 ? 2.5 : ANDAR.acel;
+  vel.x = suavizar(vel.x, dx * alvo, rap, dt);
+  vel.z = suavizar(vel.z, dz * alvo, rap, dt);
+  vel.y = 0;
+  p.x += vel.x * dt;
+  p.z += vel.z * dt;
+  for (const ilha of ilhasPerto()) for (const s of ilha.solidos) empurrarDaParede(s);
+
+  const c = chaoSob(p.x, p.z, pesY + ANDAR.degrau);
+  if (!c) { comecarEscorregar(null); escorregar(dt); return; }
+  if (c.s.ondas && c.beira < ANDAR.beira && pesY <= c.h + 0.5) { comecarEscorregar(c.s); escorregar(dt); return; }
+
+  let noChao = true;
+  if (pesY > c.h + 0.01) { // no ar: saiu da ponta de uma rocha
+    noChao = false;
+    velQueda -= GRAVIDADE * dt;
+    pesY += velQueda * dt;
+    if (pesY <= c.h) {
+      pesY = c.h;
+      noChao = true;
+      if (velQueda < -40) { pousar(olhosAgora, Math.min(10, -velQueda * 0.05)); tocarPasso(false, 0, true); }
+      velQueda = 0;
+    }
+  } else {
+    pesY = c.h > pesY ? suavizar(pesY, c.h, 18, dt) : c.h; // degrauzinho: sobe suave
+    velQueda = 0;
+  }
+  animarPouso(dt);
+
+  // passos: a cabeça sobe e desce, e cada pé no chão faz clac-nhec
+  const vh = Math.hypot(vel.x, vel.z);
+  if (noChao && vh > 2) {
+    const antes = Math.floor(fasePasso);
+    fasePasso += vh * dt / (correndo ? ANDAR.passoCorrendo : ANDAR.passoAndando);
+    const agora = Math.floor(fasePasso);
+    if (agora !== antes) tocarPasso(correndo, agora % 2);
+  }
+  balancoAgora = suavizar(balancoAgora, noChao ? Math.min(1, vh / ANDAR.vel) * (correndo ? 1.6 : 1) : 0, 6, dt);
+  p.y = pesY + olhosAgora + ANDAR.balanco * balancoAgora * Math.abs(Math.sin(Math.PI * fasePasso));
+}
+
+// onde o "corpo" está pra esbarrar/capturar esfera: voando são os olhos; andando, rente ao chão
+function pontoDoCorpo() {
+  if (modo === 'voo') return camera.position;
+  return _corpo.set(camera.position.x, pesY + R_ESFERA, camera.position.z);
+}
+
 // Cada sólido é tratado como um cilindro oval (que pode afinar no topo;
 // a plataforma da ilha ainda tem o contorno irregular).
 const FOLGA_LADO = 1.5; // distância mínima entre seus olhos e uma parede
@@ -1729,12 +1942,17 @@ function atualizarUmaEsfera(e, dt) {
   }
 
   // você esbarrou nela? empurra (e você não atravessa)
-  _n.subVectors(p, camera.position);
+  const corpo = pontoDoCorpo();
+  _n.subVectors(p, corpo);
   const dist = _n.length();
   const min = R_ESFERA + RAIO_CORPO;
   if (dist < min) {
     _n.divideScalar(dist || 1);
-    camera.position.copy(p).addScaledVector(_n, -min);
+    // empurra você pra fora dela (andando, só pro lado: os pés ficam no chão)
+    const ex = p.x - _n.x * min - corpo.x, ey = p.y - _n.y * min - corpo.y, ez = p.z - _n.z * min - corpo.z;
+    camera.position.x += ex;
+    camera.position.z += ez;
+    if (modo === 'voo') camera.position.y += ey;
     const aproxima = vel.dot(_n) - v.dot(_n); // quão rápido você vinha na direção dela
     if (aproxima > 0) {
       v.addScaledVector(_n, aproxima * 1.3);
@@ -1898,7 +2116,7 @@ function atualizarEsfera(dt) {
     if (!e.casca) { tentarPousar(e); continue; }
     atualizarUmaEsfera(e, dt);
     if (e.capturada) continue;
-    const d = camera.position.distanceTo(e.pos);
+    const d = pontoDoCorpo().distanceTo(e.pos);
     if (d < maisPerto) { maisPerto = d; capturavel = e; }
   }
   // celular: em vez do ícone de mouse, um anel pulsando em volta da esfera ("toca aqui")
@@ -1942,18 +2160,7 @@ function colidirCopa(copa) {
   if (contra < 0) vel.addScaledVector(_d, -contra);
 }
 
-function atualizar(dt) {
-  if (!(dt > 0)) return; // tempo zero (ou inválido): nada a fazer, e evita dividir por zero
-  // direções a partir de pra onde você está olhando
-  frente.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
-  direita.set(Math.cos(yaw), 0, -Math.sin(yaw));
-
-  // teclas + joystick do celular (que tem força de 0 a 1, conforme o dedo afasta)
-  const lim1 = x => Math.max(-1, Math.min(1, x));
-  const f = lim1((segurando('frente') ? 1 : 0) - (segurando('tras') ? 1 : 0) + joy.f);
-  const l = lim1((segurando('direita') ? 1 : 0) - (segurando('esquerda') ? 1 : 0) + joy.l);
-  const u = (segurando('subir') ? 1 : 0) - (segurando('descer') ? 1 : 0);
-
+function voar(dt, f, l, u) {
   desejo.set(0, 0, 0)
     .addScaledVector(frente, f)
     .addScaledVector(direita, l);
@@ -2001,6 +2208,23 @@ function atualizar(dt) {
     for (const s of ilha.solidos) colidir(s);
     for (const copa of ilha.copas) colidirCopa(copa);
   }
+  verificarPouso();
+}
+
+function atualizar(dt) {
+  if (!(dt > 0)) return; // tempo zero (ou inválido): nada a fazer, e evita dividir por zero
+  // direções a partir de pra onde você está olhando
+  frente.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  direita.set(Math.cos(yaw), 0, -Math.sin(yaw));
+
+  // teclas + joystick do celular (que tem força de 0 a 1, conforme o dedo afasta)
+  const lim1 = x => Math.max(-1, Math.min(1, x));
+  const f = lim1((segurando('frente') ? 1 : 0) - (segurando('tras') ? 1 : 0) + joy.f);
+  const l = lim1((segurando('direita') ? 1 : 0) - (segurando('esquerda') ? 1 : 0) + joy.l);
+  const u = (segurando('subir') ? 1 : 0) - (segurando('descer') ? 1 : 0);
+
+  if (modo === 'voo') voar(dt, f, l, u);
+  else atualizarAndar(dt, f, l, u);
   atualizarEsfera(dt);
 
   // sensação: o campo de visão abre com a velocidade e a câmera tomba de lado
@@ -2012,7 +2236,7 @@ function atualizar(dt) {
   // (virar pra direita = yaw diminuindo = tomba pra direita, como um avião)
   giro = suavizar(giro, (yaw - yawAntes) / dt, 10, dt);
   yawAntes = yaw;
-  let alvoInclina = giro * AJUSTE.inclinaCurva - l * AJUSTE.inclinaLado;
+  let alvoInclina = (giro * AJUSTE.inclinaCurva - l * AJUSTE.inclinaLado) * (modo === 'voo' ? 1 : 0.25);
   alvoInclina = Math.max(-AJUSTE.inclinaMax, Math.min(AJUSTE.inclinaMax, alvoInclina));
   inclinacao = suavizar(inclinacao, alvoInclina, 5, dt);
 
@@ -2871,6 +3095,9 @@ document.getElementById('toqueMergulho').addEventListener('click', alternarMergu
 function recomecar() {
   camera.position.copy(inicio);
   vel.set(0, 0, 0);
+  modo = 'voo';
+  tPouso = -1;
+  olhosAgora = ANDAR.olhos;
   yaw = yawInicio;
   pitch = 0;
   ar = AGUA.ar;
@@ -3290,6 +3517,7 @@ const SOM = {
   filtroMax: 850,    // ...rápido ele abre um pouco (sem chegar no chiado de rádio)
   filtroDash: 1300,
   rajada: 0.35,      // quanto as rajadas mexem no volume (0 = nada)
+  passo: 0.3,        // volume do passo (clac-nhec)
 };
 let vento = null;
 function criarVento() {
@@ -3335,6 +3563,15 @@ function criarVento() {
   const volume = ctx.createGain();
   volume.gain.value = 0;
   filtro.connect(filtro2).connect(ressoa).connect(corpo).connect(volume).connect(ctx.destination);
+  // passos têm o volume deles (o do vento muda com a velocidade)
+  const passos = ctx.createGain();
+  passos.gain.value = 1;
+  passos.connect(ctx.destination);
+  // chiado curtinho pro "clac"
+  const nClac = Math.floor(ctx.sampleRate * 0.06);
+  const ruidoCurto = ctx.createBuffer(1, nClac, ctx.sampleRate);
+  const dc = ruidoCurto.getChannelData(0);
+  for (let i = 0; i < nClac; i++) dc[i] = Math.random() * 2 - 1;
   const lados = [-0.7, 0.7].map(lado => {
     const fonte = ctx.createBufferSource();
     fonte.buffer = ruidoRosa(6 + lado); // tamanhos diferentes: não se repetem juntos
@@ -3346,7 +3583,7 @@ function criarVento() {
     fonte.start();
     return g;
   });
-  return { ctx, filtro, filtro2, ressoa, volume, lados, rajada: [1, 1], alvoRajada: [1, 1], troca: [0, 0] };
+  return { ctx, passos, ruidoCurto, filtro, filtro2, ressoa, volume, lados, rajada: [1, 1], alvoRajada: [1, 1], troca: [0, 0] };
 }
 // M liga/desliga o som (fica lembrado pra próxima vez)
 let mudo = false;
@@ -3373,6 +3610,60 @@ document.querySelectorAll('[data-tecla="KeyM"]').forEach(el => el.classList.togg
 window.addEventListener('blur', aplicarSom);
 window.addEventListener('focus', aplicarSom);
 document.addEventListener('visibilitychange', aplicarSom);
+
+// Passo robótico: "clac" (estalo metálico) e logo depois "nhec" (um servo
+// rangendo, tom que cai). Pé esquerdo e direito com tons um pouco diferentes;
+// pesado = pouso (mais grave e forte).
+function tocarPasso(correndo = false, lado = 0, pesado = false) {
+  if (!vento || vento.ctx.state !== 'running') return;
+  const ctx = vento.ctx, t = ctx.currentTime;
+  const vol = SOM.passo * (correndo ? 1.2 : 1) * (pesado ? 1.4 : 1);
+  const tom = (lado ? 1.07 : 1) * (pesado ? 0.75 : 1) * (0.97 + Math.random() * 0.06);
+  // clac
+  const ruido = ctx.createBufferSource();
+  ruido.buffer = vento.ruidoCurto;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 2300 * tom;
+  bp.Q.value = 2.5;
+  const g1 = ctx.createGain();
+  g1.gain.setValueAtTime(vol, t);
+  g1.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+  ruido.connect(bp).connect(g1).connect(vento.passos);
+  ruido.start(t);
+  const ping = ctx.createOscillator(); // o "metal" do clac
+  ping.type = 'triangle';
+  ping.frequency.value = 1250 * tom;
+  const g2 = ctx.createGain();
+  g2.gain.setValueAtTime(vol * 0.5, t);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+  ping.connect(g2).connect(vento.passos);
+  ping.start(t);
+  ping.stop(t + 0.06);
+  // nhec
+  const t2 = t + (correndo ? 0.05 : 0.075);
+  const dur = correndo ? 0.09 : 0.12;
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(640 * tom, t2);
+  osc.frequency.exponentialRampToValueAtTime(420 * tom, t2 + dur);
+  const vib = ctx.createOscillator(); // tremidinha de engrenagem
+  vib.frequency.value = 42;
+  const vg = ctx.createGain();
+  vg.gain.value = 30 * tom;
+  vib.connect(vg).connect(osc.frequency);
+  const bp2 = ctx.createBiquadFilter();
+  bp2.type = 'bandpass';
+  bp2.frequency.value = 1300 * tom;
+  bp2.Q.value = 3;
+  const g3 = ctx.createGain();
+  g3.gain.setValueAtTime(0.0001, t2);
+  g3.gain.linearRampToValueAtTime(vol * 0.55, t2 + 0.015);
+  g3.gain.exponentialRampToValueAtTime(0.0001, t2 + dur);
+  osc.connect(bp2).connect(g3).connect(vento.passos);
+  osc.start(t2); vib.start(t2);
+  osc.stop(t2 + dur + 0.02); vib.stop(t2 + dur + 0.02);
+}
 
 function atualizarSom(dt) {
   if (!vento || vento.ctx.state !== 'running') return;
@@ -3433,5 +3724,5 @@ requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
 window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar, chaoDoMar, escurecerCeu, bolhas, explosaoDeBolhas, get ar() { return ar; }, set ar(v) { ar = v; }, alternarMergulho, get semMergulho() { return semMergulho; },
-  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); atualizarSom(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get vento() { return vento; }, alternarMudo, get mudo() { return mudo; }, SOM, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
+  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); atualizarSom(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get vento() { return vento; }, get modo() { return modo; }, chaoSob, tocarPasso, get pesY() { return pesY; }, get olhosAgora() { return olhosAgora; }, alternarMudo, get mudo() { return mudo; }, SOM, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
 })();

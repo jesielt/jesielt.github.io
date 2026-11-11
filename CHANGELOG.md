@@ -20,6 +20,14 @@ e aparece embaixo do nome, no canto da tela (e no console do navegador).
   - Liga no primeiro clique, tecla ou toque (regra do navegador)
   - Para sozinho quando você troca de janela ou de aba, e volta quando você volta
 - Tecla M liga/desliga o som (fica lembrado); no painel, um M com alto-falante cortado em cinza
+- Andar: voando a 1 m do topo de uma ilha ou rocha, você pousa
+  - A câmera dá uma abaixadinha (pancada no joelho) e levanta pra altura de pé (1,7 m)
+  - Anda a ~1,4 m/s; com Shift corre a ~4 m/s; Espaço decola de volta pro voo (segurando Espaço, passa rente sem pousar)
+  - A cabeça balança a cada passo; rochas viram parede (só sobe voando) e degrauzinhos sobe andando
+  - Saiu da ponta de uma rocha: cai no chão de baixo, com abaixadinha na chegada
+  - Escorregar: chegou na beira da ilha, escorrega sentado pro mar e lá vira o nado de sempre
+  - Andando dá pra chutar a esfera e capturar de pé
+- Som de passo robótico "clac-nhec" (estalo metálico + servo rangendo), mais pesado no pouso
 
 ## 2.0.3 — 11/11/2026
 
