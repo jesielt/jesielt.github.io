@@ -11,6 +11,14 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
+## 2.0.1 — ainda não publicada
+
+- Correção: logo depois de uma atualização, o navegador podia misturar a página nova
+  com o estilo e o jogo antigos guardados no cache (botões gigantes, céu rosa). Agora
+  cada versão pede os arquivos por um endereço próprio
+- Correção: depois de pegar as esferas com o atalho de teste 1-2-3, o R (ou ficar sem ar)
+  não devolvia as esferas nem clareava o céu
+
 ## 2.0.0 — 10/11/2026
 
 - Céu sem rosa: verde em cima, verde-amarelado embaixo, como no anime

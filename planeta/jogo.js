@@ -4,7 +4,7 @@
 // A biblioteca de 3D vem de um link. Carregando assim, o jogo funciona
 // tanto no site quanto abrindo o index.html direto (duplo clique).
 // Versão oficial (a que vai pro ar no próximo push). Ver CHANGELOG.md.
-const VERSAO = '2.0.0';
+const VERSAO = '2.0.1';
 console.log(`Planeta v${VERSAO}`);
 // aparece na tela, embaixo do nome (o número vem só daqui)
 document.getElementById('versao').textContent = 'v' + VERSAO;
@@ -1757,6 +1757,8 @@ function pegarTodasAsEsferas() {
     if (e.capturada) continue;
     capturavel = e;
     capturar();
+    // a que ainda nem pousou (longe, sem bola 3D) não tem animação pra fazer
+    if (!e.casca) e.sumindo = 0;
   }
 }
 document.addEventListener('mousedown', ev => { if (ev.button === 2) capturar(); });
@@ -2739,6 +2741,10 @@ function recomecar() {
     e.capturada = false;
     e.sumindo = 0;
     e.naAgua = false;
+    const casa = caixaEsferas.querySelector(`[data-n="${e.n}"]`);
+    if (casa) casa.classList.remove('pegou');
+    // pega pelo atalho de teste antes de pousar: não tem bola, volta a esperar no ponto dela
+    if (!e.casca) { e.pos.copy(e.alvo); continue; }
     e.pos.copy(e.origem);
     e.vel.set(0, 0, 0);
     e.casca.scale.setScalar(1);
@@ -2746,8 +2752,6 @@ function recomecar() {
     e.casca.position.copy(e.pos);
     e.estrelas.position.copy(e.pos);
     cena.add(e.casca, e.estrelas);
-    const casa = caixaEsferas.querySelector(`[data-n="${e.n}"]`);
-    if (casa) casa.classList.remove('pegou');
   }
   escuroAlvo = 0;
   ceuPendente = false;
