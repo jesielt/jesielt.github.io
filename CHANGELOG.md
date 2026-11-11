@@ -11,7 +11,7 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
-## 2.1.0 — ainda não publicada
+## 2.0.2 — 11/11/2026
 
 - Celular e tablet: o jogo agora funciona no toque (no computador nada muda)
   - Joystick: encosta o dedão no lado esquerdo da tela e arrasta pra andar (quanto mais longe, mais forte)

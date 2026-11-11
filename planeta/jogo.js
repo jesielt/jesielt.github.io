@@ -4,7 +4,7 @@
 // A biblioteca de 3D vem de um link. Carregando assim, o jogo funciona
 // tanto no site quanto abrindo o index.html direto (duplo clique).
 // Versão oficial (a que vai pro ar no próximo push). Ver CHANGELOG.md.
-const VERSAO = '2.1.0';
+const VERSAO = '2.0.2';
 console.log(`Planeta v${VERSAO}`);
 // aparece na tela, embaixo do nome (o número vem só daqui)
 document.getElementById('versao').textContent = 'v' + VERSAO;
