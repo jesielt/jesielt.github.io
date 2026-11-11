@@ -47,7 +47,7 @@ e aparece no console do navegador quando o jogo abre.
 - Céu escuro: as copas das árvores escurecem junto com o resto
 - Fôlego em 20% ou menos: a barra fica vermelha e pisca
 - Ícone do nadador mais grosso e legível
-- Para testes: 1, 2, 3 no teclado numérico pega todas as esferas de uma vez
+- Para testes (teclado numérico): 1-2-3 pega todas as esferas; 4-5-6 leva pra 499 m de altura
 - "Não mergulhar" avisa quando troca: ligou, anéis brancos saem do botão até perto das teclas; desligou,
   eles vêm de longe e encolhem até a borda dele
 - Triângulos do radar em branco
@@ -63,7 +63,7 @@ e aparece no console do navegador quando o jogo abre.
 - Embaixo d'água, a beira da ilha não sobra mais pra fora da encosta
 - Dá pra subir até o espaço: de 200 m pra cima o céu vai ficando rarefeito e escuro, e em
   500 m vira espaço, preto e cheio de estrelas. Lá embaixo aparece o planeta Namek inteiro,
-  verde com faixas claras e um brilho azul na borda, e ele passa embaixo de você conforme
+  verde com faixas claras tortas espalhadas por ele todo e um brilho azul na borda, e ele passa embaixo de você conforme
   você voa. Descendo, tudo volta
 - No espaço não tem ar: acima de 500 m a barra de fôlego (40 s) aparece; acabou, recomeça
 

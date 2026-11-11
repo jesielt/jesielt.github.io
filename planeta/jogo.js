@@ -1245,13 +1245,15 @@ function soltar(codigo) {
   if (apertadas.delete(codigo)) marcarTecla(codigo, false);
 }
 
-// ferramenta de teste: 1, 2, 3 no teclado numérico pega todas as esferas
+// ferramentas de teste (teclado numérico): 1-2-3 pega todas as esferas;
+// 4-5-6 te leva pra 499 m (logo abaixo do espaço)
 let codigoTeste = '';
 window.addEventListener('keydown', e => {
   if (apertar(e.code)) e.preventDefault(); // impede a página de rolar com setas/espaço
   if (/^Numpad\d$/.test(e.code)) {
     codigoTeste = (codigoTeste + e.code.slice(-1)).slice(-3);
     if (codigoTeste === '123') { codigoTeste = ''; pegarTodasAsEsferas(); }
+    if (codigoTeste === '456') { codigoTeste = ''; camera.position.y = 499 * ESCALA_SENTIDA; vel.set(0, 0, 0); } // dev: quase no espaço
   }
 });
 window.addEventListener('keyup', e => soltar(e.code));
@@ -2880,7 +2882,7 @@ function atualizarRaios(dt) {
 // - de 200 a 500 m o céu escurece (fica rarefeito e depois preto)
 // - aparecem as estrelas: uma nuvem de pontinhos que anda com você
 // - embaixo, o mundo de verdade vai sendo coberto por um planeta PINTADO:
-//   uma bola gigante (uma imagem só) com o mar verde e as faixas claras do
+//   uma bola gigante, pintada pela placa de vídeo, com o mar verde e as faixas claras do
 //   Namek do anime e um brilho azul na borda. Ela gira conforme você anda,
 //   então lá de cima parece que você está sobrevoando o planeta.
 // - acima de 500 m não tem ar: a barra de fôlego aparece; acabou, recomeça.
@@ -2893,61 +2895,17 @@ const ESPACO = {
   planetaAte: 230,  // ...e cobre tudo daqui pra cima
   raio: 120000,     // tamanho do planeta pintado (grande: a curva só fica forte bem no alto)
 };
-function texturaDoPlaneta() {
-  const W = 1024, H = 512, c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const g = c.getContext('2d');
-  let semente = 4242;
-  const aleatorio = () => (semente = (semente * 16807) % 2147483647) / 2147483647;
-  // mar verde, um pouco mais escuro nos polos
-  const fundo = g.createLinearGradient(0, 0, 0, H);
-  fundo.addColorStop(0, '#2c8a46'); fundo.addColorStop(0.5, '#3fae5a'); fundo.addColorStop(1, '#2c8a46');
-  g.fillStyle = fundo; g.fillRect(0, 0, W, H);
-  // manchas largas de tom (borda na mesma cor, transparente: sem "queimar")
-  for (let i = 0; i < 30; i++) {
-    const x = aleatorio() * W, y = aleatorio() * H, r = 40 + aleatorio() * 120;
-    const cor = aleatorio() < 0.5 ? '30, 120, 60' : '90, 190, 100';
-    for (const dx of [-W, 0, W]) {
-      const gr = g.createRadialGradient(x + dx, y, 0, x + dx, y, r);
-      gr.addColorStop(0, `rgba(${cor}, 0.25)`); gr.addColorStop(1, `rgba(${cor}, 0)`);
-      g.fillStyle = gr; g.fillRect(x + dx - r, y - r, r * 2, r * 2);
-    }
-  }
-  // faixas claras diagonais (as ilhas vistas de longe, como no anime)
-  for (let i = 0; i < 260; i++) {
-    const x = aleatorio() * W, y = H * (0.12 + aleatorio() * 0.76);
-    const comp = 18 + aleatorio() * 70, larg = 2 + aleatorio() * 6;
-    const a = 0.25 + aleatorio() * 0.4, giro = -0.55 + (aleatorio() - 0.5) * 0.25;
-    for (const dx of [-W, 0, W]) {
-      g.save();
-      g.translate(x + dx, y); g.rotate(giro);
-      g.fillStyle = `rgba(222, 236, 160, ${a})`;
-      g.beginPath(); g.ellipse(0, 0, comp, larg, 0, 0, Math.PI * 2); g.fill();
-      g.restore();
-    }
-  }
-  // umas nuvens brancas espalhadas
-  for (let i = 0; i < 14; i++) {
-    const x = aleatorio() * W, y = H * (0.2 + aleatorio() * 0.6), r = 15 + aleatorio() * 45;
-    for (const dx of [-W, 0, W]) {
-      const gr = g.createRadialGradient(x + dx, y, 0, x + dx, y, r);
-      gr.addColorStop(0, 'rgba(245, 255, 240, 0.55)'); gr.addColorStop(1, 'rgba(245, 255, 240, 0)');
-      g.fillStyle = gr; g.fillRect(x + dx - r, y - r, r * 2, r * 2);
-    }
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; // (o detalhe repete nos dois sentidos)
-  tex.anisotropy = 4;
-  return tex;
-}
 const uniPlaneta = {
-  mapa: { value: texturaDoPlaneta() },
   solDir: { value: sol.position.clone().normalize() },
   opacidade: { value: 0 },
   escuro: uniEscuro,
   alto: uniAlto,
 };
+// A pintura do planeta é feita na hora pela placa de vídeo, a partir do
+// ponto da bola (e não de uma imagem esticada): assim não tem polo, nem
+// emenda, nem "gomos de melancia". São faixas claras compridas e tortas,
+// meio na diagonal, que se juntam em umas regiões e somem em outras, como
+// no planeta do anime, mais umas nuvens brancas soltas.
 // O planeta e o brilho são desenhados por cima de tudo (sem teste de
 // profundidade): assim eles "cobrem" o mundo de verdade aos poucos.
 const planeta = new THREE.Mesh(new THREE.SphereGeometry(ESPACO.raio, 256, 128), new THREE.ShaderMaterial({
@@ -2956,11 +2914,11 @@ const planeta = new THREE.Mesh(new THREE.SphereGeometry(ESPACO.raio, 256, 128), 
   vertexShader: `
     #include <common>
     #include <logdepthbuf_pars_vertex>
-    varying vec2 vUv;
+    varying vec3 vPonto;
     varying vec3 vNormal;
     varying vec3 vVista;
     void main() {
-      vUv = uv;
+      vPonto = normalize( position ); // o ponto na bola (gira junto com ela)
       vNormal = normalize( mat3( modelMatrix ) * normal );
       vec4 mundo = modelMatrix * vec4( position, 1.0 );
       vVista = normalize( cameraPosition - mundo.xyz );
@@ -2969,34 +2927,62 @@ const planeta = new THREE.Mesh(new THREE.SphereGeometry(ESPACO.raio, 256, 128), 
     }`,
   fragmentShader: `
     #include <logdepthbuf_pars_fragment>
-    uniform sampler2D mapa;
     uniform vec3 solDir;
     uniform float opacidade;
     uniform float escuro;
-    varying vec2 vUv;
+    varying vec3 vPonto;
     varying vec3 vNormal;
     varying vec3 vVista;
+    float sorteio( vec3 p ) {
+      p = fract( p * 0.3183099 + 0.1 );
+      p *= 17.0;
+      return fract( p.x * p.y * p.z * ( p.x + p.y + p.z ) );
+    }
+    float ruido( vec3 x ) {
+      vec3 i = floor( x ), f = fract( x );
+      f = f * f * ( 3.0 - 2.0 * f );
+      return mix( mix( mix( sorteio( i ), sorteio( i + vec3( 1, 0, 0 ) ), f.x ),
+                       mix( sorteio( i + vec3( 0, 1, 0 ) ), sorteio( i + vec3( 1, 1, 0 ) ), f.x ), f.y ),
+                  mix( mix( sorteio( i + vec3( 0, 0, 1 ) ), sorteio( i + vec3( 1, 0, 1 ) ), f.x ),
+                       mix( sorteio( i + vec3( 0, 1, 1 ) ), sorteio( i + vec3( 1, 1, 1 ) ), f.x ), f.y ), f.z );
+    }
+    float camadas( vec3 p ) {
+      float s = 0.0, a = 0.5;
+      for ( int k = 0; k < 5; k++ ) { s += a * ruido( p ); p = p * 2.03 + vec3( 1.7, 9.2, 3.1 ); a *= 0.5; }
+      return s;
+    }
     void main() {
       #include <logdepthbuf_fragment>
-      vec3 cor = texture2D( mapa, vUv ).rgb;
-      // detalhe: a mesma pintura bem menor por cima, pra ter faixas também
-      // olhando de perto (lá do alto, reto pra baixo)
-      vec3 perto = texture2D( mapa, vUv * vec2( 12.0, 12.0 ) + vec2( 0.37, 0.11 ) ).rgb;
-      cor = mix( cor, perto, 0.35 );
+      vec3 q = vPonto;
+      // entorta tudo um pouco (as faixas ficam curvas, não retas)
+      q += 0.09 * ( vec3( camadas( q * 5.0 ), camadas( q * 5.0 + 5.2 ), camadas( q * 5.0 + 9.1 ) ) - 0.5 );
+      // faixas: esticadas numa direção meio diagonal (compridas nela, finas nas outras)
+      vec3 d = normalize( vec3( 1.0, 0.55, 0.25 ) );
+      vec3 e1 = normalize( cross( d, vec3( 0.0, 0.0, 1.0 ) ) );
+      vec3 e2 = cross( d, e1 );
+      float faixa = camadas( vec3( dot( q, d ) * 7.0, dot( q, e1 ) * 85.0, dot( q, e2 ) * 85.0 ) );
+      // onde elas aparecem: em umas regiões juntam muitas, em outras quase nada
+      float regiao = smoothstep( 0.38, 0.62, camadas( q * 3.0 + 2.0 ) );
+      float claro = smoothstep( 0.5, 0.68, faixa ) * regiao;
+      // mar verde com variação larga de tom
+      float tom = camadas( q * 4.0 + 7.0 );
+      vec3 cor = mix( vec3( 0.16, 0.50, 0.26 ), vec3( 0.30, 0.70, 0.36 ), smoothstep( 0.3, 0.7, tom ) );
+      cor = mix( cor, vec3( 0.86, 0.92, 0.62 ), claro * 0.85 );
+      // nuvens brancas soltas
+      float nuvem = smoothstep( 0.62, 0.78, camadas( q * 2.5 + 11.0 ) );
+      cor = mix( cor, vec3( 0.95, 1.0, 0.94 ), nuvem * 0.7 );
+      cor = pow( cor, vec3( 2.2 ) ); // as cores acima estão em sRGB
       float luz = 0.35 + 0.75 * max( dot( vNormal, solDir ), 0.0 );
       // perto da borda: azulado (a atmosfera vista de lado)
       float borda = pow( 1.0 - max( dot( vNormal, vVista ), 0.0 ), 2.5 );
       cor = cor * luz * ( 1.0 - 0.45 * escuro );
-      cor = mix( cor, vec3( 0.25, 0.55, 0.85 ), borda * 0.55 );
+      cor = mix( cor, vec3( 0.05, 0.25, 0.65 ), borda * 0.55 );
       gl_FragColor = vec4( cor, opacidade );
       #include <colorspace_fragment>
     }`,
 }));
 planeta.renderOrder = 20;
 planeta.frustumCulled = false;
-// deitado: o polo (onde a pintura se junta num ponto) fica pro lado, e
-// embaixo de você passa sempre a faixa do meio, sem redemoinho
-planeta.rotation.x = Math.PI / 2;
 const grupoPlaneta = new THREE.Group();
 grupoPlaneta.visible = false;
 grupoPlaneta.add(planeta);
