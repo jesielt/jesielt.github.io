@@ -1043,14 +1043,14 @@ function criarIlha(i, j) {
   }
 
   // Montanha: às vezes a ilha ganha uma rocha bem maior e encorpada perto do
-  // centro (12 a 28 m de altura; nas enormes até 35 m), com o topo plano dá
-  // pra pousar e andar. Só em ilha média pra cima: 30% das médias/grandes,
-  // 60% das enormes (e 25% delas ganham uma segunda). Rocha comum que
+  // centro (12 a 28 m de altura; nas enormes até 35 m; as altas são raras),
+  // com o topo plano dá pra pousar e andar. Só em ilha média pra cima: 15%
+  // das médias/grandes, 35% das enormes (e 10% delas ganham uma segunda). Rocha comum que
   // encostaria nela não nasce.
   const montanhas = [];
   const querMontanha = (k) => {
-    if (enorme) return k === 0 ? hash(i, j, 20000) < 0.6 : hash(i, j, 20010) < 0.25;
-    return k === 0 && tam >= 55 && hash(i, j, 20000) < 0.3;
+    if (enorme) return k === 0 ? hash(i, j, 20000) < 0.35 : hash(i, j, 20010) < 0.1;
+    return k === 0 && tam >= 55 && hash(i, j, 20000) < 0.15;
   };
   for (let k = 0; k < 2; k++) {
     if (!querMontanha(k)) continue;
@@ -1062,7 +1062,7 @@ function criarIlha(i, j) {
     const dist = hash(i, j, sm + 4) * (enorme ? 0.4 : 0.22); // perto do meio (nas enormes, mais solta)
     const px = Math.cos(ang) * dist * sx, pz = Math.sin(ang) * dist * sz;
     if (k > 0 && montanhas.some(m => Math.hypot(m.x - (x + px), m.z - (z + pz)) < (m.rx + rx) * 1.1)) continue;
-    const metros = 12 + hash(i, j, sm + 5) * (enorme ? 23 : 16);
+    const metros = 12 + Math.pow(hash(i, j, sm + 5), 1.8) * (enorme ? 23 : 16); // a maioria fica nas mais baixas
     const rh = metros * 17.5;
     const tipo = 1 + Math.floor(hash(i, j, sm + 6) * 3); // 0,55 a 0,85: encorpada, nada de agulha
     const afina = AFINA[tipo];
@@ -1199,21 +1199,24 @@ function criarIlha(i, j) {
   tufos.frustumCulled = false; // quem decide se aparece é a distância (lá no atualizar)
   grupo.add(tufos);
 
+  // bichos: só no chão da plataforma (nunca em cima de rocha/montanha)
+  const fauna = criarFaunaDaIlha(i, j, { grupo, alt, sx, sz, ondas, solidos, copas, x, z, tam, enorme });
+
   cena.add(grupo);
-  return { grupo, geo, geosManchas, tufos, geoSaia, algas, x, z, solidos, copas };
+  return { grupo, geo, geosManchas, tufos, geoSaia, algas, x, z, solidos, copas, fauna, alt };
 }
 
-// esse ponto (com essa folga) fica em cima de alguma rocha?
 // Tamanho das árvores (altura total, do pé ao topo da copa, em metros sentidos):
-//   10% mini: 2 a 4 m · 80% normais: 4 a 7 m · 10% gigantes: 7 a 9 m (máximo)
+// distribuição natural de 2 a 20 m — a maioria entre ~4 e ~11 m, poucas
+// mini e poucas gigantes (média de dois sorteios = curva em sino, puxada pro baixo).
 // Mais alta = mais velha = copa maior; da menor pra maior a copa no máximo dobra.
 const M_ARVORE = 17.5;     // 1 m sentido, em unidades (ver ESCALA_SENTIDA)
-const COPA_MIN = 11;       // raio da copa da árvore de 2 m (a de 9 m tem o dobro)
-function sortearArvore(sorteioClasse, sorteioAltura) {
-  const metros = sorteioClasse < 0.1 ? 2 + sorteioAltura * 2
-    : sorteioClasse < 0.9 ? 4 + sorteioAltura * 3
-    : 7 + sorteioAltura * 2;
-  const idade = (metros - 2) / 7;            // 0 = mais nova, 1 = mais velha
+const COPA_MIN = 11;       // raio da copa da árvore de 2 m (a de 20 m tem o dobro)
+const ARVORE_MIN = 2, ARVORE_MAX = 20;
+function sortearArvore(sorteio1, sorteio2) {
+  const u = (sorteio1 + sorteio2) / 2;
+  const metros = ARVORE_MIN + (ARVORE_MAX - ARVORE_MIN) * Math.pow(u, 1.6);
+  const idade = (metros - ARVORE_MIN) / (ARVORE_MAX - ARVORE_MIN); // 0 = mais nova, 1 = mais velha
   const r = COPA_MIN * (1 + idade);
   const total = metros * M_ARVORE;
   // a copa vai de th + 0,6r - 1,15r até th + 0,6r + 1,15r: o topo dela é th + 1,75r
@@ -1221,6 +1224,7 @@ function sortearArvore(sorteioClasse, sorteioAltura) {
   return { r, th, grossura: 0.8 + metros * 0.22 };
 }
 
+// esse ponto (com essa folga) fica em cima de alguma rocha?
 function encostaEmRocha(px, pz, folga, solidos) {
   for (let n = 1; n < solidos.length; n++) {
     const s = solidos[n];
@@ -1230,6 +1234,234 @@ function encostaEmRocha(px, pz, folga, solidos) {
     if (Math.hypot(lx / (s.rx + folga), lz / (s.rz + folga)) < 1) return true;
   }
   return false;
+}
+
+// ---------------------------------------------------------------------
+// Fauna de Namek. Cada espécie é um "molde" com criar() e atualizar();
+// a ilha guarda os bichos dela (some junto quando a ilha some).
+// Marca de Namek: todo bicho tem anteninhas (criarAntenas serve pra todos).
+// Por enquanto ninguém entra na água: só andam no chão da plataforma.
+// ---------------------------------------------------------------------
+const _geoAntena = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.4, 0.15),
+  new THREE.Vector3(0.15, 2.6, 0.75), new THREE.Vector3(0.35, 3.3, 1.6),
+]), 10, 0.1, 5);
+const _geoPontaAntena = new THREE.SphereGeometry(0.26, 8, 6);
+// duas antenas saindo de (x, y, z) espelhadas em x; devolve os "pivôs" pra balançar
+function criarAntenas(dono, x, y, z, tam, mat) {
+  return [-1, 1].map(lado => {
+    const piv = new THREE.Group();
+    piv.position.set(x * lado, y, z);
+    const haste = new THREE.Mesh(_geoAntena, mat);
+    haste.scale.set(tam * lado, tam, tam);
+    const ponta = new THREE.Mesh(_geoPontaAntena, mat);
+    ponta.position.set(0.35 * tam * lado, 3.3 * tam, 1.6 * tam);
+    piv.add(haste, ponta);
+    dono.add(piv);
+    return piv;
+  });
+}
+function balancarAntenas(antenas, t, fase, extra = 0) {
+  antenas.forEach((piv, k) => {
+    piv.rotation.x = Math.sin(t * 2.1 + fase + k * 1.3) * 0.12 + extra;
+    piv.rotation.z = Math.sin(t * 1.6 + fase * 1.7 + k) * 0.08 * (k ? 1 : -1);
+  });
+}
+
+// pele do sapo: verde-azulado com risquinhos escuros (feita na hora)
+const matSapo = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#3aa596';
+  g.fillRect(0, 0, 128, 128);
+  g.strokeStyle = 'rgba(20, 50, 45, 0.85)';
+  g.lineCap = 'round';
+  let semente = 7;
+  const rnd = () => (semente = (semente * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 70; k++) {
+    const x = rnd() * 128, y = rnd() * 128, a = -0.4 + rnd() * 0.8, l = 4 + rnd() * 8;
+    g.lineWidth = 1.5 + rnd() * 1.5;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+    g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshLambertMaterial({ map: tex });
+})();
+const matSapoLiso = new THREE.MeshLambertMaterial({ color: '#3aa596' });
+const matOlhoSapo = new THREE.MeshLambertMaterial({ color: '#d8261c', emissive: '#5a0a06' });
+const matPupila = new THREE.MeshBasicMaterial({ color: '#111111' });
+const matUnha = new THREE.MeshLambertMaterial({ color: '#efe6c8' });
+const _geoBola = new THREE.SphereGeometry(1, 16, 12);
+const _geoCrista = new THREE.ConeGeometry(1, 1, 10);
+
+const FAUNA = {
+  // Sapo: ~45 cm de comprimento. Fica parado um tempo (olhando em volta,
+  // antenas balançando), dá uns pulinhos pra lugares próximos e, se você
+  // chega perto (~2,5 m), foge pulando pra longe de você. Nunca vai pra
+  // beira (não entra na água) nem pra cima de rocha.
+  sapo: {
+    chance: 0.55,          // chance de ter sapo numa ilha comum
+    maxPorIlha: 3,
+    tamanho: 1,            // escala do modelo (1 ≈ 45 cm de comprimento)
+    medo: 44,              // ~2,5 m: chegou mais perto que isso, foge
+    pulo: { dur: 0.42, altura: 5, perto: [8, 18], fuga: [16, 26] },
+    atualizar: atualizarSapo,
+    criar() {
+      const g = new THREE.Group();
+      const corpo = new THREE.Group(); // o que estica/achata no pulo
+      g.add(corpo);
+      const bola = (mat, sx, sy, sz, x, y, z) => {
+        const m = new THREE.Mesh(_geoBola, mat);
+        m.scale.set(sx, sy, sz);
+        m.position.set(x, y, z);
+        corpo.add(m);
+        return m;
+      };
+      bola(matSapo, 2.4, 1.5, 3.3, 0, 1.6, 0.3);          // corpo
+      bola(matSapo, 2.1, 1.25, 1.9, 0, 1.75, -2.4);      // cabeça
+      bola(matSapoLiso, 1.7, 0.6, 1.5, 0, 1.1, -2.9);    // queixo
+      const crista = new THREE.Mesh(_geoCrista, matSapo); // a "cauda" levantada atrás
+      crista.scale.set(1.1, 3, 1.1);
+      crista.position.set(0, 2.9, 3.1);
+      crista.rotation.x = 1.0;
+      corpo.add(crista);
+      for (const lado of [-1, 1]) {
+        bola(matOlhoSapo, 0.5, 0.5, 0.5, 1.35 * lado, 2.25, -3.05);
+        const pup = bola(matPupila, 0.18, 0.32, 0.12, 1.55 * lado, 2.25, -3.4);
+        pup.rotation.y = 0.4 * lado;
+        bola(matSapo, 0.9, 1.0, 1.9, 2.25 * lado, 1.1, 1.2);    // coxa de trás
+        bola(matSapo, 0.55, 0.35, 1.2, 2.5 * lado, 0.3, 2.4);   // pé de trás
+        bola(matUnha, 0.18, 0.18, 0.45, 2.7 * lado, 0.25, 3.5); // unhinha
+        bola(matSapo, 0.45, 1.0, 0.45, 1.75 * lado, 0.75, -2.0);// braço
+        bola(matSapo, 0.6, 0.25, 0.7, 1.9 * lado, 0.2, -2.5);   // mão
+      }
+      const antenas = criarAntenas(corpo, 0.55, 2.8, -2.5, 1, matSapo);
+      return { g, corpo, antenas };
+    },
+  },
+};
+
+// coloca os bichos de uma ilha (sempre os mesmos pra mesma ilha)
+function criarFaunaDaIlha(i, j, ilha) {
+  const bichos = [];
+  for (const [nome, esp] of Object.entries(FAUNA)) {
+    const sem = 30000 + nome.length * 977;
+    if (hash(i, j, sem) > (ilha.enorme ? 0.9 : esp.chance) || ilha.tam < 30) continue;
+    const max = ilha.enorme ? esp.maxPorIlha * 2 : esp.maxPorIlha;
+    const n = 1 + Math.floor(hash(i, j, sem + 1) * max);
+    for (let k = 0; k < n; k++) {
+      let lugar = null;
+      for (let tent = 0; tent < 8 && !lugar; tent++) {
+        const a = hash(i, j, sem + 10 + k * 20 + tent) * Math.PI * 2;
+        const d = Math.sqrt(hash(i, j, sem + 11 + k * 20 + tent)) * 0.75;
+        const px = Math.cos(a) * d * contorno(a, ilha.ondas) * ilha.sx;
+        const pz = Math.sin(a) * d * contorno(a, ilha.ondas) * ilha.sz;
+        if (lugarBomPraBicho(ilha, px, pz)) lugar = { px, pz };
+      }
+      if (!lugar) continue;
+      const m = esp.criar();
+      m.g.scale.setScalar(esp.tamanho * (0.85 + hash(i, j, sem + 15 + k * 20) * 0.3));
+      m.g.position.set(lugar.px, ilha.alt, lugar.pz);
+      m.g.rotation.y = hash(i, j, sem + 16 + k * 20) * Math.PI * 2;
+      ilha.grupo.add(m.g);
+      bichos.push({
+        esp, ...m, ilha,
+        estado: 'parado', espera: 0.5 + Math.random() * 3, fase: Math.random() * 10,
+        de: new THREE.Vector3(), para: new THREE.Vector3(), t: 0, fugindo: 0,
+      });
+    }
+  }
+  return bichos;
+}
+
+// ponto da ilha (coordenadas da ilha) onde um bicho pode ficar: no chão,
+// longe da beira (água) e fora de rocha e de tronco
+function lugarBomPraBicho(ilha, px, pz) {
+  const r = Math.hypot(px / ilha.sx, pz / ilha.sz);
+  const a = Math.atan2(pz / ilha.sz, px / ilha.sx);
+  if (r > contorno(a, ilha.ondas) * 0.85 - 12 / Math.min(ilha.sx, ilha.sz)) return false;
+  if (encostaEmRocha(ilha.x + px, ilha.z + pz, 6, ilha.solidos)) return false;
+  for (const c of ilha.copas) {
+    if (c.chao > ilha.alt + 1) continue; // árvore de cima de rocha
+    if (Math.hypot(ilha.x + px - c.x, ilha.z + pz - c.z) < c.grossura + 4) return false;
+  }
+  return true;
+}
+
+const _faunaVoce = new THREE.Vector3();
+function atualizarFauna(dt, t) {
+  for (const ilha of ilhasPerto()) {
+    if (!ilha.fauna || !ilha.fauna.length) continue;
+    // você, nas coordenadas da ilha (andando conta os pés; voando, os olhos)
+    _faunaVoce.set(camera.position.x - ilha.x, modo === 'voo' ? camera.position.y : pesY, camera.position.z - ilha.z);
+    for (const b of ilha.fauna) b.esp.atualizar(b, dt, t, b.ilha); // b.ilha: os dados da ilha (tamanho, contorno...)
+  }
+}
+
+function atualizarSapo(b, dt, t, ilha) {
+  const esp = b.esp, g = b.g;
+  const dx = g.position.x - _faunaVoce.x, dz = g.position.z - _faunaVoce.z;
+  const dist = Math.hypot(dx, dz);
+  const perto = dist < esp.medo && Math.abs(_faunaVoce.y - ilha.alt) < 60;
+  if (perto) b.fugindo = 2.5; // continua fugindo um pouco depois que você some
+  else b.fugindo = Math.max(0, b.fugindo - dt);
+
+  if (b.estado === 'parado') {
+    b.espera -= b.fugindo > 0 ? dt * 6 : dt;
+    // achatadinho respirando
+    b.corpo.scale.set(1, 1 + Math.sin(t * 3 + b.fase) * 0.03, 1);
+    b.corpo.position.y = 0;
+    if (b.espera <= 0) {
+      // escolhe pra onde pular: fugindo, pra longe de você; senão, pra perto
+      const [min, max] = b.fugindo > 0 ? esp.pulo.fuga : esp.pulo.perto;
+      let achou = false;
+      for (let tent = 0; tent < 8 && !achou; tent++) {
+        const base = b.fugindo > 0 ? Math.atan2(dz, dx) : Math.random() * Math.PI * 2;
+        const a = base + (Math.random() - 0.5) * (b.fugindo > 0 ? 1.2 + tent * 0.5 : 2);
+        const l = (min + Math.random() * (max - min)) * g.scale.x;
+        const nx = g.position.x + Math.cos(a) * l, nz = g.position.z + Math.sin(a) * l;
+        if (!lugarBomPraBicho(ilha, nx, nz)) continue;
+        b.de.copy(g.position);
+        b.para.set(nx, ilha.alt, nz);
+        b.estado = 'pulando';
+        b.t = 0;
+        achou = true;
+      }
+      b.espera = b.fugindo > 0 ? 0.1 + Math.random() * 0.25 : 1.2 + Math.random() * 4;
+      if (!achou && Math.random() < 0.5) b.alvoGiro = g.rotation.y + (Math.random() - 0.5) * 2; // só vira
+    }
+    if (b.alvoGiro !== undefined) {
+      g.rotation.y = suavizar(g.rotation.y, b.alvoGiro, 4, dt);
+      if (Math.abs(g.rotation.y - b.alvoGiro) < 0.01) b.alvoGiro = undefined;
+    }
+  } else { // pulando
+    const dur = esp.pulo.dur * (b.fugindo > 0 ? 0.85 : 1);
+    b.t += dt / dur;
+    const k = Math.min(1, b.t);
+    // vira pra onde vai (o modelo olha pra -z)
+    const ax = b.para.x - b.de.x, az = b.para.z - b.de.z;
+    const alvo = Math.atan2(-ax, -az);
+    let dif = alvo - g.rotation.y;
+    dif = Math.atan2(Math.sin(dif), Math.cos(dif));
+    g.rotation.y += dif * Math.min(1, dt * 18);
+    g.position.x = b.de.x + ax * k;
+    g.position.z = b.de.z + az * k;
+    g.position.y = ilha.alt + Math.sin(k * Math.PI) * esp.pulo.altura * g.scale.x;
+    // estica no ar, achata na chegada
+    const est = Math.sin(k * Math.PI);
+    b.corpo.scale.set(1 - est * 0.08, 1 + est * 0.12, 1 + est * 0.15);
+    if (k >= 1) {
+      b.estado = 'parado';
+      g.position.y = ilha.alt;
+      b.corpo.scale.set(1.08, 0.85, 1);
+    }
+  }
+  // antenas: balanço calmo; no pulo jogam pra trás
+  balancarAntenas(b.antenas, t, b.fase, b.estado === 'pulando' ? 0.35 : 0);
 }
 
 let celulaAtual = null;
@@ -1292,6 +1524,7 @@ const MAPA = {
 const DESENHO = { ShiftRight: 'ShiftLeft' };
 
 const apertadas = new Set();
+let ultimoC = -1e9; // pra perceber o C apertado duas vezes rápido
 
 function segurando(acao) {
   for (const codigo of apertadas) if (MAPA[codigo] === acao) return true;
@@ -1308,6 +1541,10 @@ function apertar(codigo) {
   if (!(codigo in MAPA)) return false;
   if (codigo === 'KeyR' && !apertadas.has(codigo)) recomecar();
   if (codigo === 'KeyM' && !apertadas.has(codigo)) alternarMudo();
+  if (codigo === 'KeyC' && !apertadas.has(codigo)) {
+    const agora = performance.now();
+    if (agora - ultimoC < 350) { desistirDoVoo(); ultimoC = -1e9; } else ultimoC = agora;
+  }
   apertadas.add(codigo);
   marcarTecla(codigo, true);
   return true;
@@ -1574,7 +1811,8 @@ const ANDAR = {
   olhosEscorregando: 6,// escorregando você cai sentado
   raioPe: 4,           // "largura" do corpo pra não atravessar paredes andando
 };
-let modo = 'voo';         // 'voo' | 'andar' | 'escorregar'
+let modo = 'voo';         // 'voo' | 'andar' | 'escorregar' | 'cair'
+let tempoFauna = 0;
 let pesY = 0;             // altura dos seus pés (andando)
 let olhosAgora = ANDAR.olhos; // altura dos olhos acima dos pés (muda no pouso)
 let velQueda = 0;         // caindo de uma rocha / escorregando
@@ -1697,8 +1935,46 @@ function escorregar(dt) {
   }
 }
 
+// C duas vezes rápido: desiste do voo e cai (gravidade). Chão = pouso com
+// abaixadinha (mais forte quanto mais rápido caiu); água = mergulho de
+// sempre; Espaço no meio da queda volta a voar.
+function desistirDoVoo() {
+  if (modo !== 'voo' || submerso) return;
+  modo = 'cair';
+  tPouso = -1;
+}
+function cair(dt, u) {
+  const p = camera.position;
+  if (u > 0) { modo = 'voo'; return; }
+  const yAntes = p.y;
+  vel.y -= GRAVIDADE * dt;
+  const ar = Math.exp(-0.4 * dt);
+  vel.x *= ar;
+  vel.z *= ar;
+  p.addScaledVector(vel, dt);
+  const c = chaoSob(p.x, p.z, yAntes);
+  if (c && p.y - c.h <= ANDAR.pousa) {
+    const impacto = -vel.y;
+    modo = 'andar';
+    pesY = c.h;
+    vel.y = 0;
+    velQueda = 0;
+    const alt0 = Math.max(2, Math.min(ANDAR.pousa, p.y - c.h));
+    pousar(alt0, ANDAR.agacha + Math.min(10, impacto * 0.04));
+    tocarPasso(false, 0, true);
+    return;
+  }
+  for (const ilha of ilhasPerto()) for (const s of ilha.solidos) colidir(s); // paredes
+  const superficie = semMergulho ? AJUSTE.alturaOlhos : 0;
+  if (p.y < superficie) {
+    if (semMergulho) { p.y = superficie; vel.y = 0; }
+    modo = 'voo'; // na água: o voo de sempre (mergulho, com tchibum e bolhas)
+  }
+}
+
 function atualizarAndar(dt, f, l, u) {
   if (modo === 'escorregar') { escorregar(dt); return; }
+  if (modo === 'cair') { cair(dt, u); return; }
   const p = camera.position;
   if (u > 0) { // Espaço: decola
     modo = 'voo';
@@ -1758,7 +2034,7 @@ function atualizarAndar(dt, f, l, u) {
 
 // onde o "corpo" está pra esbarrar/capturar esfera: voando são os olhos; andando, rente ao chão
 function pontoDoCorpo() {
-  if (modo === 'voo') return camera.position;
+  if (modo === 'voo' || modo === 'cair') return camera.position;
   return _corpo.set(camera.position.x, pesY + R_ESFERA, camera.position.z);
 }
 
@@ -1810,8 +2086,9 @@ function colidir(s) {
 // Chegando perto, aparece o botão direito do mouse: clicou, capturou.
 // Tamanho: um pouco maior que uma cabeça (~30 cm na sensação).
 // ---------------------------------------------------------------------
-const R_ESFERA = 2.6;      // raio, em unidades daqui de dentro
-const RAIO_CORPO = 2;      // "tamanho" do seu corpo pra esbarrar nela
+const R_ESFERA = 3.3;      // raio, em unidades daqui de dentro (~38 cm de diâmetro na sensação)
+const RAIO_CORPO = 2;      // "tamanho" do seu corpo pra esbarrar nela (voando)
+const RAIO_CORPO_ANDANDO = 8; // andando: o corpo todo (~45 cm pros lados), pra dar pra chutar fácil
 const GRAVIDADE = 170;     // ≈ 9,8 m/s² na escala sentida
 const DIST_POUSO = 1600;   // a essa distância do ponto, a esfera escolhe a ilha e aparece
 const DIST_CAPTURA = 24;   // perto assim (~1,4 m), dá pra capturar
@@ -2002,7 +2279,7 @@ function atualizarUmaEsfera(e, dt) {
   const corpo = pontoDoCorpo();
   _n.subVectors(p, corpo);
   const dist = _n.length();
-  const min = R_ESFERA + RAIO_CORPO;
+  const min = R_ESFERA + (modo === 'voo' ? RAIO_CORPO : RAIO_CORPO_ANDANDO);
   if (dist < min) {
     _n.divideScalar(dist || 1);
     // empurra você pra fora dela (andando, só pro lado: os pés ficam no chão)
@@ -2283,6 +2560,8 @@ function atualizar(dt) {
   if (modo === 'voo') voar(dt, f, l, u);
   else atualizarAndar(dt, f, l, u);
   atualizarEsfera(dt);
+  tempoFauna += dt;
+  atualizarFauna(dt, tempoFauna);
 
   // sensação: o campo de visão abre com a velocidade e a câmera tomba de lado
   const rapidez = vel.length() / AJUSTE.velMax; // 1 = velocidade normal, 2 = dash
@@ -3676,17 +3955,32 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   const ctx = vento.ctx, t = ctx.currentTime;
   const vol = SOM.passo * (correndo ? 1.2 : 1) * (pesado ? 1.5 : 1);
   const tom = (lado ? 1.06 : 1) * (pesado ? 0.8 : 1) * (0.97 + Math.random() * 0.06);
-  // peso: um "tum" grave que desce, o corpo de 70 kg apoiando no pé
+  // peso: um "tum" grave que desce, o corpo de 70 kg apoiando no pé.
+  // Duas camadas: o tom (sine) e um baque abafado (chiado bem grave), que
+  // "enche" o espaço em vez de ser só um bip grave
   const tum = ctx.createOscillator();
   tum.type = 'sine';
-  tum.frequency.setValueAtTime(115 * tom, t);
-  tum.frequency.exponentialRampToValueAtTime(48 * tom, t + 0.12);
+  tum.frequency.setValueAtTime(90 * tom, t);
+  tum.frequency.exponentialRampToValueAtTime(38 * tom, t + 0.16);
   const g0 = ctx.createGain();
-  g0.gain.setValueAtTime(vol * 1.6, t);
-  g0.gain.exponentialRampToValueAtTime(0.0001, t + (pesado ? 0.22 : 0.15));
+  g0.gain.setValueAtTime(0.0001, t);
+  g0.gain.linearRampToValueAtTime(vol * 2, t + 0.006);
+  g0.gain.exponentialRampToValueAtTime(0.0001, t + (pesado ? 0.32 : 0.24));
   tum.connect(g0).connect(vento.passos);
   tum.start(t);
-  tum.stop(t + 0.25);
+  tum.stop(t + 0.35);
+  const baque = ctx.createBufferSource();
+  baque.buffer = vento.ruidoCurto;
+  baque.playbackRate.value = 0.5; // esticado: dura o dobro
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 260 * tom;
+  lp.Q.value = 0.9;
+  const gb = ctx.createGain();
+  gb.gain.setValueAtTime(vol * 2.4, t);
+  gb.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+  baque.connect(lp).connect(gb).connect(vento.passos);
+  baque.start(t);
   // clac: estalo metálico, mais grosso
   const ruido = ctx.createBufferSource();
   ruido.buffer = vento.ruidoCurto;
@@ -3726,7 +4020,7 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   bp2.Q.value = 2.5;
   const g3 = ctx.createGain();
   g3.gain.setValueAtTime(0.0001, t2);
-  g3.gain.linearRampToValueAtTime(vol * 0.7, t2 + 0.02);
+  g3.gain.linearRampToValueAtTime(vol * 0.35, t2 + 0.02);
   g3.gain.exponentialRampToValueAtTime(0.0001, t2 + dur);
   osc.connect(bp2).connect(g3).connect(vento.passos);
   osc.start(t2); vib.start(t2);
@@ -3735,7 +4029,8 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
 
 function atualizarSom(dt) {
   if (!vento || vento.ctx.state !== 'running') return;
-  const rapidez = vel.length() / AJUSTE.velMax; // 1 = normal, 2 = dash
+  // andando/correndo o vento é bem mais fraco que voando na mesma velocidade
+  const rapidez = vel.length() / AJUSTE.velMax * (modo === 'andar' ? 0.45 : 1); // 1 = normal, 2 = dash
   const r1 = Math.min(rapidez, 1);
   const r2 = Math.max(0, Math.min(rapidez - 1, 1));
   // curva: começa devagar (voar devagar só aumenta um pouco) e cresce perto do máximo
@@ -3792,5 +4087,5 @@ requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
 window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar, chaoDoMar, escurecerCeu, bolhas, explosaoDeBolhas, get ar() { return ar; }, set ar(v) { ar = v; }, alternarMergulho, get semMergulho() { return semMergulho; },
-  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); atualizarSom(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get vento() { return vento; }, get modo() { return modo; }, chaoSob, tocarPasso, get pesY() { return pesY; }, get olhosAgora() { return olhosAgora; }, alternarMudo, get mudo() { return mudo; }, SOM, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
+  passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); atualizarSom(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get vento() { return vento; }, FAUNA, desistirDoVoo, get modo() { return modo; }, chaoSob, tocarPasso, get pesY() { return pesY; }, get olhosAgora() { return olhosAgora; }, alternarMudo, get mudo() { return mudo; }, SOM, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
 })();

@@ -27,10 +27,15 @@ e aparece embaixo do nome, no canto da tela (e no console do navegador).
   - Saiu da ponta de uma rocha: cai no chão de baixo, com abaixadinha na chegada
   - Escorregar: chegou na beira da ilha, escorrega sentado pro mar e lá vira o nado de sempre
   - Andando dá pra chutar a esfera e capturar de pé
-- Som de passo robótico "clac-nhec" de corpo pesado (tum grave + estalo metálico + servo rangendo), mais forte no pouso
-- Árvores com tamanho de gente: 80% de 4 a 7 m, 10% mini (2 a 4 m) e 10% gigantes (7 a 9 m)
+- Som de passo robótico "clac-nhec" de corpo pesado (tum grave e encorpado + estalo metálico + servo rangendo baixinho), mais forte no pouso
+- Árvores com tamanho de gente: distribuição natural de 2 a 20 m (a maioria entre ~4 e ~11 m)
   - Mais alta = mais velha = copa maior (da menor pra maior a copa dobra) e tronco mais grosso
-- Montanhas: às vezes a ilha ganha uma rocha enorme e encorpada perto do centro (12 a 28 m; nas ilhas enormes até 35 m, às vezes duas), com topo plano pra pousar
+- Montanhas: às vezes a ilha ganha uma rocha enorme e encorpada perto do centro (12 a 28 m; nas ilhas enormes até 35 m, às vezes duas; as bem altas são raras), com topo plano pra pousar
+- C duas vezes rápido: desiste do voo e cai. No chão pousa (abaixadinha mais forte quanto maior a queda), na água mergulha; Espaço volta a voar
+- Esferas um pouco maiores (~38 cm) e, andando, seu corpo esbarra nelas de mais longe (dá pra jogar futebol)
+- Correndo na ilha o vento fica bem mais baixo que voando
+- Fauna de Namek: sapos nas ilhas (só no chão, longe da água e das rochas). Ficam olhando em volta, dão pulinhos
+  e fogem pulando quando você chega perto. Como todo bicho de Namek, têm anteninhas
 
 ## 2.0.3 — 11/11/2026
 
