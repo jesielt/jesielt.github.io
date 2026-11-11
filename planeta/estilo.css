@@ -249,7 +249,7 @@ html, body {
 /* ---------- painel de teclas ---------- */
 
 .teclas {
-  --k: clamp(30px, 6vw, 42px);   /* tamanho de cada tecla */
+  --k: clamp(24px, 4.6vw, 34px); /* tamanho de cada tecla */
   --gap: 5px;
   position: fixed;
   right: 16px;
@@ -334,3 +334,50 @@ html, body {
 }
 .mouse .botao.esq { border-right: 1px solid rgba(255, 255, 255, 0.55); }
 .mouse .botao.ativa { background: rgba(255, 255, 255, 0.78); }
+
+/* ---------- não mergulhar: (botão direito) ×2 + nadador com X ---------- */
+
+.mergulho {
+  grid-column: 1 / 4;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  cursor: pointer;
+}
+.mergulho .mouse-dir {
+  width: calc(var(--k) * 0.48);
+  height: calc(var(--k) * 0.66);
+  color: rgba(255, 255, 255, 0.85);
+  filter: drop-shadow(0 1px 2px rgba(30, 60, 50, 0.35));
+}
+.mergulho .vezes {
+  font-size: calc(var(--k) * 0.4);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(30, 60, 50, 0.4);
+}
+.interruptor {
+  display: grid;
+  place-items: center;
+  width: calc(var(--k) * 1.05);
+  height: calc(var(--k) * 1.05);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 3px 0 rgba(30, 60, 50, 0.18);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  color: rgba(40, 70, 60, 0.45);
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.interruptor svg { width: 66%; height: 66%; }
+.interruptor .x { stroke: rgba(40, 70, 60, 0.45); }
+/* ligado: bolinha acesa, nadador azul e X vermelho */
+.mergulho.ligado .interruptor {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f6fc0;
+  box-shadow: 0 0 0 2px rgba(47, 143, 224, 0.75), 0 0 12px rgba(127, 208, 255, 0.8);
+}
+.mergulho.ligado .interruptor .x { stroke: #e0453a; }
+

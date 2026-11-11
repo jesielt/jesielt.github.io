@@ -33,7 +33,12 @@ e aparece no console do navegador quando o jogo abre.
   fraco, choque ao entrar na água e sem espirro
 - Fôlego: barra azul de 25 s; se acabar, você volta pro começo e perde as esferas
 - As esferas também afundam devagar e rolam pelo fundo (não somem mais)
-- Grama das ilhas com pinceladas, como nos cenários de Namek; as manchas viraram areia clara
+- Grama das ilhas com pinceladas finas, como nos cenários de Namek; as manchas viraram
+  terra compactada (sem grama em cima)
+- Mergulhou rápido (com dash): estouro de bolhas na tela
+- "Não mergulhar": clique duplo com o botão direito liga/desliga, com um botão de ícone
+  (nadador com X) embaixo dos controles; ligado, dá pra voar rente à água à vontade
+- Controles do canto um pouco menores
 
 ## 1.0.0 — 10/11/2026
 

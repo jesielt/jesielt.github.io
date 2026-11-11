@@ -38,7 +38,7 @@ const CORES = {
   grama: '#7d9ce2',
   tronco: '#e6c3b4',
   tufo: '#6683d6',
-  mancha: '#e4d4a8',   // areia clara (no anime, terra aparecendo na grama)
+  mancha: '#c9b4a2',   // terra compactada, seca e dura (no anime, o chão aparecendo na grama)
 };
 
 // ---------------------------------------------------------------------
@@ -480,24 +480,34 @@ function texturaDaGrama() {
   g.fillRect(0, 0, t, t);
   let semente = 31;
   const aleatorio = () => (semente = (semente * 16807) % 2147483647) / 2147483647;
-  const tons = [
-    ['rgba(160, 190, 245, 0.30)', 0.35],  // mais claro
-    ['rgba(185, 215, 250, 0.22)', 0.15],  // bem claro, quase céu
-    ['rgba(84, 118, 205, 0.26)', 0.35],   // mais escuro
-    ['rgba(110, 170, 230, 0.20)', 0.15],  // puxado pro ciano
-  ];
-  for (let i = 0; i < 1400; i++) {
-    let r = aleatorio(), cor = tons[0][0];
-    for (const [c2, peso] of tons) { if ((r -= peso) <= 0) { cor = c2; break; } }
+  const emVolta = (desenhar) => { for (const dx of [-t, 0, t]) for (const dy of [-t, 0, t]) desenhar(dx, dy); }; // emenda sem costura
+  // 1) variação larga de tom: áreas grandes e bem suaves, um pouco mais claras ou escuras
+  for (let i = 0; i < 26; i++) {
+    const x = aleatorio() * t, y = aleatorio() * t, r = 70 + aleatorio() * 120;
+    const claro = aleatorio() < 0.5;
+    emVolta((dx, dy) => {
+      const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+      gr.addColorStop(0, claro ? 'rgba(170, 198, 245, 0.16)' : 'rgba(80, 112, 200, 0.16)');
+      gr.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      g.fillStyle = gr;
+      g.fillRect(x + dx - r, y + dy - r, r * 2, r * 2);
+    });
+  }
+  // 2) pinceladas: traços finos, compridos, um pouco curvos e quase deitados
+  const tons = ['rgba(175, 202, 248, A)', 'rgba(198, 222, 252, A)', 'rgba(86, 120, 206, A)', 'rgba(112, 168, 228, A)'];
+  g.lineCap = 'round';
+  for (let i = 0; i < 1100; i++) {
     const x = aleatorio() * t, y = aleatorio() * t;
-    const comp = 10 + aleatorio() * 34, larg = 3 + aleatorio() * 7;
-    const giro = (aleatorio() - 0.5) * 0.7; // quase deitadas
-    g.fillStyle = cor;
-    for (const dx of [-t, 0, t]) for (const dy of [-t, 0, t]) { // emenda sem costura
+    const comp = 18 + aleatorio() * 40, giro = (aleatorio() - 0.5) * 0.6, curva = (aleatorio() - 0.5) * 8;
+    const cx = Math.cos(giro) * comp / 2, cy = Math.sin(giro) * comp / 2;
+    g.strokeStyle = tons[Math.floor(aleatorio() * tons.length)].replace('A', (0.10 + aleatorio() * 0.14).toFixed(2));
+    g.lineWidth = 1.2 + aleatorio() * 2.4;
+    emVolta((dx, dy) => {
       g.beginPath();
-      g.ellipse(x + dx, y + dy, comp, larg, giro, 0, Math.PI * 2);
-      g.fill();
-    }
+      g.moveTo(x + dx - cx, y + dy - cy);
+      g.quadraticCurveTo(x + dx, y + dy + curva, x + dx + cx, y + dy + cy);
+      g.stroke();
+    });
   }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -565,8 +575,9 @@ turvarEmbaixoDagua(matFundo, (sh) => {
     `);
 });
 
-// Mancha no gramado: um pedaço de terra/areia clara aparecendo no meio da
-// grama, como nos cenários de Namek. Formato de café derramado: borda ondulada.
+// Mancha no gramado: um pedaço de terra compactada, seca e dura, aparecendo
+// no meio da grama, como nos cenários de Namek. Ali não nasce grama.
+// Formato de café derramado: borda ondulada.
 // É uma "folha" fininha deitada um tiquinho acima da grama.
 const matMancha = new THREE.MeshLambertMaterial({
   color: CORES.mancha,
@@ -594,6 +605,19 @@ function geometriaMancha(r, cx, cz, ilha, i, j, sem) {
   const geo = new THREE.ShapeGeometry(forma);
   geo.rotateX(-Math.PI / 2); // deita no chão
   return geo;
+}
+// esse ponto (no jeito da ilha) cai dentro da mancha m? — mesma conta da geometriaMancha
+function dentroDaMancha(px, pz, m, i, j) {
+  const sem = m.sem;
+  const f1 = hash(i, j, sem) * 6.3, f2 = hash(i, j, sem + 1) * 6.3, f3 = hash(i, j, sem + 2) * 6.3;
+  const achata = 0.7 + hash(i, j, sem + 3) * 0.3;
+  const giro = hash(i, j, sem + 4) * Math.PI * 2;
+  const cg = Math.cos(giro), sg = Math.sin(giro);
+  const dx = px - m.cx, dz = pz - m.cz;
+  const lx = dx * cg + dz * sg, lz = (-dx * sg + dz * cg) / achata;
+  const a = Math.atan2(lz, lx);
+  const raio = m.r * (1 + 0.16 * Math.sin(2 * a + f1) + 0.09 * Math.sin(3 * a + f2) + 0.05 * Math.sin(7 * a + f3));
+  return Math.hypot(lx, lz) < raio + 0.8; // + uma folguinha: nenhuma graminha na beirada
 }
 const ilhas = new Map(); // "i,j" -> { grupo, geo, solidos, copas } ou null (célula vazia)
 
@@ -847,6 +871,7 @@ function criarIlha(i, j) {
   // Podem ficar em qualquer lugar, até encostar na borda: o centro fica no
   // mínimo a meio raio da borda, então no máximo ~20% da mancha é aparada.
   const geosManchas = [];
+  const secas = []; // onde ficam as manchas de terra (pra não nascer grama ali)
   const menor = Math.min(sx, sz);
   // (nas enormes, proporcional: de 4 a 6)
   const nManchas = enorme
@@ -859,7 +884,9 @@ function criarIlha(i, j) {
     const ate = Math.hypot(Math.cos(ang) * sx, Math.sin(ang) * sz); // distância do centro até a borda "lisa"
     const maxT = Math.max(0, contorno(ang, ondas) - (0.5 * r) / ate);
     const t = Math.sqrt(hash(i, j, sm + 2)) * maxT; // raiz: espalha por igual, inclusive perto da borda
-    const gm = geometriaMancha(r, Math.cos(ang) * t * sx, Math.sin(ang) * t * sz, { sx, sz, ondas }, i, j, sm + 3);
+    const cxm = Math.cos(ang) * t * sx, czm = Math.sin(ang) * t * sz;
+    secas.push({ cx: cxm, cz: czm, r, sem: sm + 3 });
+    const gm = geometriaMancha(r, cxm, czm, { sx, sz, ondas }, i, j, sm + 3);
     const mancha = new THREE.Mesh(gm, matMancha);
     mancha.position.y = alt + 0.08;
     grupo.add(mancha);
@@ -972,6 +999,7 @@ function criarIlha(i, j) {
       const d = hash(i, j, sm + 20 + k) * 5;            // moita com ~5 m de raio
       const tx = mx + Math.cos(a) * d, tz = mz + Math.sin(a) * d;
       if (encostaEmRocha(x + tx, z + tz, 0.3, solidos)) continue;
+      if (secas.some(m => dentroDaMancha(tx, tz, m, i, j))) continue; // terra dura: sem grama
       const tam = 0.6 + hash(i, j, sm + 30 + k) * 0.8;  // 0,6 a 1,4 aqui ≈ 3 a 8 cm na sensação
       e.set(0, a * 3, 0);
       m4.compose(p3.set(tx, alt, tz), q.setFromEuler(e), s3.set(tam, tam, tam));
@@ -1597,9 +1625,17 @@ function atualizar(dt) {
     camera.position.y = chaoAqui;
     if (vel.y < 0) vel.y = 0;
   }
+  // "não mergulhar" ligado: a superfície vira chão (dá pra brincar de espirro à vontade)
+  if (semMergulho && !submerso && camera.position.y < AJUSTE.alturaOlhos) {
+    camera.position.y = AJUSTE.alturaOlhos;
+    if (vel.y < 0) vel.y = 0;
+  }
   // entrou na água: choque de mudança de meio, perde quase todo o embalo
   const agoraSubmerso = camera.position.y < 0;
-  if (agoraSubmerso && !submerso) vel.multiplyScalar(AGUA.choque);
+  if (agoraSubmerso && !submerso) {
+    explosaoDeBolhas(vel.length()); // veio rápido (dash)? um monte de bolhas de uma vez
+    vel.multiplyScalar(AGUA.choque);
+  }
   submerso = agoraSubmerso;
 
   // não atravessar ilhas e rochas
@@ -2330,6 +2366,42 @@ function atualizarBolhas(dt) {
   }
 }
 
+// mergulhou rápido: um estouro de bolhas subindo depressa, como uma transição
+function explosaoDeBolhas(embalo) {
+  const n = Math.max(0, Math.min(170, Math.floor((embalo - 40) * 1.1)));
+  const W = window.innerWidth, H = window.innerHeight;
+  for (let i = 0; i < n; i++) {
+    bolhas.push({
+      x: W * Math.random(), y: H * (0.25 + Math.random() * 0.85),
+      r: 3 + Math.random() * 12, sobe: 280 + Math.random() * 520, fase: Math.random() * 6.3, t: 0,
+    });
+  }
+}
+
+// "Não mergulhar": clique duplo com o botão direito liga/desliga (ou toca no
+// botão do nadador). Fica guardado pro próximo jogo.
+let semMergulho = false;
+try { semMergulho = localStorage.getItem('planeta.semMergulho') === '1'; } catch (e) { /* sem memória: tudo bem */ }
+const botaoMergulho = document.getElementById('semMergulho');
+function mostrarMergulho() {
+  botaoMergulho.classList.toggle('ligado', semMergulho);
+  botaoMergulho.setAttribute('aria-checked', String(semMergulho));
+}
+function alternarMergulho() {
+  semMergulho = !semMergulho;
+  try { localStorage.setItem('planeta.semMergulho', semMergulho ? '1' : '0'); } catch (e) { /* tudo bem */ }
+  mostrarMergulho();
+}
+mostrarMergulho();
+let ultimoDireito = 0;
+document.addEventListener('mousedown', ev => {
+  if (ev.button !== 2) return;
+  const agora = performance.now();
+  if (agora - ultimoDireito < 350) { alternarMergulho(); ultimoDireito = 0; }
+  else ultimoDireito = agora;
+});
+botaoMergulho.addEventListener('click', alternarMergulho);
+
 // acabou o ar: volta pro começo e perde as esferas
 function afogar() {
   camera.position.copy(inicio);
@@ -2503,6 +2575,6 @@ jatos.visible = false;
 requestAnimationFrame(quadro);
 
 // atalho pra testar pelo console do navegador
-window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar, chaoDoMar, escurecerCeu, get ar() { return ar; }, set ar(v) { ar = v; },
+window.planeta = { camera, vel, apertar, soltar, ilhas, nuvens, ceuDasNuvens, esferas, capturar, chaoDoMar, escurecerCeu, get ar() { return ar; }, set ar(v) { ar = v; }, alternarMergulho, get semMergulho() { return semMergulho; },
   passo(seg = 1 / 60) { atualizar(seg); atualizarEspirro(seg); atualizarDebaixoDagua(seg); renderer.render(cena, camera); desenharRadar(0); desenharRiscos(seg); mostrarAltura(); }, get yaw() { return yaw; }, set yaw(v) { yaw = v; }, get pitch() { return pitch; }, set pitch(v) { pitch = v; } };
 })();
