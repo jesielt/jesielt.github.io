@@ -1042,6 +1042,47 @@ function criarIlha(i, j) {
     geosManchas.push(gb);
   }
 
+  // Montanha: às vezes a ilha ganha uma rocha bem maior e encorpada perto do
+  // centro (12 a 28 m de altura; nas enormes até 35 m), com o topo plano dá
+  // pra pousar e andar. Só em ilha média pra cima: 30% das médias/grandes,
+  // 60% das enormes (e 25% delas ganham uma segunda). Rocha comum que
+  // encostaria nela não nasce.
+  const montanhas = [];
+  const querMontanha = (k) => {
+    if (enorme) return k === 0 ? hash(i, j, 20000) < 0.6 : hash(i, j, 20010) < 0.25;
+    return k === 0 && tam >= 55 && hash(i, j, 20000) < 0.3;
+  };
+  for (let k = 0; k < 2; k++) {
+    if (!querMontanha(k)) continue;
+    const sm = 20020 + k * 20;
+    const base = Math.min(menor * 0.45, Math.max(32, menor * (0.26 + hash(i, j, sm) * 0.14))); // até 40% do raio menor (nunca passa da beira)
+    const rx = base * (0.85 + hash(i, j, sm + 1) * 0.3);
+    const rz = base * (0.85 + hash(i, j, sm + 2) * 0.3);
+    const ang = hash(i, j, sm + 3) * Math.PI * 2;
+    const dist = hash(i, j, sm + 4) * (enorme ? 0.4 : 0.22); // perto do meio (nas enormes, mais solta)
+    const px = Math.cos(ang) * dist * sx, pz = Math.sin(ang) * dist * sz;
+    if (k > 0 && montanhas.some(m => Math.hypot(m.x - (x + px), m.z - (z + pz)) < (m.rx + rx) * 1.1)) continue;
+    const metros = 12 + hash(i, j, sm + 5) * (enorme ? 23 : 16);
+    const rh = metros * 17.5;
+    const tipo = 1 + Math.floor(hash(i, j, sm + 6) * 3); // 0,55 a 0,85: encorpada, nada de agulha
+    const afina = AFINA[tipo];
+    const giro = hash(i, j, sm + 7) * Math.PI;
+    const rocha = new THREE.Group();
+    rocha.position.set(px, alt - 1, pz);
+    rocha.rotation.y = giro;
+    const corpo = new THREE.Mesh(geosRocha[tipo], matRocha);
+    corpo.scale.set(rx, rh, rz);
+    corpo.position.y = rh / 2;
+    const topo = new THREE.Mesh(geoTopo, matGrama);
+    topo.scale.set(rx * afina, 2.5, rz * afina);
+    topo.position.y = rh;
+    rocha.add(corpo, topo);
+    grupo.add(rocha);
+    const sol = { x: x + px, z: z + pz, rx, rz, base: alt - 1, h: alt - 1 + rh + 1.25, afina, giro, montanha: true };
+    solidos.push(sol);
+    montanhas.push(sol);
+  }
+
   // rochas em cima: ilha maior comporta mais rochas (até 4)
   // (nas enormes, proporcional ao tamanho: de ~4 a ~11, nunca poucas)
   const maxRochas = enorme ? 1 + Math.floor(tam / 28) : Math.min(4, 1 + Math.floor(tam / 28));
@@ -1062,6 +1103,7 @@ function criarIlha(i, j) {
     const tipo = Math.floor(hash(i, j, s + 6) * AFINA.length);
     const afina = AFINA[tipo];
     const giro = hash(i, j, s + 7) * Math.PI;
+    if (montanhas.length && encostaEmRocha(x + px, z + pz, Math.max(rx, rz) + 4, [null, ...montanhas])) continue;
 
     const rocha = new THREE.Group();
     rocha.position.set(px, alt - 1, pz);
@@ -1086,7 +1128,8 @@ function criarIlha(i, j) {
     ? Math.floor(maxArvores / 2) + Math.floor(hash(i, j, 8) * (maxArvores / 2 + 1))
     : Math.floor(hash(i, j, 8) * (maxArvores + 1));
   for (let k = 0; k < nArvores; k++) {
-    const r = 3 + hash(i, j, 300 + k) * 3.5;              // raio da copa
+    const arv = sortearArvore(hash(i, j, 300 + k), hash(i, j, 310 + k));
+    const r = arv.r;
     // procura um lugar livre na ilha (até 6 tentativas)
     let lugar = null;
     for (let tent = 0; tent < 6 && !lugar; tent++) {
@@ -1095,29 +1138,26 @@ function criarIlha(i, j) {
       const dist = Math.sqrt(hash(i, j, s + 1)) * 0.85 * contorno(ang, ondas);
       const px = Math.cos(ang) * dist * sx;
       const pz = Math.sin(ang) * dist * sz;
-      if (!encostaEmRocha(x + px, z + pz, r + 2, solidos)) lugar = { px, pz };
+      if (!encostaEmRocha(x + px, z + pz, r * 0.6 + 2, solidos)) lugar = { px, pz };
     }
     if (!lugar) continue;
 
-    const th = 22 + hash(i, j, 310 + k) * 45;             // altura do tronco
-    plantar(lugar.px, alt, lugar.pz, r, th, hash(i, j, 320 + k));
+    plantar(lugar.px, alt, lugar.pz, arv, hash(i, j, 320 + k));
   }
 
   // evento raro: ~10% das rochas têm uma árvore lá no topo plano
   for (let n = 1; n < solidos.length; n++) {
     if (hash(i, j, 500 + n * 10) > 0.1) continue;
     const roc = solidos[n];
-    const r = 2.5 + hash(i, j, 501 + n * 10) * 2.5;        // copa um pouco menor
-    const th = 14 + hash(i, j, 502 + n * 10) * 22;
+    const arv = sortearArvore(hash(i, j, 501 + n * 10), hash(i, j, 502 + n * 10));
     // um pouco fora do centro, mas sempre dentro do topo
     const a = hash(i, j, 503 + n * 10) * Math.PI * 2;
     const d = Math.min(roc.rx, roc.rz) * roc.afina * 0.4 * hash(i, j, 504 + n * 10);
-    plantar(roc.x - x + Math.cos(a) * d, roc.h, roc.z - z + Math.sin(a) * d, r, th, hash(i, j, 505 + n * 10));
+    plantar(roc.x - x + Math.cos(a) * d, roc.h, roc.z - z + Math.sin(a) * d, arv, hash(i, j, 505 + n * 10));
   }
 
   // planta uma árvore com o pé em (px, chao, pz), em coordenadas da ilha
-  function plantar(px, chao, pz, r, th, sorteio) {
-    const grossura = 0.35 + r * 0.05;
+  function plantar(px, chao, pz, { r, th, grossura }, sorteio) {
     const tronco = new THREE.Mesh(geoTronco, matTronco);
     tronco.scale.set(grossura, th, grossura);
     tronco.position.set(px, chao + th / 2 - 0.5, pz);
@@ -1164,6 +1204,23 @@ function criarIlha(i, j) {
 }
 
 // esse ponto (com essa folga) fica em cima de alguma rocha?
+// Tamanho das árvores (altura total, do pé ao topo da copa, em metros sentidos):
+//   10% mini: 2 a 4 m · 80% normais: 4 a 7 m · 10% gigantes: 7 a 9 m (máximo)
+// Mais alta = mais velha = copa maior; da menor pra maior a copa no máximo dobra.
+const M_ARVORE = 17.5;     // 1 m sentido, em unidades (ver ESCALA_SENTIDA)
+const COPA_MIN = 11;       // raio da copa da árvore de 2 m (a de 9 m tem o dobro)
+function sortearArvore(sorteioClasse, sorteioAltura) {
+  const metros = sorteioClasse < 0.1 ? 2 + sorteioAltura * 2
+    : sorteioClasse < 0.9 ? 4 + sorteioAltura * 3
+    : 7 + sorteioAltura * 2;
+  const idade = (metros - 2) / 7;            // 0 = mais nova, 1 = mais velha
+  const r = COPA_MIN * (1 + idade);
+  const total = metros * M_ARVORE;
+  // a copa vai de th + 0,6r - 1,15r até th + 0,6r + 1,15r: o topo dela é th + 1,75r
+  const th = Math.max(6, total - r * 1.75);
+  return { r, th, grossura: 0.8 + metros * 0.22 };
+}
+
 function encostaEmRocha(px, pz, folga, solidos) {
   for (let n = 1; n < solidos.length; n++) {
     const s = solidos[n];
@@ -3611,54 +3668,65 @@ window.addEventListener('blur', aplicarSom);
 window.addEventListener('focus', aplicarSom);
 document.addEventListener('visibilitychange', aplicarSom);
 
-// Passo robótico: "clac" (estalo metálico) e logo depois "nhec" (um servo
-// rangendo, tom que cai). Pé esquerdo e direito com tons um pouco diferentes;
+// Passo robótico de corpo pesado: "tum" grave + "clac" (estalo metálico) e
+// logo depois "nhec" (um servo grande rangendo, tom que cai). Pé esquerdo e direito com tons um pouco diferentes;
 // pesado = pouso (mais grave e forte).
 function tocarPasso(correndo = false, lado = 0, pesado = false) {
   if (!vento || vento.ctx.state !== 'running') return;
   const ctx = vento.ctx, t = ctx.currentTime;
-  const vol = SOM.passo * (correndo ? 1.2 : 1) * (pesado ? 1.4 : 1);
-  const tom = (lado ? 1.07 : 1) * (pesado ? 0.75 : 1) * (0.97 + Math.random() * 0.06);
-  // clac
+  const vol = SOM.passo * (correndo ? 1.2 : 1) * (pesado ? 1.5 : 1);
+  const tom = (lado ? 1.06 : 1) * (pesado ? 0.8 : 1) * (0.97 + Math.random() * 0.06);
+  // peso: um "tum" grave que desce, o corpo de 70 kg apoiando no pé
+  const tum = ctx.createOscillator();
+  tum.type = 'sine';
+  tum.frequency.setValueAtTime(115 * tom, t);
+  tum.frequency.exponentialRampToValueAtTime(48 * tom, t + 0.12);
+  const g0 = ctx.createGain();
+  g0.gain.setValueAtTime(vol * 1.6, t);
+  g0.gain.exponentialRampToValueAtTime(0.0001, t + (pesado ? 0.22 : 0.15));
+  tum.connect(g0).connect(vento.passos);
+  tum.start(t);
+  tum.stop(t + 0.25);
+  // clac: estalo metálico, mais grosso
   const ruido = ctx.createBufferSource();
   ruido.buffer = vento.ruidoCurto;
   const bp = ctx.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = 2300 * tom;
-  bp.Q.value = 2.5;
+  bp.frequency.value = 950 * tom;
+  bp.Q.value = 2;
   const g1 = ctx.createGain();
-  g1.gain.setValueAtTime(vol, t);
-  g1.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+  g1.gain.setValueAtTime(vol * 1.1, t);
+  g1.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
   ruido.connect(bp).connect(g1).connect(vento.passos);
   ruido.start(t);
   const ping = ctx.createOscillator(); // o "metal" do clac
   ping.type = 'triangle';
-  ping.frequency.value = 1250 * tom;
+  ping.frequency.value = 520 * tom;
   const g2 = ctx.createGain();
-  g2.gain.setValueAtTime(vol * 0.5, t);
-  g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+  g2.gain.setValueAtTime(vol * 0.45, t);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
   ping.connect(g2).connect(vento.passos);
   ping.start(t);
-  ping.stop(t + 0.06);
-  // nhec
-  const t2 = t + (correndo ? 0.05 : 0.075);
-  const dur = correndo ? 0.09 : 0.12;
+  ping.stop(t + 0.08);
+  // nhec: servo grande rangendo
+  const t2 = t + (correndo ? 0.055 : 0.08);
+  const dur = correndo ? 0.11 : 0.15;
   const osc = ctx.createOscillator();
   osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(640 * tom, t2);
-  osc.frequency.exponentialRampToValueAtTime(420 * tom, t2 + dur);
+  osc.frequency.setValueAtTime(270 * tom, t2);
+  osc.frequency.exponentialRampToValueAtTime(175 * tom, t2 + dur);
   const vib = ctx.createOscillator(); // tremidinha de engrenagem
-  vib.frequency.value = 42;
+  vib.frequency.value = 30;
   const vg = ctx.createGain();
-  vg.gain.value = 30 * tom;
+  vg.gain.value = 14 * tom;
   vib.connect(vg).connect(osc.frequency);
   const bp2 = ctx.createBiquadFilter();
   bp2.type = 'bandpass';
-  bp2.frequency.value = 1300 * tom;
-  bp2.Q.value = 3;
+  bp2.frequency.value = 620 * tom;
+  bp2.Q.value = 2.5;
   const g3 = ctx.createGain();
   g3.gain.setValueAtTime(0.0001, t2);
-  g3.gain.linearRampToValueAtTime(vol * 0.55, t2 + 0.015);
+  g3.gain.linearRampToValueAtTime(vol * 0.7, t2 + 0.02);
   g3.gain.exponentialRampToValueAtTime(0.0001, t2 + dur);
   osc.connect(bp2).connect(g3).connect(vento.passos);
   osc.start(t2); vib.start(t2);

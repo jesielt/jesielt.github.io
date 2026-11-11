@@ -27,7 +27,10 @@ e aparece embaixo do nome, no canto da tela (e no console do navegador).
   - Saiu da ponta de uma rocha: cai no chão de baixo, com abaixadinha na chegada
   - Escorregar: chegou na beira da ilha, escorrega sentado pro mar e lá vira o nado de sempre
   - Andando dá pra chutar a esfera e capturar de pé
-- Som de passo robótico "clac-nhec" (estalo metálico + servo rangendo), mais pesado no pouso
+- Som de passo robótico "clac-nhec" de corpo pesado (tum grave + estalo metálico + servo rangendo), mais forte no pouso
+- Árvores com tamanho de gente: 80% de 4 a 7 m, 10% mini (2 a 4 m) e 10% gigantes (7 a 9 m)
+  - Mais alta = mais velha = copa maior (da menor pra maior a copa dobra) e tronco mais grosso
+- Montanhas: às vezes a ilha ganha uma rocha enorme e encorpada perto do centro (12 a 28 m; nas ilhas enormes até 35 m, às vezes duas), com topo plano pra pousar
 
 ## 2.0.3 — 11/11/2026
 
