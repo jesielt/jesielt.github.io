@@ -45,6 +45,11 @@ e aparece no console do navegador quando o jogo abre.
 - Fôlego em 20% ou menos: a barra fica vermelha e pisca
 - Ícone do nadador mais grosso e legível
 - Para testes: 1, 2, 3 no teclado numérico pega todas as esferas de uma vez
+- "Não mergulhar" avisa quando troca: ligou, anéis azuis saem do botão; desligou,
+  anéis brancos encolhem até a borda dele
+- Triângulos do radar em branco
+- Abertura: no primeiro clique, "FIND", "THE", "BALLS" em letras saiyajin, uma por cima
+  da outra, crescendo e sumindo
 
 ## 1.0.0 — 10/11/2026
 

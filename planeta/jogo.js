@@ -1160,8 +1160,57 @@ const empurraoMouse = { x: 0, y: 0 }; // só pro desenho do mouse escorregar
 // Se o navegador não deixar prender o mouse, dá pra olhar clicando e arrastando.
 let arrastando = false;
 
+// Abertura: no primeiro clique, "FIND", "THE" e "BALLS" em letras saiyajin
+// (as mesmas do "m" e do "V"), uma por cima da outra, crescendo e sumindo.
+// Cada letra é feita de blocos numa caixa de 10×10 (tabela em Referências).
+const LETRAS_SAIYAJIN = {
+  A: [[0, 0, 10, 3], [2.5, 6.5, 5.5, 3.5]],
+  B: [[0, 0, 3.2, 10], [6.8, 0, 3.2, 5.2]],
+  D: [[0, 0, 3.4, 10], [6.6, 0, 3.4, 4], [6.6, 6, 3.4, 4]],
+  E: [[0, 0, 10, 3], [0, 5, 3, 2.5], [0, 7, 10, 3]],
+  F: [[0, 0, 3.2, 10], [4.6, 0, 5.4, 3.4], [7, 0, 3, 10]],
+  H: [[1.5, 0, 7, 3.8, 1.9], [0, 6.3, 10, 3.7, 1.8]],
+  I: [[0.8, 0, 3.4, 2.6], [0, 6.8, 10, 3.2]],
+  L: [[0, 0.6, 3.4, 9.4], [6.4, 0, 3.6, 10], [4.8, 7.4, 2, 2.6]],
+  N: [[0, 0, 10, 3], [7, 2.5, 3, 2.5], [0, 4.5, 10, 1.4], [0, 5.5, 3, 2], [0, 7.2, 10, 2.8]],
+  S: [[0, 0, 8.8, 2.6], [7, 1, 3, 5.4], [0, 6, 10, 4]],
+  T: [[0, 0, 4.4, 3], [1.9, 0, 2.5, 10], [0, 7, 4.4, 3], [5.8, 0, 4.2, 10]],
+};
+function palavraSaiyajin(texto) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  const passo = 13.5;
+  svg.setAttribute('viewBox', `-1 -1 ${texto.length * passo - 3.5 + 2} 12`);
+  svg.setAttribute('aria-label', texto);
+  [...texto].forEach((l, n) => {
+    for (const [x, y, w, h, r = 0.7] of LETRAS_SAIYAJIN[l]) {
+      const ret = document.createElementNS(ns, 'rect');
+      ret.setAttribute('x', x + n * passo); ret.setAttribute('y', y);
+      ret.setAttribute('width', w); ret.setAttribute('height', h);
+      ret.setAttribute('rx', r);
+      svg.appendChild(ret);
+    }
+  });
+  return svg;
+}
+let abriu = false;
+function abertura() {
+  if (abriu) return;
+  abriu = true;
+  const caixa = document.createElement('div');
+  caixa.className = 'abertura';
+  ['FIND', 'THE', 'BALLS'].forEach((p, k) => {
+    const svg = palavraSaiyajin(p);
+    svg.style.animationDelay = (0.15 + k * 0.42) + 's';
+    caixa.appendChild(svg);
+  });
+  document.body.appendChild(caixa);
+  setTimeout(() => caixa.remove(), 2500);
+}
+
 canvas.addEventListener('click', () => {
   convite.classList.add('escondido');
+  abertura();
   if (document.pointerLockElement === canvas) return;
   try {
     const pedido = canvas.requestPointerLock();
@@ -1813,7 +1862,7 @@ function desenharRadar(tempo) {
     rctx.fill();
     rctx.shadowBlur = 0;
 
-    // triângulo vazado (na cor do seu pontinho) colado na esfera, apontando
+    // triângulo vazado branco colado na esfera, apontando
     // pra ela: quanto mais perto ela está, maior o triângulo
     const dist = Math.hypot(dx, dz);
     const perto = 1 - Math.min(1, Math.max(0, Math.log(dist / 150) / Math.log(5500 / 150)));
@@ -1824,7 +1873,7 @@ function desenharRadar(tempo) {
       const px = R + ex - ux * 7, py = R + ey - uy * 7; // ponta, logo antes da bolinha
       const bx = px - ux * tam * 1.3, by = py - uy * tam * 1.3;
       const lx = -uy * tam * 0.75, ly = ux * tam * 0.75;
-      rctx.strokeStyle = '#ffe94a';
+      rctx.strokeStyle = '#ffffff';
       rctx.lineWidth = 1.6;
       rctx.lineJoin = 'round';
       rctx.beginPath();
@@ -2424,10 +2473,24 @@ function mostrarMergulho() {
   botaoMergulho.classList.toggle('ligado', semMergulho);
   botaoMergulho.setAttribute('aria-checked', String(semMergulho));
 }
+// aviso: ligou, dois anéis saem do botão e somem; desligou, dois anéis
+// grandes encolhem até encostar na borda dele
+const interruptor = botaoMergulho.querySelector('.interruptor');
+function avisarMergulho() {
+  interruptor.querySelectorAll('.anel').forEach(a => a.remove());
+  for (let k = 0; k < 2; k++) {
+    const anel = document.createElement('span');
+    anel.className = 'anel ' + (semMergulho ? 'sai' : 'entra');
+    anel.style.animationDelay = (k * 0.22) + 's';
+    anel.addEventListener('animationend', () => anel.remove());
+    interruptor.appendChild(anel);
+  }
+}
 function alternarMergulho() {
   semMergulho = !semMergulho;
   try { localStorage.setItem('planeta.semMergulho', semMergulho ? '1' : '0'); } catch (e) { /* tudo bem */ }
   mostrarMergulho();
+  avisarMergulho();
 }
 mostrarMergulho();
 let ultimoDireito = 0;

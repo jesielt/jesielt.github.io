@@ -387,3 +387,58 @@ html, body {
 }
 .mergulho.ligado .interruptor .x { stroke: #e0453a; }
 
+/* aviso ao trocar: anéis saindo (ligou) ou encolhendo até a borda (desligou) */
+.interruptor { position: relative; }
+.interruptor .anel {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  animation-fill-mode: both;
+}
+.interruptor .anel.sai {
+  border: 3px solid #7fd0ff;
+  box-shadow: 0 0 10px rgba(127, 208, 255, 0.9);
+  animation: anelSai 0.7s ease-out;
+}
+.interruptor .anel.entra {
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 1px rgba(20, 60, 45, 0.35), inset 0 0 0 1px rgba(20, 60, 45, 0.35), 0 0 10px rgba(255, 255, 255, 0.7);
+  animation: anelEntra 0.6s ease-in;
+}
+@keyframes anelSai {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+@keyframes anelEntra {
+  0% { transform: scale(2.8); opacity: 0; }
+  30% { opacity: 1; }
+  92% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+/* ---------- abertura: "FIND THE BALLS" em letras saiyajin ---------- */
+.abertura {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 5;
+}
+.abertura svg {
+  grid-area: 1 / 1;
+  height: clamp(60px, 13vh, 120px);
+  fill: #ffffff;
+  filter: drop-shadow(0 3px 0 rgba(20, 60, 45, 0.55)) drop-shadow(0 0 14px rgba(20, 60, 45, 0.45));
+  opacity: 0;
+  animation: palavraSome 0.85s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@keyframes palavraSome {
+  0% { transform: scale(0.7); opacity: 0; }
+  12% { transform: scale(1); opacity: 1; }
+  45% { opacity: 1; }
+  100% { transform: scale(2.3); opacity: 0; }
+}
+
