@@ -4,7 +4,7 @@
 // A biblioteca de 3D vem de um link. Carregando assim, o jogo funciona
 // tanto no site quanto abrindo o index.html direto (duplo clique).
 // Versão oficial (a que vai pro ar no próximo push). Ver CHANGELOG.md.
-const VERSAO = '2.0.2';
+const VERSAO = '2.0.3';
 console.log(`Planeta v${VERSAO}`);
 // aparece na tela, embaixo do nome (o número vem só daqui)
 document.getElementById('versao').textContent = 'v' + VERSAO;
@@ -1413,6 +1413,7 @@ if (TOQUE) {
   canvas.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse') return;
     e.preventDefault(); // sem "mouse de mentirinha" depois do toque
+    if (tocouNaEsfera(e.clientX, e.clientY)) return; // tocou na esfera: captura (não anda nem vira)
     try { canvas.setPointerCapture(e.pointerId); } catch (erro) { /* tudo bem */ }
     if (joy.dedo === null && e.clientX < window.innerWidth * 0.42) {
       joy.dedo = e.pointerId;
@@ -1864,7 +1865,28 @@ function pegarTodasAsEsferas() {
   }
 }
 document.addEventListener('mousedown', ev => { if (ev.button === 2) capturar(); });
-iconeCaptura.addEventListener('click', capturar); // no celular / sem mouse: toca no ícone
+iconeCaptura.addEventListener('click', capturar); // sem mouse (ex.: tablet com caneta): toca no ícone
+
+// Celular: tocar na própria esfera captura (sem ícone de mouse).
+// Folga generosa em volta, porque o dedo é grosso e a esfera é pequena na tela.
+const _borda = new THREE.Vector3();
+function esferaNaTela(e) {
+  _tela.copy(e.pos).project(camera);
+  if (_tela.z >= 1) return null; // atrás de você
+  const x = (_tela.x + 1) / 2 * window.innerWidth;
+  const y = (1 - _tela.y) / 2 * window.innerHeight;
+  // raio na tela: projeta um ponto na borda (de lado, em relação ao olhar)
+  _borda.setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(R_ESFERA).add(e.pos).project(camera);
+  const r = Math.abs((_borda.x - _tela.x) / 2 * window.innerWidth);
+  return { x, y, r };
+}
+function tocouNaEsfera(x, y) {
+  if (!capturavel) return false;
+  const t = esferaNaTela(capturavel);
+  if (!t || Math.hypot(x - t.x, y - t.y) > Math.max(t.r * 1.6, 44)) return false;
+  capturar();
+  return true;
+}
 
 function atualizarEsfera(dt) {
   capturavel = null;
@@ -1876,6 +1898,18 @@ function atualizarEsfera(dt) {
     if (e.capturada) continue;
     const d = camera.position.distanceTo(e.pos);
     if (d < maisPerto) { maisPerto = d; capturavel = e; }
+  }
+  // celular: em vez do ícone de mouse, um anel pulsando em volta da esfera ("toca aqui")
+  if (TOQUE) {
+    const t = capturavel && esferaNaTela(capturavel);
+    iconeCaptura.classList.toggle('visivel', !!t);
+    if (t) {
+      const d = Math.max(t.r * 2.4, 56);
+      iconeCaptura.style.left = t.x + 'px';
+      iconeCaptura.style.top = t.y + 'px';
+      iconeCaptura.style.width = iconeCaptura.style.height = d + 'px';
+    }
+    return;
   }
   // ícone do botão direito em cima da esfera capturável
   if (capturavel) {

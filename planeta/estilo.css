@@ -514,7 +514,18 @@ body.toque .caixa-esferas {
   gap: 3px;
 }
 /* o ícone de capturar fica maior: é nele que se toca */
-body.toque .capturar { width: 52px; height: 72px; }
+/* no celular não tem mouse: o ícone vira um anel pulsando em volta da esfera,
+   e quem captura é o toque na própria esfera (o anel não pega o toque) */
+body.toque .capturar {
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 3px solid rgba(255, 211, 107, 0.95);
+  box-shadow: 0 0 10px rgba(255, 170, 60, 0.8), inset 0 0 8px rgba(255, 170, 60, 0.6);
+  filter: none;
+}
+body.toque .capturar svg { display: none; }
+body.toque .capturar.visivel { pointer-events: none; animation: anelEsfera 0.8s ease-in-out infinite alternate; }
+@keyframes anelEsfera { from { scale: 1; opacity: 1; } to { scale: 1.15; opacity: 0.6; } }
 
 /* joystick: aparece onde o dedão encosta; parado, fica uma marquinha no canto */
 body.toque .joystick {
