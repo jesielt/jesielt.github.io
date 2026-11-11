@@ -9,9 +9,9 @@ Numeração: `maior.menor.correção`
 - **correção**: ajustes e consertos
 
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
-e aparece no console do navegador quando o jogo abre.
+e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
-## 1.1.0 — ainda não publicada
+## 2.0.0 — ainda não publicada
 
 - Céu sem rosa: verde em cima, verde-amarelado embaixo, como no anime
 - Neblina do horizonte mais fraca, em verde-amarelado em vez de rosa
@@ -66,6 +66,7 @@ e aparece no console do navegador quando o jogo abre.
   verde com faixas claras tortas espalhadas por ele todo e um brilho azul na borda, e ele passa embaixo de você conforme
   você voa. Descendo, tudo volta
 - No espaço não tem ar: acima de 500 m a barra de fôlego (40 s) aparece; acabou, recomeça
+- Versão na tela, embaixo do nome; nome e versão na fonte Alata
 
 ## 1.0.0 — 10/11/2026
 
