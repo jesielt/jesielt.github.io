@@ -34,7 +34,7 @@ e aparece no console do navegador quando o jogo abre.
   fraco, choque ao entrar na água e sem espirro
 - Fôlego: barra azul de 40 s; se acabar, você volta pro começo e perde as esferas
 - As esferas também afundam devagar e rolam pelo fundo (não somem mais)
-- Grama das ilhas lisa, com manchas escuras em degradê espalhadas sem padrão (sem pinceladas); as manchas viraram
+- Grama das ilhas lisa, com manchas escuras e grandes em degradê, espalhadas sem padrão (sem pinceladas); as manchas viraram
   terra compactada (sem grama em cima), com uma borda escura separando da grama
 - Mergulhou rápido (com dash): estouro de centenas de bolhas espalhadas numa bola à sua frente,
   também mergulhando na vertical
@@ -54,9 +54,11 @@ e aparece no console do navegador quando o jogo abre.
 - Abertura: no primeiro clique, "FIND", "THE", "BALLS" em letras saiyajin semitransparentes, uma por cima
   da outra, chegando grandes e diminuindo até sumir
 - Terra seca das ilhas com textura de terra batida (tom esfumado, granulado fino e
-  pedrinhas miúdas); a borda entre a terra e a grama ficou
+  pedrinhas miúdas) e beirada recortada, com pontas de terra entrando na grama como
+  pinceladas; a borda entre a terra e a grama ficou
   com metade da largura, em azul escuro
-- Tecla R (também no painel, ao lado do W): recomeça do ponto de partida
+- Tecla R (também no painel, ao lado do W, com uma caveirinha vermelha de aviso): recomeça do
+  ponto de partida
 - Mar mais opaco visto de cima: as encostas das ilhas não aparecem mais lá embaixo
 
 ## 1.0.0 — 10/11/2026

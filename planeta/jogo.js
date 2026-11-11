@@ -518,8 +518,8 @@ function pintarGrama(sh) {
   sh.fragmentShader = 'uniform sampler2D texGrama;\nvarying vec2 vChaoXZ;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
     // duas camadas da mesma textura, em tamanhos e giros que nunca "batem"
     // (a mais escura de cada ponto vale): a repetição não aparece mais
-    vec3 g1 = texture2D( texGrama, vChaoXZ / 170.0 ).rgb;
-    vec3 g2 = texture2D( texGrama, mat2( 0.6, -0.8, 0.8, 0.6 ) * vChaoXZ / 397.0 + vec2( 0.31, 0.77 ) ).rgb;
+    vec3 g1 = texture2D( texGrama, vChaoXZ / 300.0 ).rgb;
+    vec3 g2 = texture2D( texGrama, mat2( 0.6, -0.8, 0.8, 0.6 ) * vChaoXZ / 690.0 + vec2( 0.31, 0.77 ) ).rgb;
     diffuseColor.rgb = min( g1, g2 );
   `);
 }
@@ -643,15 +643,67 @@ const matManchaBorda = new THREE.MeshLambertMaterial({
 // (cx, cz) = centro da mancha na ilha; a parte que passar da borda é
 // "aparada" rente à borda, então a mancha nunca flutua em cima da água.
 // cresce: quanto a forma aumenta pra fora (usado pra borda escura em volta)
-function geometriaMancha(r, cx, cz, ilha, i, j, sem, cresce = 0) {
+// Contorno da mancha num ângulo a: a forma de café derramado + "dentes",
+// como pinceladas: pontas de terra entrando na grama e pontas de grama
+// entrando na terra. Os dentes são finos, um pouco tortos (um lado mais
+// comprido que o outro) e mais compridos na direção das pinceladas (o
+// eixo x do mundo), como na pintura de referência.
+const _dentes = new Map(); // os dentes de cada mancha, sorteados uma vez só
+function dentesDaMancha(i, j, sem) {
+  const chave = i + ',' + j + ',' + sem;
+  let d = _dentes.get(chave);
+  if (d) return d;
+  if (_dentes.size > 3000) _dentes.clear();
+  d = [];
+  for (let n = 0; n < 80; n++) {
+    const s = sem * 7 + 100 + n * 5;
+    const largEsq = 0.012 + Math.pow(hash(i, j, s + 1), 2) * 0.06; // quase todos finos
+    d.push({
+      ang: hash(i, j, s) * Math.PI * 2,
+      esq: largEsq,
+      dir: largEsq * (0.35 + hash(i, j, s + 2) * 1.4), // um lado mais comprido: dente torto
+      forca: (hash(i, j, s + 3) - 0.35) * (0.15 + Math.pow(hash(i, j, s + 4), 2) * 0.5), // a maioria pra fora (terra na grama), umas pra dentro
+    });
+  }
+  _dentes.set(chave, d);
+  return d;
+}
+// O contorno inteiro é calculado uma vez (N ângulos) e guardado: a forma,
+// a borda e o "essa graminha cai na terra?" usam a mesma tabela.
+const N_MANCHA = 480;
+const _contornos = new Map();
+function contornoDaMancha(i, j, sem) {
+  const chave = i + ',' + j + ',' + sem;
+  let c = _contornos.get(chave);
+  if (c) return c;
+  if (_contornos.size > 3000) _contornos.clear();
+  c = new Float32Array(N_MANCHA);
+  for (let k = 0; k < N_MANCHA; k++) c[k] = raioDaMancha((k / N_MANCHA) * Math.PI * 2, 1, i, j, sem);
+  _contornos.set(chave, c);
+  return c;
+}
+function raioDaMancha(a, r, i, j, sem) {
   const f1 = hash(i, j, sem) * 6.3, f2 = hash(i, j, sem + 1) * 6.3, f3 = hash(i, j, sem + 2) * 6.3;
+  const giro = hash(i, j, sem + 4) * Math.PI * 2;
+  let k = 1 + 0.16 * Math.sin(2 * a + f1) + 0.09 * Math.sin(3 * a + f2) + 0.05 * Math.sin(7 * a + f3);
+  const deitado = 0.12 + 0.88 * Math.pow(Math.abs(Math.cos(a + giro)), 1.5); // 1 = apontando pro lado das pinceladas
+  for (const dente of dentesDaMancha(i, j, sem)) {
+    let da = a - dente.ang; // levado pra -π..π
+    da -= Math.round(da / (2 * Math.PI)) * 2 * Math.PI;
+    const t = 1 - Math.abs(da) / (da < 0 ? dente.esq : dente.dir);
+    if (t > 0) k += dente.forca * Math.pow(t, 2.2) * deitado; // ponta fina
+  }
+  return r * k;
+}
+function geometriaMancha(r, cx, cz, ilha, i, j, sem, cresce = 0) {
   const achata = 0.7 + hash(i, j, sem + 3) * 0.3;
   const giro = hash(i, j, sem + 4) * Math.PI * 2;
   const cg = Math.cos(giro), sg = Math.sin(giro);
   const forma = new THREE.Shape();
-  for (let k = 0; k <= 64; k++) {
-    const a = (k / 64) * Math.PI * 2;
-    const m = r * (1 + 0.16 * Math.sin(2 * a + f1) + 0.09 * Math.sin(3 * a + f2) + 0.05 * Math.sin(7 * a + f3)) + cresce;
+  const tabela = contornoDaMancha(i, j, sem); // bastante ponto: os dentes são finos
+  for (let k = 0; k <= N_MANCHA; k++) {
+    const a = (k / N_MANCHA) * Math.PI * 2;
+    const m = r * tabela[k % N_MANCHA] + cresce;
     const lx = Math.cos(a) * m, lz = Math.sin(a) * m * achata;
     let px = cx + lx * cg - lz * sg, pz = cz + lx * sg + lz * cg;
     // passou da borda? puxa o ponto de volta pra cima da borda
@@ -667,14 +719,18 @@ function geometriaMancha(r, cx, cz, ilha, i, j, sem, cresce = 0) {
 // esse ponto (no jeito da ilha) cai dentro da mancha m? — mesma conta da geometriaMancha
 function dentroDaMancha(px, pz, m, i, j) {
   const sem = m.sem;
-  const f1 = hash(i, j, sem) * 6.3, f2 = hash(i, j, sem + 1) * 6.3, f3 = hash(i, j, sem + 2) * 6.3;
   const achata = 0.7 + hash(i, j, sem + 3) * 0.3;
   const giro = hash(i, j, sem + 4) * Math.PI * 2;
   const cg = Math.cos(giro), sg = Math.sin(giro);
   const dx = px - m.cx, dz = pz - m.cz;
   const lx = dx * cg + dz * sg, lz = (-dx * sg + dz * cg) / achata;
+  // longe da beirada não precisa da conta dos dentes (que é cara):
+  // a forma sempre fica entre ~0,45 e ~1,8 do raio
+  const d = Math.hypot(lx, lz);
+  if (d < m.r * 0.45) return true;
+  if (d > m.r * 1.8 + 0.8) return false;
   const a = Math.atan2(lz, lx);
-  const raio = m.r * (1 + 0.16 * Math.sin(2 * a + f1) + 0.09 * Math.sin(3 * a + f2) + 0.05 * Math.sin(7 * a + f3));
+  const raio = m.r * contornoDaMancha(i, j, sem)[Math.round(((a + 2 * Math.PI) % (2 * Math.PI)) / (2 * Math.PI) * N_MANCHA) % N_MANCHA];
   return Math.hypot(lx, lz) < raio + 0.8; // + uma folguinha: nenhuma graminha na beirada
 }
 const ilhas = new Map(); // "i,j" -> { grupo, geo, solidos, copas } ou null (célula vazia)

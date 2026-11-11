@@ -297,6 +297,21 @@ html, body {
 }
 
 .tecla.vazia { visibility: hidden; }
+/* R recomeça do zero: caveirinha vermelha no canto, pra ninguém apertar "pra ver" */
+.tecla.perigo { position: relative; }
+.tecla.perigo .caveira {
+  position: absolute;
+  top: -30%;
+  right: -30%;
+  width: 62%;
+  height: 62%;
+  padding: 1px;
+  border-radius: 50%;
+  background: #fff;
+  color: #d8352a;
+  box-shadow: 0 1px 3px rgba(30, 60, 50, 0.35);
+  pointer-events: none;
+}
 .tecla.shift { width: calc(var(--k) * 1.6); }
 .tecla.espaco { flex: 1; width: auto; }
 
