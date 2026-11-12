@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------
-// Água: um plano enorme que acompanha você (então nunca acaba)
+// Água: plano enorme que acompanha o jogador (nunca acaba).
 // ---------------------------------------------------------------------
-// ESCALA: ~17,5 unidades ≈ 1 m sentido (calibrado pela altura dos olhos rente à grama ≈ 20 cm).
+// ESCALA: ~17,5 unidades ≈ 1 m sentido (calibrada pela altura dos olhos rente à grama, ~20 cm).
 const LADRILHO = 60; // tamanho de cada repetição da textura
 
 function texturaDaAgua() {
@@ -17,7 +17,7 @@ function texturaDaAgua() {
     const x = aleatorio() * t, y = aleatorio() * t;
     const larg = 6 + aleatorio() * 26;
     g.fillStyle = aleatorio() < 0.6 ? 'rgba(255,255,225,0.28)' : 'rgba(70,150,110,0.18)';
-    // desenha também nas bordas vizinhas pra emenda não aparecer
+    // desenha também nas bordas vizinhas para esconder a emenda
     for (const dx of [-t, 0, t]) for (const dy of [-t, 0, t]) {
       g.beginPath();
       g.ellipse(x + dx, y + dy, larg, larg * 0.18, 0, 0, Math.PI * 2);
@@ -34,9 +34,9 @@ function texturaDaAgua() {
 const TAM_AGUA = 12000;
 const texAgua = texturaDaAgua();
 texAgua.repeat.set(TAM_AGUA / LADRILHO, TAM_AGUA / LADRILHO);
-// Mar de lago: quase parado e turvo. Ondulação lenta só no brilho (a superfície é plana);
-// reflete o céu (rente vira céu, de cima vira água); brilho do sol; um pouco transparente.
-// De longe, esconde a repetição com uma segunda cópia girada + manchas largas.
+// Mar de lago: quase parado e turvo. Ondulação lenta só no brilho (superfície plana);
+// reflete o céu (rente, mostra o céu; de cima, a água); brilho do sol; levemente transparente.
+// De longe, uma segunda cópia girada e manchas largas escondem a repetição.
 const uniAgua = {
   escuro: uniEscuro,
   alto: uniAlto,
@@ -107,18 +107,18 @@ agua.rotation.x = -Math.PI / 2;
 agua.renderOrder = -0.9;
 cena.add(agua);
 
-// Leito escuro bem embaixo: sem ele, de cima apareceria o céu através da água.
+// Leito escuro bem abaixo: sem ele, vista de cima, a água mostraria o céu por baixo.
 const leito = new THREE.Mesh(
   new THREE.PlaneGeometry(TAM_AGUA, TAM_AGUA),
   new THREE.MeshBasicMaterial({ color: CORES.aguaFunda })
 );
 leito.rotation.x = -Math.PI / 2;
-leito.position.y = -150; // bem abaixo do fundo do mar (só pra nunca aparecer buraco)
+leito.position.y = -150; // bem abaixo do fundo do mar, para nunca aparecer buraco
 cena.add(leito);
 
 // ---------------------------------------------------------------------
-// Fundo do mar a ~120 de profundidade (~6,9 m), com ondulações e montinhos.
-// A mesma conta existe em JS (pra pisar) e no shader (pra desenhar): mudar nos dois.
+// Fundo do mar a ~120 de profundidade (~6,9 m), com ondulações e montes.
+// A mesma conta existe em JS (colisão) e no shader (desenho): alterar nos dois.
 // ---------------------------------------------------------------------
 const PROF = 120;
 function alturaDoFundo(x, z) {
@@ -137,7 +137,7 @@ const FUNDO_GLSL = `
       + 7.0 * pow( max( 0.0, sin( p.x * 0.0083 + 5.0 ) * sin( p.y * 0.0071 + 1.0 ) ), 3.0 );
   }
 `;
-const PASSO_FUNDO = 20; // o chão anda com você de 20 em 20 (pra não "nadar")
+const PASSO_FUNDO = 20; // o chão acompanha o jogador em passos de 20 (evita deslizar a textura)
 const geoFundo = new THREE.PlaneGeometry(2400, 2400, 120, 120);
 geoFundo.rotateX(-Math.PI / 2);
 const matFundo = new THREE.MeshLambertMaterial({ color: '#7f8fc4' }); // areia azulada

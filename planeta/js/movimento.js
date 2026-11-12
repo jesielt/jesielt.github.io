@@ -6,7 +6,7 @@ const frente = new THREE.Vector3();
 const direita = new THREE.Vector3();
 const desejo = new THREE.Vector3();
 let inclinacao = 0;
-let giro = 0;          // velocidade com que você está virando o olhar
+let giro = 0; // velocidade angular do olhar
 let yawAntes = 0;
 
 function suavizar(atual, alvo, rapidez, dt) {
@@ -14,40 +14,40 @@ function suavizar(atual, alvo, rapidez, dt) {
 }
 
 // ---------------------------------------------------------------------
-// Andar: voando a 1 m de um chão (ilha ou rocha), você pousa: a câmera abaixa
-// (joelho) e sobe pra altura de pé. Andando: WASD move, Shift corre, Espaço decola.
-// Na beira da ilha escorrega pro mar; saindo da ponta de uma rocha, cai.
+// Andar: voando a 1 m de um chão (ilha ou rocha), o jogador pousa; a câmera abaixa
+// (flexão do joelho) e sobe à altura de pé. Andando: WASD move, Shift corre, Espaço decola.
+// Na beira da ilha, escorrega para o mar; ao sair da ponta de uma rocha, cai.
 // (17,5 unidades ≈ 1 m sentido)
 // ---------------------------------------------------------------------
 const ANDAR = {
-  pousa: 17.5,         // 1 m: voando a essa altura de um chão, você pousa
+  pousa: 17.5, // 1 m: voando a esta altura de um chão, pousa
   olhos: 29.75,        // 1,7 m: altura dos olhos de pé
-  vel: 25,             // ~1,4 m/s: andando
-  correr: 85,          // ~4,9 m/s: com Shift
-  acel: 10,            // quão rápido pega/perde a velocidade (maior = mais firme)
-  degrau: 8,           // ~45 cm: sobe sem precisar voar
-  passoAndando: 13,    // ~75 cm entre um passo e outro
+  vel: 25, // ~1,4 m/s andando
+  correr: 85, // ~4,9 m/s com Shift
+  acel: 10, // rapidez para ganhar ou perder velocidade (maior = mais firme)
+  degrau: 8, // ~45 cm: sobe sem voar
+  passoAndando: 13, // ~75 cm entre passos
   passoCorrendo: 20,
-  balanco: 0.55,       // sobe-e-desce da cabeça a cada passo (~3 cm)
-  beira: 5,            // ~30 cm da beira da ilha: escorrega
-  decola: 40,          // empurrão pra cima quando aperta Espaço
-  agacha: 5,           // quanto a câmera abaixa no pouso (~30 cm)
-  olhosEscorregando: 6,// escorregando você cai sentado
-  raioPe: 4,           // "largura" do corpo pra não atravessar paredes andando
+  balanco: 0.55, // oscilação vertical da cabeça a cada passo (~3 cm)
+  beira: 5, // ~30 cm da beira da ilha: escorrega
+  decola: 40, // impulso vertical ao pressionar Espaço
+  agacha: 5, // abaixamento da câmera no pouso (~30 cm)
+  olhosEscorregando: 6, // escorregando, a posição é sentada
+  raioPe: 4, // largura do corpo para colisão com paredes ao andar
 };
 let modo = 'voo';         // 'voo' | 'andar' | 'escorregar' | 'cair'
 let tempoFauna = 0;
-let pesY = 0;             // altura dos seus pés (andando)
-let olhosAgora = ANDAR.olhos; // altura dos olhos acima dos pés (muda no pouso)
-let velQueda = 0;         // caindo de uma rocha / escorregando
-let fasePasso = 0;        // conta os passos (cada número inteiro = um pé no chão)
+let pesY = 0; // altura dos pés (andando)
+let olhosAgora = ANDAR.olhos; // altura dos olhos acima dos pés (varia no pouso)
+let velQueda = 0; // queda de rocha ou escorregamento
+let fasePasso = 0; // contagem de passos (cada inteiro = um pé no chão)
 let balancoAgora = 0;
-let tPouso = -1;          // animação do pouso (-1 = parada)
+let tPouso = -1; // animação do pouso (-1 = inativa)
 let pouso = { alt0: 0, dip: 0 };
 const escorrega = { x: 0, z: 0, vel: 0 };
 const _corpo = new THREE.Vector3();
 
-// o chão mais alto embaixo de (x, z) que não passe de maxY: topo da ilha ou de uma rocha
+// chão mais alto sob (x, z) que não passe de maxY: topo da ilha ou de uma rocha
 function chaoSob(x, z, maxY) {
   let melhor = null;
   for (const ilha of ilhasPerto()) {
@@ -66,7 +66,7 @@ function chaoSob(x, z, maxY) {
   return melhor;
 }
 
-// andando, as rochas (mais altas que um degrau) são paredes: empurra pra fora
+// andando, rochas mais altas que um degrau são paredes: empurra para fora
 function empurrarDaParede(s) {
   if (s.h <= pesY + ANDAR.degrau || pesY + olhosAgora < s.base) return;
   const p = camera.position;
@@ -88,7 +88,7 @@ function empurrarDaParede(s) {
   if (contra < 0) { vel.x -= contra * nx; vel.z -= contra * nz; }
 }
 
-// pouso: abaixa rapidinho (joelho) e levanta pra altura de pé
+// pouso: abaixa rapidamente (joelho) e sobe à altura de pé
 function pousar(alt0, dip) {
   pouso.alt0 = alt0;
   pouso.dip = Math.max(0, Math.min(dip, alt0 - 2));
@@ -109,13 +109,13 @@ function animarPouso(dt) {
   }
 }
 
-// voando: chegou a 1 m de um chão? pousa (segurando Espaço, continua voando)
+// voando a 1 m de um chão, pousa (segurando Espaço, continua voando)
 function verificarPouso() {
   if (submerso || segurando('subir')) return;
   const p = camera.position;
   const c = chaoSob(p.x, p.z, p.y);
   if (!c || p.y - c.h > ANDAR.pousa) return;
-  if (c.s.ondas && c.beira < ANDAR.beira * 2) return; // em cima da beira: não pousa (escorregaria na hora)
+  if (c.s.ondas && c.beira < ANDAR.beira * 2) return; // sobre a beira: não pousa (escorregaria imediatamente)
   modo = 'andar';
   pesY = c.h;
   vel.y = 0;
@@ -150,7 +150,7 @@ function escorregar(dt) {
   olhosAgora = suavizar(olhosAgora, ANDAR.olhosEscorregando, 5, dt);
   p.y = pesY + olhosAgora;
   vel.set(escorrega.x * escorrega.vel, velQueda, escorrega.z * escorrega.vel);
-  // chegou na água: volta pro voo (que lá dentro é o nado)
+  // na água: volta ao voo (que, submerso, é o nado)
   const superficie = semMergulho ? AJUSTE.alturaOlhos : 0;
   if (p.y < superficie) {
     if (semMergulho) p.y = superficie;
@@ -159,8 +159,8 @@ function escorregar(dt) {
   }
 }
 
-// C duas vezes rápido: desiste do voo e cai. No chão, pouso com abaixada (mais forte
-// quanto mais rápido caiu); na água, mergulho; Espaço no meio da queda volta a voar.
+// C duas vezes em sequência: abandona o voo e cai. No chão, pouso com abaixamento
+// proporcional à velocidade da queda; na água, mergulho; Espaço durante a queda retoma o voo.
 function desistirDoVoo() {
   if (modo !== 'voo' || submerso) return;
   modo = 'cair';
@@ -191,7 +191,7 @@ function cair(dt, u) {
   const superficie = semMergulho ? AJUSTE.alturaOlhos : 0;
   if (p.y < superficie) {
     if (semMergulho) { p.y = superficie; vel.y = 0; }
-    modo = 'voo'; // na água: volta pro voo (mergulho normal)
+    modo = 'voo'; // na água: volta ao voo (mergulho normal)
   }
 }
 
@@ -206,14 +206,14 @@ function atualizarAndar(dt, f, l, u) {
     vel.y = ANDAR.decola;
     return;
   }
-  // anda no plano do chão, pra onde você está virado (olhar pra cima/baixo não muda)
+  // move no plano do chão, na direção do olhar (o ângulo vertical não interfere)
   let dx = -Math.sin(yaw) * f + Math.cos(yaw) * l;
   let dz = -Math.cos(yaw) * f - Math.sin(yaw) * l;
   const m = Math.hypot(dx, dz);
   if (m > 1) { dx /= m; dz /= m; }
   const correndo = segurando('dash');
   const alvo = correndo ? ANDAR.correr : ANDAR.vel;
-  // chegou embalado do voo: vai freando, sem parar seco
+  // chegando do voo com embalo: desacelera gradualmente
   const rap = Math.hypot(vel.x, vel.z) > alvo * 1.05 ? 2.5 : ANDAR.acel;
   vel.x = suavizar(vel.x, dx * alvo, rap, dt);
   vel.z = suavizar(vel.z, dz * alvo, rap, dt);
@@ -239,12 +239,12 @@ function atualizarAndar(dt, f, l, u) {
       velQueda = 0;
     }
   } else {
-    pesY = c.h > pesY ? suavizar(pesY, c.h, 18, dt) : c.h; // degrauzinho: sobe suave
+    pesY = c.h > pesY ? suavizar(pesY, c.h, 18, dt) : c.h; // degrau: sobe suavemente
     velQueda = 0;
   }
   animarPouso(dt);
 
-  // passos: a cabeça sobe e desce, e cada pé no chão toca o som de passo
+  // passos: oscilação da cabeça e som a cada pé no chão
   const vh = Math.hypot(vel.x, vel.z);
   if (noChao && vh > 2) {
     const antes = Math.floor(fasePasso);
@@ -256,26 +256,26 @@ function atualizarAndar(dt, f, l, u) {
   p.y = pesY + olhosAgora + ANDAR.balanco * balancoAgora * Math.abs(Math.sin(Math.PI * fasePasso));
 }
 
-// onde o "corpo" está pra esbarrar/capturar esfera: voando são os olhos; andando, rente ao chão
+// ponto do corpo para colisão e captura: voando, os olhos; andando, rente ao chão
 function pontoDoCorpo() {
   if (modo === 'voo' || modo === 'cair') return camera.position;
   return _corpo.set(camera.position.x, pesY + R_ESFERA, camera.position.z);
 }
 
-// Cada sólido é tratado como um cilindro oval (que pode afinar no topo;
-// a plataforma da ilha ainda tem o contorno irregular).
-const FOLGA_LADO = 1.5; // distância mínima entre seus olhos e uma parede
+// Cada sólido é tratado como cilindro oval (que pode afinar no topo; a plataforma
+// da ilha mantém o contorno irregular).
+const FOLGA_LADO = 1.5; // distância mínima entre os olhos e uma parede
 function colidir(s) {
   const p = camera.position;
   const olhos = AJUSTE.alturaOlhos;
   if (p.y >= s.h + olhos) return;
-  if (p.y < s.base) return; // embaixo do sólido (debaixo d'água): a encosta cuida disso
-  // traz a posição pro "jeito" do sólido (desfaz o giro dele)
+  if (p.y < s.base) return; // abaixo do sólido (submerso): tratado pela encosta
+  // converte a posição para o referencial do sólido (desfaz a rotação)
   const dx = p.x - s.x, dz = p.z - s.z;
   const c = Math.cos(s.giro), sn = Math.sin(s.giro);
   const lx = dx * c - dz * sn;
   const lz = dx * sn + dz * c;
-  // largura na altura em que você está (a rocha afina pra cima)
+  // largura na altura atual (a rocha afina para cima)
   const t = Math.min(1, Math.max(0, (p.y - s.base) / (s.h - s.base)));
   let larg = 1 + (s.afina - 1) * t;
   if (s.ondas) larg *= contorno(Math.atan2(lz / s.rz, lx / s.rx), s.ondas);
@@ -284,12 +284,12 @@ function colidir(s) {
   if (q >= 1) return;
 
   if (p.y > s.h - 2.5) {
-    // chegou por cima: fica pairando na altura dos olhos
+    // chegada por cima: mantém-se na altura dos olhos
     p.y = s.h + olhos;
     if (vel.y < 0) vel.y = 0;
     return;
   }
-  // bateu na lateral: empurra pra fora e escorrega em volta
+  // colisão lateral: empurra para fora e desliza em volta
   const fx = lx / q, fz = lz / q;
   p.x = s.x + fx * c + fz * sn;
   p.z = s.z - fx * sn + fz * c;
@@ -300,7 +300,7 @@ function colidir(s) {
 }
 
 
-// copa da árvore: uma bola que te empurra pra fora (o tronco fino dá pra atravessar)
+// copa da árvore: esfera que empurra para fora (o tronco fino é atravessável)
 const _d = new THREE.Vector3();
 function colidirCopa(copa) {
   _d.set(camera.position.x - copa.x, camera.position.y - copa.y, camera.position.z - copa.z);
@@ -320,43 +320,43 @@ function voar(dt, f, l, u) {
   desejo.y += u;
   if (desejo.lengthSq() > 1) desejo.normalize();
 
-  // debaixo d'água: empurra menos, freia mais, dash fraco
+  // debaixo d'água: menos impulso, mais atrito, dash fraco
   const nerf = submerso ? AGUA.nerf : 1;
   const dashLigado = segurando('dash');
   const fator = dashLigado ? (submerso ? AGUA.dash : AJUSTE.dash) : 1;
   vel.addScaledVector(desejo, AJUSTE.acel * fator * nerf * dt);
-  // arranque: o dash engata quase na hora, em vez de esperar a inércia (só fora d'água)
+  // arranque: o dash engata quase de imediato, sem esperar a inércia (só fora d'água)
   if (dashLigado && !submerso && vel.length() < AJUSTE.velMax * fator * 0.95) {
     vel.addScaledVector(desejo, AJUSTE.arranqueDash * dt);
   }
   vel.multiplyScalar(Math.exp(-AJUSTE.arrasto * (submerso ? AGUA.arrasto : 1) * dt)); // inércia
-  // passou do limite (ex.: soltou o Shift): desacelera suave em vez de frear seco
+  // acima do limite (ex.: Shift solto): desacelera suavemente
   const limite = AJUSTE.velMax * fator * nerf;
   const v = vel.length();
   if (v > limite) vel.setLength(suavizar(v, limite, 2.5, dt));
 
   camera.position.addScaledVector(vel, dt);
 
-  // dá pra mergulhar: o chão é o fundo do mar ou a encosta submersa de uma ilha
+  // mergulho permitido: o chão é o fundo do mar ou a encosta submersa de uma ilha
   const chaoAqui = chaoDoMar(camera.position.x, camera.position.z) + AJUSTE.alturaOlhos;
   if (camera.position.y < chaoAqui) {
     camera.position.y = chaoAqui;
     if (vel.y < 0) vel.y = 0;
   }
-  // "não mergulhar" ligado: a superfície vira chão (dá pra brincar de espirro à vontade)
+  // "não mergulhar" ativo: a superfície funciona como chão
   if (semMergulho && !submerso && camera.position.y < AJUSTE.alturaOlhos) {
     camera.position.y = AJUSTE.alturaOlhos;
     if (vel.y < 0) vel.y = 0;
   }
-  // entrou na água: choque de mudança de meio, perde quase todo o embalo
+  // entrada na água: perde quase todo o embalo
   const agoraSubmerso = camera.position.y < 0;
   if (agoraSubmerso && !submerso) {
-    explosaoDeBolhas(vel.length()); // veio rápido (dash)? um monte de bolhas de uma vez
+    explosaoDeBolhas(vel.length()); // entrada rápida (dash): muitas bolhas de uma vez
     vel.multiplyScalar(AGUA.choque);
   }
   submerso = agoraSubmerso;
 
-  // não atravessar ilhas e rochas
+  // colisão com ilhas e rochas
   for (const ilha of ilhasPerto()) {
     for (const s of ilha.solidos) colidir(s);
     for (const copa of ilha.copas) colidirCopa(copa);
@@ -365,12 +365,12 @@ function voar(dt, f, l, u) {
 }
 
 function atualizar(dt) {
-  if (!(dt > 0)) return; // tempo zero (ou inválido): nada a fazer, e evita dividir por zero
-  // direções a partir de pra onde você está olhando
+  if (!(dt > 0)) return; // tempo nulo ou inválido: retorna (evita divisão por zero)
+  // direções a partir do olhar
   frente.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
   direita.set(Math.cos(yaw), 0, -Math.sin(yaw));
 
-  // teclas + joystick do celular (que tem força de 0 a 1, conforme o dedo afasta)
+  // teclas + joystick do celular (força de 0 a 1 conforme o afastamento do dedo)
   const lim1 = x => Math.max(-1, Math.min(1, x));
   const f = lim1((segurando('frente') ? 1 : 0) - (segurando('tras') ? 1 : 0) + joy.f);
   const l = lim1((segurando('direita') ? 1 : 0) - (segurando('esquerda') ? 1 : 0) + joy.l);
@@ -382,13 +382,13 @@ function atualizar(dt) {
   tempoFauna += dt;
   atualizarFauna(dt, tempoFauna);
 
-  // sensação: o campo de visão abre com a velocidade e a câmera tomba de lado
+  // o campo de visão abre com a velocidade e a câmera inclina de lado
   const rapidez = vel.length() / AJUSTE.velMax; // 1 = velocidade normal, 2 = dash
   const abre = (AJUSTE.fovVeloz - AJUSTE.fovParado) * (rapidez <= 1 ? rapidez : 1 + (rapidez - 1) * 0.6);
   camera.fov = suavizar(camera.fov, AJUSTE.fovParado + abre, 4, dt);
   camera.updateProjectionMatrix();
-  // tombar: pra dentro da curva quando vira o mouse, e pro lado quando aperta A/D
-  // (virar pra direita = yaw diminuindo = tomba pra direita, como um avião)
+  // inclinação: para dentro da curva ao girar o mouse e para o lado com A/D
+  // (girar à direita = yaw diminuindo = inclina à direita, como um avião)
   giro = suavizar(giro, (yaw - yawAntes) / dt, 10, dt);
   yawAntes = yaw;
   let alvoInclina = (giro * AJUSTE.inclinaCurva - l * AJUSTE.inclinaLado) * (modo === 'voo' ? 1 : 0.25);
@@ -397,7 +397,7 @@ function atualizar(dt) {
 
   camera.rotation.set(pitch, yaw, inclinacao);
 
-  // céu e água acompanham você
+  // céu e água acompanham a câmera
   ceu.position.copy(camera.position);
   for (const sat of satelites) sat.sprite.position.copy(camera.position).add(sat.dir);
   atualizarNuvens(dt);
@@ -406,14 +406,14 @@ function atualizar(dt) {
   leito.position.x = camera.position.x;
   leito.position.z = camera.position.z;
   atualizarIlhas();
-  // graminha só aparece nas ilhas perto
+  // grama visível apenas nas ilhas próximas
   for (const ilha of ilhas.values()) {
     if (!ilha) continue;
     const longe = Math.hypot(ilha.x - camera.position.x, ilha.z - camera.position.z);
     ilha.tufos.visible = longe < DIST_TUFOS + Math.max(ilha.solidos[0].rx, ilha.solidos[0].rz);
   }
 
-  // desenho do mouse escorrega na direção do movimento e volta
+  // o desenho do mouse desloca-se na direção do movimento e retorna
   empurraoMouse.x = suavizar(empurraoMouse.x, 0, 10, dt);
   empurraoMouse.y = suavizar(empurraoMouse.y, 0, 10, dt);
   const mx = Math.max(-6, Math.min(6, empurraoMouse.x * 0.15));

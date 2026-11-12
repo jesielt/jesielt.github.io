@@ -1,27 +1,27 @@
 // ---------------------------------------------------------------------
-// Som do vento: ruído rosa filtrado, gerado na hora (sem arquivo de áudio).
-// Parado: sopro baixo; cresce com a velocidade e no dash. Rajadas lentas e
-// aleatórias pra não soar parado. Debaixo d'água fica abafado; no espaço some.
-// O navegador só libera som depois do primeiro clique/tecla/toque.
+// Vento: ruído rosa filtrado, gerado em tempo real (sem arquivo de áudio).
+// Parado, sopro baixo; cresce com a velocidade e no dash. Rajadas lentas e aleatórias
+// evitam som estático. Abafado debaixo d'água; ausente no espaço.
+// O navegador só libera áudio após o primeiro clique, tecla ou toque.
 // ---------------------------------------------------------------------
 const SOM = {
-  volParado: 0.06,   // volume parado (orla)
-  volMax: 0.38,      // volume na velocidade normal máxima
-  volDash: 0.55,     // volume no máximo do dash
-  filtroParado: 300, // Hz: parado o vento é grave e macio...
-  filtroMax: 850, // ...rápido abre um pouco (sem ficar agudo)
+  volParado: 0.06, // volume parado
+  volMax: 0.38, // volume na velocidade máxima normal
+  volDash: 0.55, // volume no dash máximo
+  filtroParado: 300, // Hz: parado, grave e suave...
+  filtroMax: 850, // ...em velocidade, abre um pouco (sem ficar agudo)
   filtroDash: 1300,
-  rajada: 0.35,      // quanto as rajadas mexem no volume (0 = nada)
+  rajada: 0.35, // efeito das rajadas no volume (0 = nenhum)
   passo: 0.3, // volume do passo
-  vidro: 0.09,       // volume do choque com a esfera (vidro grave)
+  vidro: 0.09, // volume do impacto com a esfera
 };
 let vento = null;
 function criarVento() {
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return null;
   const ctx = new Ctx();
-  // ruído rosa (filtro do Paul Kellet), um pedaço de 6 s que fica em laço;
-  // um diferente pra cada ouvido, pro vento ter largura
+  // ruído rosa (filtro de Paul Kellet), trecho de 6 s em laço; um por canal,
+  // para dar largura estéreo
   function ruidoRosa(seg) {
     const n = Math.floor(ctx.sampleRate * seg);
     const buf = ctx.createBuffer(1, n, ctx.sampleRate);
@@ -35,41 +35,41 @@ function criarVento() {
       d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
       b6 = w * 0.115926;
     }
-    // emenda o fim no começo sem estalo
+    // emenda fim e começo sem estalo
     const f = Math.floor(ctx.sampleRate * 0.05);
     for (let i = 0; i < f; i++) { const t = i / f; d[n - f + i] = d[n - f + i] * (1 - t) + d[i] * t; }
     return buf;
   }
-  // dois passa-baixas em fila: cortam bem o agudo
+  // dois passa-baixas em série: corte forte do agudo
   const filtro = ctx.createBiquadFilter();
   filtro.type = 'lowpass';
   filtro.Q.value = 0.5;
   const filtro2 = ctx.createBiquadFilter();
   filtro2.type = 'lowpass';
   filtro2.Q.value = 0.5;
-  const ressoa = ctx.createBiquadFilter(); // um "uuu" leve que sobe com a velocidade
+  const ressoa = ctx.createBiquadFilter(); // ressonância leve que sobe com a velocidade
   ressoa.type = 'peaking';
   ressoa.Q.value = 0.9;
   ressoa.gain.value = 3;
-  const corpo = ctx.createBiquadFilter(); // reforço no grave: dá corpo
+  const corpo = ctx.createBiquadFilter(); // reforço de graves
   corpo.type = 'lowshelf';
   corpo.frequency.value = 180;
   corpo.gain.value = 5;
   const volume = ctx.createGain();
   volume.gain.value = 0;
   filtro.connect(filtro2).connect(ressoa).connect(corpo).connect(volume).connect(ctx.destination);
-  // passos têm o volume deles (o do vento muda com a velocidade)
+  // passos têm volume próprio (o do vento varia com a velocidade)
   const passos = ctx.createGain();
   passos.gain.value = 1;
   passos.connect(ctx.destination);
-  // ruído curto pro estalo do passo
+  // ruído curto para o estalo do passo
   const nClac = Math.floor(ctx.sampleRate * 0.06);
   const ruidoCurto = ctx.createBuffer(1, nClac, ctx.sampleRate);
   const dc = ruidoCurto.getChannelData(0);
   for (let i = 0; i < nClac; i++) dc[i] = Math.random() * 2 - 1;
   const lados = [-0.7, 0.7].map(lado => {
     const fonte = ctx.createBufferSource();
-    fonte.buffer = ruidoRosa(6 + lado); // tamanhos diferentes: não se repetem juntos
+    fonte.buffer = ruidoRosa(6 + lado); // durações diferentes: não se repetem em sincronia
     fonte.loop = true;
     const pan = ctx.createStereoPanner();
     pan.pan.value = lado;
@@ -80,10 +80,10 @@ function criarVento() {
   });
   return { ctx, passos, ruidoCurto, filtro, filtro2, ressoa, volume, lados, rajada: [1, 1], alvoRajada: [1, 1], troca: [0, 0] };
 }
-// M liga/desliga o som (fica lembrado pra próxima vez)
+// M liga/desliga o som (preferência salva)
 let mudo = false;
-try { mudo = localStorage.getItem('planeta.mudo') === '1'; } catch (erro) { /* tudo bem */ }
-// só toca com a janela em foco, visível e sem mudo; senão pausa tudo
+try { mudo = localStorage.getItem('planeta.mudo') === '1'; } catch (erro) { /* ignorado */ }
+// toca só com a janela em foco, visível e sem mudo; caso contrário, pausa
 function aplicarSom() {
   if (!vento) return;
   const tocar = !mudo && !document.hidden && document.hasFocus();
@@ -96,7 +96,7 @@ function ligarSom() {
 }
 function alternarMudo() {
   mudo = !mudo;
-  try { localStorage.setItem('planeta.mudo', mudo ? '1' : '0'); } catch (erro) { /* tudo bem */ }
+  try { localStorage.setItem('planeta.mudo', mudo ? '1' : '0'); } catch (erro) { /* ignorado */ }
   document.querySelectorAll('[data-tecla="KeyM"]').forEach(el => el.classList.toggle('ligado', mudo));
   aplicarSom();
 }
@@ -106,15 +106,15 @@ window.addEventListener('blur', aplicarSom);
 window.addEventListener('focus', aplicarSom);
 document.addEventListener('visibilitychange', aplicarSom);
 
-// Som de um passo, em 3 camadas: impacto grave, estalo metálico e, ~80 ms
-// depois, um rangido de motor. lado: 0/1 = pé esquerdo/direito (tom
-// levemente diferente). pesado: pouso (mais grave e mais alto).
+// Passo em 3 camadas: impacto grave, estalo metálico e, ~80 ms depois, rangido de
+// motor. lado: 0/1 = pé esquerdo/direito (tom levemente diferente). pesado: pouso
+// (mais grave e mais alto).
 function tocarPasso(correndo = false, lado = 0, pesado = false) {
   if (!vento || vento.ctx.state !== 'running') return;
   const ctx = vento.ctx, t = ctx.currentTime;
   const vol = SOM.passo * (correndo ? 1.2 : 1) * (pesado ? 1.5 : 1);
   const tom = (lado ? 1.06 : 1) * (pesado ? 0.8 : 1) * (0.97 + Math.random() * 0.06);
-  // 1. impacto: tom grave descendo + ruído filtrado (sem o ruído, soa como bip)
+  // 1. impacto: tom grave descendente + ruído filtrado (sem o ruído, soa como bipe)
   const tum = ctx.createOscillator();
   tum.type = 'sine';
   tum.frequency.setValueAtTime(90 * tom, t);
@@ -128,7 +128,7 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   tum.stop(t + 0.35);
   const baque = ctx.createBufferSource();
   baque.buffer = vento.ruidoCurto;
-  baque.playbackRate.value = 0.5; // esticado: dura o dobro
+  baque.playbackRate.value = 0.5; // reprodução a meia velocidade: dobra a duração
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
   lp.frequency.value = 260 * tom;
@@ -138,7 +138,7 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   gb.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
   baque.connect(lp).connect(gb).connect(vento.passos);
   baque.start(t);
-  // 2. estalo metálico: ruído numa faixa estreita + tom triangular curto
+  // 2. estalo metálico: ruído em banda estreita + tom triangular curto
   const ruido = ctx.createBufferSource();
   ruido.buffer = vento.ruidoCurto;
   const bp = ctx.createBiquadFilter();
@@ -159,7 +159,7 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   ping.connect(g2).connect(vento.passos);
   ping.start(t);
   ping.stop(t + 0.08);
-  // 3. rangido de motor: dente de serra descendo, com vibrato de 30 Hz
+  // 3. rangido de motor: dente de serra descendente, com vibrato de 30 Hz
   const t2 = t + (correndo ? 0.055 : 0.08);
   const dur = correndo ? 0.11 : 0.15;
   const osc = ctx.createOscillator();
@@ -184,9 +184,9 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   osc.stop(t2 + dur + 0.02); vib.stop(t2 + dur + 0.02);
 }
 
-// Choque com a esfera: som de vidro grave e baixo (parciais desafinadas entre
-// si). Mais forte quanto maior a pancada; intervalo mínimo por esfera (rolando
-// encostada não vira metralhadora).
+// Impacto com a esfera: som de vidro grave e baixo (parciais desafinadas entre si).
+// Intensidade proporcional à pancada; intervalo mínimo por esfera (evita repetição
+// contínua ao rolar encostada).
 function somDaEsfera(e, forca) {
   if (forca < 6 || !vento || vento.ctx.state !== 'running') return;
   const agora = performance.now();
@@ -212,15 +212,15 @@ function somDaEsfera(e, forca) {
 
 function atualizarSom(dt) {
   if (!vento || vento.ctx.state !== 'running') return;
-  // andando/correndo o vento é bem mais fraco que voando na mesma velocidade
+  // andando, o vento é bem mais fraco que voando na mesma velocidade
   const rapidez = vel.length() / AJUSTE.velMax * (modo === 'andar' ? 0.45 : 1); // 1 = normal, 2 = dash
   const r1 = Math.min(rapidez, 1);
   const r2 = Math.max(0, Math.min(rapidez - 1, 1));
-  // curva: começa devagar (voar devagar só aumenta um pouco) e cresce perto do máximo
+  // curva: cresce pouco em baixa velocidade e mais perto do máximo
   const curva = r1 * r1 * 0.7 + r1 * 0.3;
   let vol = SOM.volParado + (SOM.volMax - SOM.volParado) * curva + (SOM.volDash - SOM.volMax) * r2;
   let freq = SOM.filtroParado + (SOM.filtroMax - SOM.filtroParado) * curva + (SOM.filtroDash - SOM.filtroMax) * r2;
-  // rajadas: cada ouvido vai pra um alvo aleatório de tempos em tempos
+  // rajadas: cada canal busca um alvo aleatório de tempos em tempos
   for (let i = 0; i < 2; i++) {
     vento.troca[i] -= dt;
     if (vento.troca[i] <= 0) {
@@ -229,8 +229,8 @@ function atualizarSom(dt) {
     }
     vento.rajada[i] = suavizar(vento.rajada[i], vento.alvoRajada[i], 0.8, dt);
   }
-  if (submerso) { vol *= 0.35; freq = 220; }   // abafado debaixo d'água
-  vol *= 1 - uniAlto.value;                     // vai sumindo até o espaço
+  if (submerso) { vol *= 0.35; freq = 220; } // abafado debaixo d'água
+  vol *= 1 - uniAlto.value; // diminui até sumir no espaço
   const t = vento.ctx.currentTime;
   const media = (vento.rajada[0] + vento.rajada[1]) / 2;
   vento.volume.gain.setTargetAtTime(vol, t, 0.12);

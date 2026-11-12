@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------
-// Céu: uma esfera gigante em volta da câmera, pintada por dentro
+// Céu: esfera gigante em volta da câmera, pintada por dentro.
 // ---------------------------------------------------------------------
-// O degradê do céu fica numa função só, porque a água usa a mesma pra
-// refletir o céu. h = quanto a direção aponta pra cima (0 = horizonte, 1 = zênite)
-// escuro: 0 = céu normal, 1 = céu escuro de quando junta as 7 esferas
+// Degradê do céu numa função única, reutilizada pela água no reflexo.
+// h = quanto a direção aponta para cima (0 = horizonte, 1 = zênite).
+// escuro: 0 = céu normal, 1 = céu escuro após reunir as 7 esferas.
 const uniEscuro = { value: 0 };
-// alto: 0 = até 200 m; vai a 1 em 500 m (espaço). O céu fica rarefeito e depois preto
+// alto: 0 até 200 m, 1 em 500 m (espaço). O céu rarefaz e escurece.
 const uniAlto = { value: 0 };
 const CEU_GLSL = `
   uniform float escuro;
@@ -58,8 +58,8 @@ ceu.renderOrder = -1;
 cena.add(ceu);
 
 // ---------------------------------------------------------------------
-// Satélites: um planeta listrado e uma lua clara. Andam junto com você,
-// então nunca chegam mais perto (como a lua de verdade).
+// Satélites: planeta listrado e lua clara. Acompanham a câmera e nunca se
+// aproximam, como a lua real.
 // ---------------------------------------------------------------------
 function texturaDoSatelite(listras) {
   const t = 256, c = document.createElement('canvas');
@@ -74,7 +74,7 @@ function texturaDoSatelite(listras) {
   g.fillStyle = base;
   g.fillRect(0, 0, t, t);
   if (listras) {
-    // faixas onduladas, como num planeta gasoso pintado à mão
+    // faixas onduladas de planeta gasoso
     let s = 5;
     const aleatorio = () => (s = (s * 16807) % 2147483647) / 2147483647;
     for (let k = 0; k < 16; k++) {
@@ -90,17 +90,17 @@ function texturaDoSatelite(listras) {
       g.stroke();
     }
   }
-  // sombra suave do lado oposto à luz
+  // sombra suave no lado oposto à luz
   const sombra = g.createRadialGradient(m - r * 0.35, m - r * 0.35, r * 0.6, m, m, r * 1.05);
   sombra.addColorStop(0, 'rgba(180, 140, 120, 0)');
   sombra.addColorStop(1, 'rgba(180, 140, 120, 0.35)');
   g.fillStyle = sombra;
   g.fillRect(0, 0, t, t);
-  // atmosfera: um véu da cor do céu por cima tira a nitidez...
+  // véu da cor do céu por cima reduz a nitidez...
   g.fillStyle = 'rgba(205, 232, 170, 0.38)';
   g.fillRect(0, 0, t, t);
   g.restore();
-  // ...e a borda some aos poucos, em vez de terminar num corte seco
+  // ...e a borda esmaece em vez de terminar em corte
   g.globalCompositeOperation = 'destination-in';
   const borda = g.createRadialGradient(m, m, r * 0.78, m, m, r);
   borda.addColorStop(0, 'rgba(0,0,0,1)');
@@ -120,7 +120,7 @@ function criarSatelite(listras, azimute, elevacao, graus) {
   }));
   const tam = 2 * DIST_CEU * Math.tan((graus * Math.PI / 180) / 2);
   sprite.scale.set(tam, tam, 1);
-  // direção no céu (azimute = pra que lado, elevação = quão alto)
+  // direção no céu (azimute = lado, elevação = altura)
   const dir = new THREE.Vector3(
     Math.sin(azimute) * Math.cos(elevacao), Math.sin(elevacao), -Math.cos(azimute) * Math.cos(elevacao)
   ).multiplyScalar(DIST_CEU);
@@ -128,20 +128,20 @@ function criarSatelite(listras, azimute, elevacao, graus) {
   return { sprite, dir };
 }
 const satelites = [
-  criarSatelite(true, 0.5, 0.42, 9),    // o planetão listrado
+  criarSatelite(true, 0.5, 0.42, 9), // planeta listrado
 ];
 
 // ---------------------------------------------------------------------
-// Nuvens: cada uma é um monte de sprites redondos; embaixo, sprites largos e
-// achatados fazem a base reta. Quadriculado próprio (como as ilhas); o vento
-// leva todas juntas. Dá pra atravessar.
+// Nuvens: conjuntos de sprites redondos; sprites largos e achatados formam a base
+// reta. Quadriculado próprio, como o das ilhas; o vento move todas juntas.
+// Podem ser atravessadas.
 // ---------------------------------------------------------------------
 const NUVEM = {
   alturaMin: 650, // base da nuvem mais baixa (~37 m)
   alturaMax: 850,
-  celula: 900,      // uma chance de nuvem a cada 900 x 900
+  celula: 900, // uma chance de nuvem por célula de 900 x 900
   chance: 0.45,
-  opacidade: 0.6,   // rala: dá pra ver o céu através
+  opacidade: 0.6, // rala: o céu aparece através
   vento: new THREE.Vector3(4, 0, 1.5), // unidades por segundo
 };
 function texturaDaBolota() {
@@ -165,7 +165,7 @@ const matNuvemTopo = new THREE.SpriteMaterial({
 const matNuvemBase = new THREE.SpriteMaterial({
   map: texBolota, color: '#d3ebcf', transparent: true, depthWrite: false, opacity: NUVEM.opacidade,
 });
-const ceuDasNuvens = new THREE.Group(); // anda com o vento
+const ceuDasNuvens = new THREE.Group(); // move-se com o vento
 cena.add(ceuDasNuvens);
 const nuvens = new Map(); // "i,j" -> grupo ou null
 const ALCANCE_NUVEM = Math.ceil(AJUSTE.neblinaLonge / NUVEM.celula);
@@ -181,8 +181,8 @@ function criarNuvem(i, j) {
   grupo.rotation.y = hash(i, j, 904) * Math.PI;
   const rx = 160 + hash(i, j, 905) * 220;   // comprimento
   const rz = rx * (0.35 + hash(i, j, 906) * 0.3);
-  const alto = 70 + hash(i, j, 907) * 90;   // o quanto ela estufa pra cima no meio
-  // bolotas de cima: mais altas e maiores no meio
+  const alto = 70 + hash(i, j, 907) * 90; // altura do volume no centro
+  // sprites de cima: mais altos e maiores no centro
   const n = 8 + Math.floor(hash(i, j, 908) * 9);
   for (let k = 0; k < n; k++) {
     const a = hash(i, j, 910 + k) * Math.PI * 2;
@@ -194,7 +194,7 @@ function criarNuvem(i, j) {
     b.scale.set(r * 2.4, r * 2, 1);
     grupo.add(b);
   }
-  // base: bolotas largas e baixinhas, um pouco mais escuras (sombra de baixo)
+  // base: sprites largos e baixos, um pouco mais escuros (sombra)
   const nb = 3 + Math.floor(hash(i, j, 990) * 3);
   for (let k = 0; k < nb; k++) {
     const t = nb === 1 ? 0 : k / (nb - 1) - 0.5;
@@ -202,7 +202,7 @@ function criarNuvem(i, j) {
     b.position.set(t * rx * 1.3, 0, (hash(i, j, 991 + k) - 0.5) * rz * 0.6);
     const largura = rx * (1.1 - Math.abs(t));
     b.scale.set(largura, largura * 0.22, 1);
-    b.renderOrder = -0.5; // a base fica atrás das bolotas de cima
+    b.renderOrder = -0.5; // base atrás dos sprites de cima
     grupo.add(b);
   }
   ceuDasNuvens.add(grupo);
@@ -211,7 +211,7 @@ function criarNuvem(i, j) {
 
 function atualizarNuvens(dt) {
   ceuDasNuvens.position.addScaledVector(NUVEM.vento, dt);
-  // posição de quem joga "dentro" do céu que está andando
+  // posição do jogador relativa ao céu em movimento
   const px = camera.position.x - ceuDasNuvens.position.x;
   const pz = camera.position.z - ceuDasNuvens.position.z;
   const ci = Math.floor(px / NUVEM.celula), cj = Math.floor(pz / NUVEM.celula);

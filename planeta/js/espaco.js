@@ -1,17 +1,17 @@
 // ---------------------------------------------------------------------
-// Subindo até o espaço (barato: nada do mundo é montado lá em cima).
-// - 200 a 500 m: o céu escurece; aparecem estrelas (pontos que andam com você)
-// - embaixo, um planeta pintado pelo shader (mar verde, faixas claras, brilho azul na
-// borda) vai cobrindo o mundo; ele gira conforme você anda (parece sobrevoar)
-// - acima de 500 m não tem ar: aparece a barra de fôlego
-// Descendo, tudo volta.
+// Subida ao espaço (nada do mundo é montado lá em cima).
+// - 200 a 500 m: o céu escurece; surgem estrelas (pontos que acompanham a câmera)
+// - embaixo, um planeta pintado no shader (mar verde, faixas claras, brilho azul na
+// borda) cobre o mundo aos poucos; gira conforme o deslocamento (efeito de sobrevoo)
+// - acima de 500 m não há ar: aparece a barra de fôlego
+// Na descida, tudo se inverte.
 // ---------------------------------------------------------------------
 const ESPACO = {
-  rarefeito: 200,   // m: o céu começa a mudar
-  espaco: 500,      // m: espaço (céu preto, sem ar)
-  planetaDe: 110,   // m: o planeta pintado começa a cobrir o mundo...
-  planetaAte: 230,  // ...e cobre tudo daqui pra cima
-  raio: 120000,     // tamanho do planeta pintado (grande: a curva só fica forte bem no alto)
+  rarefeito: 200, // m: o céu começa a mudar
+  espaco: 500, // m: espaço (céu preto, sem ar)
+  planetaDe: 110, // m: o planeta pintado começa a cobrir o mundo...
+  planetaAte: 230, // ...e cobre tudo a partir daqui
+  raio: 120000, // raio do planeta pintado (grande: a curvatura só aparece bem no alto)
 };
 const uniPlaneta = {
   solDir: { value: sol.position.clone().normalize() },
@@ -19,10 +19,10 @@ const uniPlaneta = {
   escuro: uniEscuro,
   alto: uniAlto,
 };
-// Pintura do planeta feita no shader a partir do ponto da esfera (não de imagem
-// esticada): sem polo nem emenda. Faixas claras tortas, na diagonal, que se juntam
-// e somem, mais nuvens brancas soltas. Planeta e brilho são desenhados por cima de
-// tudo (sem teste de profundidade), pra cobrir o mundo aos poucos.
+// Pintura do planeta calculada no shader a partir do ponto da esfera (não de imagem
+// esticada): sem polo nem emenda. Faixas claras irregulares na diagonal, que se juntam
+// e se dissolvem, e nuvens brancas soltas. Planeta e brilho são desenhados por cima
+// de tudo (sem teste de profundidade), para cobrir o mundo gradualmente.
 const planeta = new THREE.Mesh(new THREE.SphereGeometry(ESPACO.raio, 256, 128), new THREE.ShaderMaterial({
   uniforms: uniPlaneta,
   transparent: true, depthTest: false, depthWrite: false,
@@ -102,7 +102,7 @@ const grupoPlaneta = new THREE.Group();
 grupoPlaneta.visible = false;
 grupoPlaneta.add(planeta);
 cena.add(grupoPlaneta);
-// brilho azul em volta (uma bola um pouco maior, vista por dentro)
+// brilho azul em volta (esfera um pouco maior, vista por dentro)
 const brilhoPlaneta = new THREE.Mesh(new THREE.SphereGeometry(ESPACO.raio * 1.02, 256, 128), new THREE.ShaderMaterial({
   uniforms: uniPlaneta,
   transparent: true, depthTest: false, depthWrite: false,
@@ -133,11 +133,11 @@ const brilhoPlaneta = new THREE.Mesh(new THREE.SphereGeometry(ESPACO.raio * 1.02
       gl_FragColor = vec4( vec3( 0.35, 0.7, 1.0 ) * a, 1.0 );
     }`,
 }));
-brilhoPlaneta.renderOrder = 19.5; // antes do planeta: ele cobre o miolo, sobra só a borda
+brilhoPlaneta.renderOrder = 19.5; // antes do planeta: ele cobre o miolo e resta só a borda
 brilhoPlaneta.frustumCulled = false;
 grupoPlaneta.add(brilhoPlaneta);
 
-// estrelas: pontinhos numa bola enorme em volta de você
+// estrelas: pontos numa esfera enorme em volta da câmera
 const estrelas = (() => {
   const n = 2200, pos = new Float32Array(n * 3), cor = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
@@ -153,7 +153,7 @@ const estrelas = (() => {
     size: 1.8, sizeAttenuation: false, vertexColors: true, transparent: true,
     opacity: 0, depthWrite: false, fog: false,
   }));
-  pts.renderOrder = -0.5; // logo depois do céu
+  pts.renderOrder = -0.5; // logo após o céu
   pts.frustumCulled = false;
   pts.visible = false;
   cena.add(pts);
@@ -169,8 +169,8 @@ function atualizarAltitude() {
   uniPlaneta.opacidade.value = cobre;
   grupoPlaneta.visible = cobre > 0.001 && !submerso;
   if (grupoPlaneta.visible) {
-    // o topo da bola fica no nível do mar, bem embaixo de você; ela gira
-    // conforme você anda, como se você sobrevoasse o planeta
+    // o topo da esfera fica no nível do mar, sob a câmera; gira conforme o
+    // deslocamento, simulando o sobrevoo do planeta
     grupoPlaneta.position.set(camera.position.x, -ESPACO.raio, camera.position.z);
     grupoPlaneta.rotation.set(camera.position.z / ESPACO.raio, 0, -camera.position.x / ESPACO.raio);
   }
@@ -187,31 +187,31 @@ const _corNeblina = new THREE.Color();
 function atualizarDebaixoDagua(dt) {
   if (!(dt > 0)) return;
   if (ceuPendente && !submerso) { ceuPendente = false; escurecerCeu(); }
-  // céu escurecendo (ou clareando de volta) aos poucos
+  // escurecimento (ou retorno) gradual do céu
   uniEscuro.value = suavizar(uniEscuro.value, escuroAlvo, 0.9, dt);
   if (Math.abs(uniEscuro.value - escuroAlvo) < 0.002) uniEscuro.value = escuroAlvo;
   const esc = uniEscuro.value;
   hemi.intensity = 2.2 * (1 - 0.62 * esc) + luzRaio * 1.8; // o raio ilumina tudo por um instante
   sol.intensity = 1.6 * (1 - 0.72 * esc);
-  // o planeta no céu perde o brilho (senão parece uma lua acesa)
+  // o planeta no céu perde brilho (senão parece uma lua acesa)
   for (const sat of satelites) {
-    // (no espaço, sem ar na frente, ele fica mais nítido)
+    // no espaço, sem ar à frente, fica mais nítido
     sat.sprite.material.opacity = Math.min(1, 0.82 * (1 - 0.55 * esc) + 0.18 * uniAlto.value);
     sat.sprite.material.color.setRGB(1 - 0.5 * esc, 1 - 0.42 * esc, 1 - 0.48 * esc);
   }
-  // a copa das árvores é uma figura sem luz: escurece na mão, junto com o resto
+  // a copa das árvores não recebe luz: escurecida manualmente, junto com o resto
   for (const m of matsCopa) m.color.setRGB(1 - 0.8 * esc, 1 - 0.7 * esc, 1 - 0.82 * esc);
   matNuvemTopo.color.copy(corNuvemTopo).lerp(corNuvemEscura, esc);
   matNuvemBase.color.copy(corNuvemBase).lerp(corNuvemBaseEscura, esc);
   atualizarRaios(dt);
   atualizarAltitude();
 
-  // o chão do fundo do mar e as algas acompanham
+  // fundo do mar e algas acompanham a câmera
   fundoDoMar.position.x = Math.round(camera.position.x / PASSO_FUNDO) * PASSO_FUNDO;
   fundoDoMar.position.z = Math.round(camera.position.z / PASSO_FUNDO) * PASSO_FUNDO;
   tempoAlga.value += dt;
 
-  // debaixo d'água: neblina verde fechada, sem céu, sem turvo
+  // submerso: neblina verde densa, sem céu e sem turvo
   if (submerso) {
     cena.fog.color.copy(corNeblinaAgua);
     cena.fog.near = 2;
@@ -229,8 +229,8 @@ function atualizarDebaixoDagua(dt) {
   for (const sat of satelites) sat.sprite.visible = !submerso;
   telaDebaixo.classList.toggle('ligada', submerso);
 
-  // fôlego
-  const semAr = semArAqui(); // debaixo d'água ou no espaço
+  // ar
+  const semAr = semArAqui(); // submerso ou no espaço
   if (semAr) ar -= dt;
   else ar = Math.min(AGUA.ar, ar + dt * 8);
   barraAr.classList.toggle('visivel', semAr || ar < AGUA.ar - 0.05);

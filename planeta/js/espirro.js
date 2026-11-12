@@ -1,25 +1,25 @@
 // ---------------------------------------------------------------------
-// Espirro: com dash, rente ao mar (até 1,5 m), a água abre pros lados em V
-// De lado, cada esguicho é um triângulo preso no mar: o lado curto fica na frente
-// (a água sobe e estoura em gotas e névoa), inclinado pra fora; o lado comprido fica
-// deitado na água indo pra trás (sempre encostado, sem corte visível); a altura
-// baixa até sumir lá atrás. 5 paredes por lado, cada uma num ângulo e curvada, dão
-// volume; mais uma deitada (a "cama") faz o tapete de espuma. Por cima: gotas e névoa.
-// Medidas em h (sua altura sobre a água), pra ficar igual na tela a qualquer altura.
+// Espirro: com dash, rente ao mar (até 1,5 m), a água se abre para os lados em V.
+// De perfil, cada esguicho é um triângulo preso ao mar: o lado curto fica à frente
+// (onde a água sobe e se desfaz em gotas e névoa), inclinado para fora; o lado longo
+// fica deitado na água, para trás (sempre encostado, sem corte visível); a altura
+// diminui até zero no fim. 5 paredes por lado, cada uma num ângulo e curvada, dão
+// volume; uma sexta, deitada (a "cama"), forma a espuma. Por cima: gotas e névoa.
+// Medidas em h (altura do jogador sobre a água), para manter a proporção na tela.
 // ---------------------------------------------------------------------
 const ESPIRRO = {
-  alturaMax: 1.5 * ESCALA_SENTIDA, // só espirra a 1,5 m da água ou menos
-  velMin: 25,                    // devagar não espirra
-  pontaFrente: 1.5,              // spawn (pé do lado curto): à frente de você (× h)...
-  pontaLado: 1.3,                // ...e pro lado (× h): bem separados, embaixo na tela
-  comprimento: 3.5,              // quanto o lado comprido vai pra trás (× h)
-  abre: 1.2,                     // ...e quanto se afasta pro lado no caminho (× h)
-  altura: 1.6,                   // altura do lado curto, na frente (× h)
+  alturaMax: 1.5 * ESCALA_SENTIDA, // só a 1,5 m da água ou menos
+  velMin: 25, // abaixo disso, sem espirro
+  pontaFrente: 1.5, // início (base do lado curto): à frente do jogador (× h)...
+  pontaLado: 1.3, // ...e para o lado (× h): bem separados, na parte de baixo da tela
+  comprimento: 3.5, // extensão do lado longo para trás (× h)
+  abre: 1.2, // ...e afastamento lateral ao longo dela (× h)
+  altura: 1.6, // altura do lado curto (× h)
   nevoaPorSegundo: 55,
   maxNevoa: 300,
 };
-let forcaEspirro = 0;            // 0 a 1: sobe e desce suave (não liga/desliga seco)
-const _rumo = new THREE.Vector3(0, 0, -1); // pra onde você está indo (no plano)
+let forcaEspirro = 0; // 0 a 1: transição suave
+const _rumo = new THREE.Vector3(0, 0, -1); // direção do movimento (no plano)
 const _lado = new THREE.Vector3();
 const _cimaY = new THREE.Vector3(0, 1, 0);
 
@@ -33,10 +33,10 @@ function sobreIlha(x, z) {
 }
 
 // ---------- paredes de água ----------
-const SEG_U = 26, SEG_V = 7; // pedaços ao longo (u: ponta -> trás) e pra cima (v: mar -> topo)
+const SEG_U = 26, SEG_V = 7; // segmentos ao longo (u: ponta -> trás) e na vertical (v: mar -> topo)
 const PAREDES = [];
 for (const lado of [-1, 1]) {
-  // [inclinação pra fora (graus), desvio pro lado (× h), altura relativa, fase]
+  // [inclinação para fora (graus), desvio lateral (× h), altura relativa, fase]
   [[18, 0.0, 1.15, 0.0], [30, 0.06, 1.05, 2.7], [42, 0.12, 0.95, 5.3], [54, 0.18, 0.85, 7.1], [66, 0.24, 0.75, 1.3],
    [88, 0.0, 1.1, 3.9]].forEach(([inc, dLado, alt, fase]) => {
     PAREDES.push({ lado, inc: inc * Math.PI / 180, dLado, alt, fase: fase + (lado > 0 ? 9 : 0), cama: inc > 80 });
@@ -126,20 +126,20 @@ jatos.renderOrder = 1;
 jatos.visible = false;
 cena.add(jatos);
 
-// ponto (u, v) da parede: u = do lado curto na frente (0) pra trás (1); v = do mar (0) ao topo (1)
+// ponto (u, v) da parede: u = do lado curto (0) até o fim (1); v = do mar (0) ao topo (1)
 function pontoDaParede(p, u, v, alvo) {
   const c = camera.position;
   const h = c.y;
   const tempo = uniJatos.tempo.value;
   const frente = h * (ESPIRRO.pontaFrente - ESPIRRO.comprimento * u);
-  // o pé no mar: vai pra trás e pra fora, com uma barriguinha pra fora
+  // base no mar: vai para trás e para fora, com leve curvatura externa
   const lateral = h * (ESPIRRO.pontaLado + p.dLado * u + ESPIRRO.abre * u + 0.15 * Math.sin(Math.PI * u));
-  // altura: alta na frente, baixando até sumir lá atrás (triângulo); o topo treme
+  // altura: máxima à frente, decrescente até zero (triângulo); o topo oscila
   const treme = 1 + 0.15 * Math.sin(tempo * 9 + u * 12 + p.fase);
   const alt = h * ESPIRRO.altura * p.alt * Math.pow(1 - u, 0.8) * treme * forcaEspirro * v;
   alvo.set(c.x, 0, c.z).addScaledVector(_rumo, frente).addScaledVector(_lado, lateral * p.lado);
-  // sobe inclinado pra fora (cada parede num ângulo)
-  alvo.y += alt * Math.cos(p.inc) + (p.cama ? 0.03 * h : 0); // a cama fica um tiquinho acima do mar
+  // sobe inclinada para fora (ângulo próprio por parede)
+  alvo.y += alt * Math.cos(p.inc) + (p.cama ? 0.03 * h : 0); // a cama fica ligeiramente acima do mar
   alvo.addScaledVector(_lado, alt * Math.sin(p.inc) * p.lado);
   return alvo;
 }
@@ -209,7 +209,7 @@ pontosNevoa.frustumCulled = false;
 pontosNevoa.renderOrder = 1;
 cena.add(pontosNevoa);
 
-// nasce no lado curto (onde a água estoura), do pé até o topo
+// nasce no lado curto (onde a água se desfaz), da base ao topo
 function soltarNevoa(rapidez) {
   const i = nevoa.proxima;
   nevoa.proxima = (i + 1) % ESPIRRO.maxNevoa;
@@ -230,7 +230,7 @@ function soltarNevoa(rapidez) {
 }
 
 // ---------- gotas ----------
-// Gotinhas e pedaços de espuma que saltam do topo e do lado curto das paredes e caem.
+// Gotas e fragmentos de espuma que saltam do topo e do lado curto das paredes e caem.
 const MAX_GOTAS = 2400;
 const gotas = {
   pos: new Float32Array(MAX_GOTAS * 3),
@@ -284,13 +284,13 @@ function soltarGota(rapidez) {
   gotas.proxima = (i + 1) % MAX_GOTAS;
   const h = camera.position.y;
   const p = PAREDES[Math.floor(Math.random() * PAREDES.length)];
-  // metade sai do lado curto na frente (onde estoura), metade do topo
+  // metade sai do lado curto, metade do topo
   if (Math.random() < 0.5) pontoDaParede(p, Math.random() * 0.15, Math.random(), _pp);
   else pontoDaParede(p, Math.random() * 0.7, 0.8 + Math.random() * 0.2, _pp);
   gotas.pos[i * 3]     = _pp.x;
   gotas.pos[i * 3 + 1] = _pp.y;
   gotas.pos[i * 3 + 2] = _pp.z;
-  // salta pra fora e pra cima, com bagunça; acompanha o seu movimento de verdade quase todo
+  // salta para fora e para cima, com variação; acompanha quase todo o movimento do jogador
   const fora = h * (1.5 + Math.random() * 4);
   const cima = h * (1 + Math.random() * 3.5);
   const bagunca = h * 2;
@@ -300,7 +300,7 @@ function soltarGota(rapidez) {
   const dura = 0.35 + Math.random() * 0.5;
   gotas.vida[i] = dura;
   gotas.dura[i] = dura;
-  // a maioria gotinha; algumas são pedaços maiores de espuma
+  // maioria gotas; algumas são fragmentos maiores de espuma
   gotas.tam[i] = h * (Math.random() < 0.72 ? 0.04 + Math.random() * 0.06 : 0.12 + Math.random() * 0.16);
 }
 
@@ -328,13 +328,13 @@ function atualizarGotas(dt, rapidez) {
   geoGotas.attributes.alfa.needsUpdate = true;
 }
 
-let desvioEspirro = 0; // quanto o esguicho gira pro lado do movimento (radianos)
+let desvioEspirro = 0; // giro do esguicho em direção ao movimento (radianos)
 function atualizarEspirro(dt) {
   if (!(dt > 0)) return;
   const c = camera.position;
   const rapidez = Math.hypot(vel.x, vel.z);
-  // O esguicho segue pra onde a CÂMERA olha. O movimento (ex.: segurando
-  // A/D, que vai na diagonal) só puxa um pouquinho, no máximo ~11°, e suave.
+  // O esguicho segue a direção da câmera. O movimento (ex.: A/D, que gera diagonal)
+  // desvia pouco, no máximo ~11°, com suavização.
   if (rapidez > 1) {
     let delta = Math.atan2(-vel.x, -vel.z) - yaw;
     delta = Math.atan2(Math.sin(delta), Math.cos(delta)); // entre -180° e 180°
@@ -345,7 +345,7 @@ function atualizarEspirro(dt) {
   _rumo.set(-Math.sin(rumoYaw), 0, -Math.cos(rumoYaw));
   _lado.set(-_rumo.z, 0, _rumo.x);
 
-  // força alvo: só com o dash, rente, sobre a água; mais rápido/mais colado = mais forte
+  // força alvo: só com dash, rente, sobre a água; mais rápido e mais baixo = mais forte
   let alvo = 0;
   if (segurando('dash') && c.y > 0 && c.y <= ESPIRRO.alturaMax && rapidez > ESPIRRO.velMin && !sobreIlha(c.x, c.z)) {
     const rente = 1 - (c.y - AJUSTE.alturaOlhos) / (ESPIRRO.alturaMax - AJUSTE.alturaOlhos);
@@ -362,7 +362,7 @@ function atualizarEspirro(dt) {
   uniNevoa.escala.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
   atualizarGotas(dt, rapidez);
 
-  // névoa: nasce enquanto tem força, e a que já nasceu termina a vida dela
+  // névoa: nasce enquanto há força; a existente completa o ciclo
   if (forcaEspirro > 0.05) {
     nevoa.acumulado += ESPIRRO.nevoaPorSegundo * forcaEspirro * dt;
     while (nevoa.acumulado >= 1) { nevoa.acumulado -= 1; soltarNevoa(rapidez); }
@@ -380,9 +380,9 @@ function atualizarEspirro(dt) {
     nevoa.pos[i * 3]     += nevoa.vel[i * 3] * dt;
     nevoa.pos[i * 3 + 1] = Math.max(0.5, nevoa.pos[i * 3 + 1] + nevoa.vel[i * 3 + 1] * dt);
     nevoa.pos[i * 3 + 2] += nevoa.vel[i * 3 + 2] * dt;
-    const t = nevoa.vida[i] / nevoa.dura[i]; // 1 = nasceu agora, 0 = sumindo
+    const t = nevoa.vida[i] / nevoa.dura[i]; // 1 = recém-nascida, 0 = no fim
     nevoa.alfa[i] = Math.min(1, (1 - t) * 6) * t * 0.24; // acende rápido, apaga devagar
-    nevoa.tam[i] += dt * camera.position.y * 0.6; // a névoa se espalha
+    nevoa.tam[i] += dt * camera.position.y * 0.6; // a névoa se expande
   }
   geoNevoa.attributes.position.needsUpdate = true;
   geoNevoa.attributes.tam.needsUpdate = true;

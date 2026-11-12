@@ -2,7 +2,7 @@
 
 :root {
   --radar: clamp(140px, 28vw, 230px);
-  /* caixinha das esferas: 7 casas na largura do radar (6px de borda, 4px entre elas) */
+  /* caixa das esferas: 7 casas na largura do radar (6px de borda, 4px de espaçamento) */
   --casa: calc((var(--radar) - 12px - 24px) / 7);
   --caixa: calc(var(--casa) + 12px);
 }
@@ -69,7 +69,7 @@ html, body {
   border-radius: 999px;
   background: linear-gradient(#7fd0ff, #2f8fe0);
 }
-/* 20% ou menos: barra vermelha piscando */
+/* 20% ou menos: barra vermelha piscante */
 .ar.pouco { border-color: rgba(255, 140, 130, 0.9); animation: piscarBordaAr 0.45s ease-in-out infinite alternate; }
 .ar.pouco .ar-nivel {
   background: linear-gradient(#ff7a6e, #d8261b);
@@ -87,7 +87,7 @@ html, body {
 .apagao.some { animation: apagar 1.6s ease-out; }
 @keyframes apagar { 0% { opacity: 1; } 35% { opacity: 1; } 100% { opacity: 0; } }
 
-/* pontinho no centro: pra onde você vai quando aperta W */
+/* ponto central: direção do movimento com W */
 .mira {
   position: fixed;
   left: 50%;
@@ -118,7 +118,7 @@ html, body {
 }
 .convite.escondido { opacity: 0; }
 
-/* créditos: discretos no canto de cima à esquerda */
+/* créditos: discretos no canto superior esquerdo */
 .creditos {
   position: fixed;
   left: 16px;
@@ -127,13 +127,13 @@ html, body {
   font-weight: 600;
   font-size: 12px;
   letter-spacing: 0.05em;
-  text-align: center; /* a versão fica centralizada embaixo do nome */
+  text-align: center; /* versão centralizada abaixo do nome */
   color: rgba(255, 255, 255, 0.85);
   text-shadow: 0 1px 3px rgba(30, 60, 50, 0.45);
   pointer-events: none;
   user-select: none;
 }
-/* o nome é um link pro GitHub (só ele recebe o clique; o resto deixa passar pro jogo) */
+/* o nome é um link para o GitHub (só ele recebe clique; o resto passa para o jogo) */
 .creditos .autor {
   color: inherit;
   text-decoration: none;
@@ -141,7 +141,7 @@ html, body {
   cursor: pointer;
 }
 .creditos .autor:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
-/* versão, menorzinha, centralizada embaixo do nome */
+/* versão: menor, centralizada abaixo do nome */
 .creditos .versao {
   display: block;
   margin-top: 1px;
@@ -166,8 +166,8 @@ html, body {
   pointer-events: none;
 }
 
-/* altura: fica logo acima do radar, no canto direito dele;
-   velocidade: no canto esquerdo (encostada na borda esquerda do radar) */
+/* altura: logo acima do radar, no canto direito;
+   velocidade: no canto esquerdo, junto à borda do radar */
 .altura,
 .velocidade {
   position: fixed;
@@ -185,7 +185,7 @@ html, body {
   color: rgba(30, 60, 50, 0.85);
   font-size: 20px;
   font-weight: 700;
-  font-variant-numeric: tabular-nums; /* números não "dançam" quando mudam */
+  font-variant-numeric: tabular-nums; /* largura fixa: os números não oscilam */
   pointer-events: none;
 }
 .velocidade {
@@ -199,7 +199,7 @@ html, body {
   fill: currentColor;
 }
 
-/* ---------- esferas capturadas: caixinha (bento) embaixo do radar ---------- */
+/* ---------- esferas capturadas: caixa abaixo do radar ---------- */
 
 .caixa-esferas {
   position: fixed;
@@ -240,7 +240,7 @@ html, body {
 }
 .casa.pegou .bola { opacity: 1; transform: scale(1); }
 
-/* ícone do botão direito do mouse, em cima da esfera que dá pra capturar */
+/* ícone do botão direito do mouse sobre a esfera capturável */
 .capturar {
   position: fixed;
   left: 0;
@@ -268,7 +268,7 @@ html, body {
 /* ---------- painel de teclas ---------- */
 
 .teclas {
-  --k: clamp(24px, 4.6vw, 34px); /* tamanho de cada tecla */
+  --k: clamp(24px, 4.6vw, 34px); /* tamanho da tecla */
   --gap: 5px;
   position: fixed;
   right: 16px;
@@ -317,8 +317,8 @@ html, body {
 }
 
 .tecla.vazia { visibility: hidden; }
-/* selo: desenhinho cinza num círculo no canto da tecla (R: caveira, pra ninguém
-   apertar "pra ver", porque recomeça do zero; M: alto-falante cortado) */
+/* selo: figura cinza em círculo no canto da tecla (R: caveira, recomeço com perda
+   das esferas; M: alto-falante cortado, som mudo) */
 .tecla.com-selo { position: relative; }
 .tecla.com-selo .selo {
   position: absolute;
@@ -333,12 +333,12 @@ html, body {
   box-shadow: 0 1px 3px rgba(30, 60, 50, 0.35);
   pointer-events: none;
 }
-/* M com o som desligado: a tecla fica acesa */
+/* M com som desligado: tecla acesa */
 .tecla[data-tecla="KeyM"].ligado { background: rgba(255, 255, 255, 0.7); }
 .tecla.shift { width: calc(var(--k) * 1.6); }
 .tecla.espaco { flex: 1; width: auto; }
 
-/* apertada agora */
+/* tecla pressionada */
 .tecla.ativa {
   background: rgba(255, 255, 255, 0.78);
   color: rgba(30, 60, 50, 0.95);
@@ -359,7 +359,7 @@ html, body {
   overflow: hidden;
   display: flex;
   align-items: flex-start;
-  /* o desenho do mouse escorrega um tiquinho na direção que você mexe */
+  /* o desenho do mouse desloca-se levemente na direção do movimento */
   transform: translate(var(--mx, 0px), var(--my, 0px));
 }
 
@@ -410,7 +410,7 @@ html, body {
 }
 .interruptor svg { width: 66%; height: 66%; }
 .interruptor .x { stroke: rgba(40, 70, 60, 0.45); }
-/* ligado: bolinha acesa, nadador azul e X vermelho */
+/* ativo: interruptor aceso, nadador azul e X vermelho */
 .mergulho.ligado .interruptor {
   background: rgba(255, 255, 255, 0.9);
   color: #1f6fc0;
@@ -418,7 +418,7 @@ html, body {
 }
 .mergulho.ligado .interruptor .x { stroke: #e0453a; }
 
-/* aviso ao trocar: anéis saindo (ligou) ou encolhendo até a borda (desligou) */
+/* aviso ao alternar: anéis saindo (ativado) ou encolhendo até a borda (desativado) */
 .interruptor { position: relative; }
 .interruptor .anel {
   position: absolute;
@@ -428,7 +428,7 @@ html, body {
   opacity: 0;
   animation-fill-mode: both;
 }
-/* --alem (posto pelo jogo): quanto o anel vai além da borda, até a ponta da tecla A */
+/* --alem (definido pelo jogo): alcance do anel além da borda, até a ponta da tecla A */
 .interruptor .anel.sai,
 .interruptor .anel.entra {
   border: 3px solid rgba(255, 255, 255, 0.95);
@@ -436,7 +436,7 @@ html, body {
 }
 .interruptor .anel.sai { animation: anelSai 0.8s cubic-bezier(0.2, 0.6, 0.4, 1); }
 .interruptor .anel.entra { animation: anelEntra 0.75s cubic-bezier(0.5, 0, 0.8, 0.6); }
-/* fica forte quase até o fim e só então some (senão some antes de chegar) */
+/* opacidade alta até quase o fim (senão some antes de chegar) */
 @keyframes anelSai {
   0% { inset: -1px; opacity: 1; }
   80% { opacity: 1; }
@@ -466,7 +466,7 @@ html, body {
   opacity: 0;
   animation: palavraSome 0.85s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
-/* chega grande e vai diminuindo até sumir */
+/* entra grande e diminui até sumir */
 @keyframes palavraSome {
   0% { transform: scale(1.9); opacity: 0; }
   12% { transform: scale(1.5); opacity: 1; }
@@ -476,18 +476,18 @@ html, body {
 
 
 /* ---------- celular (tela de toque) ---------- */
-/* fora do celular, os controles de toque nem aparecem */
+/* fora do celular, os controles de toque ficam ocultos */
 .joystick, .toque-botoes, .gire { display: none; }
 
 body.toque { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 body.toque #tela { touch-action: none; }
-/* teclado e mouse desenhados não fazem sentido no celular */
+/* teclado e mouse desenhados não se aplicam ao celular */
 body.toque .teclas { display: none; }
 
-/* radar, altura e caixinha sobem pro canto de cima à direita (embaixo ficam os botões) */
+/* radar, altura e caixa sobem para o canto superior direito (embaixo ficam os botões) */
 body.toque {
   --radar: clamp(84px, 24vmin, 150px);
-  /* recalcula aqui: as variáveis do :root já vêm resolvidas com o radar grande */
+  /* recalculado aqui: as variáveis do :root já vêm resolvidas com o radar grande */
   --casa: calc((var(--radar) - 8px - 18px) / 7);
   --caixa: calc(var(--casa) + 8px);
   --topo: max(10px, env(safe-area-inset-top));
@@ -501,7 +501,7 @@ body.toque .velocidade {
   padding: 3px 9px;
   font-size: 15px;
 }
-/* velocidade à esquerda do radar, sem encostar na altura */
+/* velocidade à esquerda do radar, sem tocar a altura */
 body.toque .velocidade { right: calc(var(--lado) + var(--radar) + 8px); transform: none; }
 body.toque .radar {
   top: calc(var(--topo) + 32px);
@@ -516,9 +516,9 @@ body.toque .caixa-esferas {
   padding: 4px;
   gap: 3px;
 }
-/* o ícone de capturar fica maior: é nele que se toca */
-/* no celular não tem mouse: o ícone vira um anel pulsando em volta da esfera,
-   e quem captura é o toque na própria esfera (o anel não pega o toque) */
+/* ícone de captura maior: é o alvo do toque */
+/* no celular não há mouse: o ícone vira um anel pulsante em volta da esfera,
+   e a captura é feita tocando a própria esfera (o anel não recebe o toque) */
 body.toque .capturar {
   transform: translate(-50%, -50%);
   border-radius: 50%;
@@ -530,7 +530,7 @@ body.toque .capturar svg { display: none; }
 body.toque .capturar.visivel { pointer-events: none; animation: anelEsfera 0.8s ease-in-out infinite alternate; }
 @keyframes anelEsfera { from { scale: 1; opacity: 1; } to { scale: 1.15; opacity: 0.6; } }
 
-/* joystick: aparece onde o dedão encosta; parado, fica uma marquinha no canto */
+/* joystick: aparece onde o polegar toca; parado, fica uma marca no canto */
 body.toque .joystick {
   display: block;
   position: fixed;
@@ -559,8 +559,8 @@ body.toque .joystick.ativo { opacity: 1; background: rgba(255, 255, 255, 0.22); 
   box-shadow: 0 2px 8px rgba(30, 60, 50, 0.35);
 }
 
-/* botões do lado direito: ▲ subir, ▼ descer, ⚡ dash (liga/desliga),
-   e pequenos: recomeçar (caveira) e não mergulhar (nadador) */
+/* botões à direita: ▲ subir, ▼ descer, ⚡ dash (liga/desliga) e, menores,
+   recomeçar (caveira) e não mergulhar (nadador) */
 body.toque .toque-botoes {
   --b: 58px;
   display: grid;
@@ -612,7 +612,7 @@ body.toque .toque-botoes {
 }
 #toqueMergulho.ligado .x { stroke: #e0453a; }
 
-/* em pé: pede pra deitar o celular (não trava nada, só avisa) */
+/* retrato: pede para girar o celular (apenas aviso, sem trava) */
 @media (orientation: portrait) {
   body.toque .gire {
     display: block;
@@ -629,5 +629,5 @@ body.toque .toque-botoes {
     pointer-events: none;
   }
 }
-/* o aviso some junto com o "toque pra voar" (depois disso, a escolha é sua) */
+/* o aviso some junto com o "toque pra voar" */
 body.toque .convite.escondido ~ .gire { display: none; }

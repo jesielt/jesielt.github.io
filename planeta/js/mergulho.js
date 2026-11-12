@@ -1,15 +1,14 @@
 // ---------------------------------------------------------------------
-// Debaixo d'água: tudo fica verde, aparecem bolhas (mais quanto mais rápido), o
-// movimento fica mais fraco e a barra de ar diminui. Acabou o ar: volta pro começo
-// e perde as esferas.
+// Debaixo d'água: tons verdes, bolhas (mais quanto maior a velocidade), movimento
+// reduzido e barra de ar decrescente. Sem ar: retorno ao início e perda das esferas.
 // ---------------------------------------------------------------------
 const AGUA = {
-  nerf: 0.55,            // força e velocidade máxima debaixo d'água (× normal)
-  dash: 1.35,            // o dash debaixo d'água (fora d'água é 2)
-  arrasto: 1.5,          // a água freia mais (× normal)
-  choque: 0.3,           // ao entrar na água, sobra só isso do embalo
-  ar: 40,                // segundos de fôlego
-  gravidadeEsfera: 0.22, // esfera afunda devagar
+  nerf: 0.55, // força e velocidade máxima submersas (× normal)
+  dash: 1.35, // dash submerso (fora d'água é 2)
+  arrasto: 1.5, // atrito maior (× normal)
+  choque: 0.3, // fração do embalo mantida ao entrar na água
+  ar: 40, // segundos de ar
+  gravidadeEsfera: 0.22, // velocidade de afundamento da esfera
   arrastoEsfera: 2.0,
 };
 let submerso = false;
@@ -23,8 +22,8 @@ const barraAr = document.getElementById('ar');
 const nivelAr = document.getElementById('arNivel');
 const apagao = document.getElementById('apagao');
 
-// ---------- bolhas: partículas na água, subindo e balançando ----------
-// Nascem na sua frente (mais quanto mais rápido) e ficam paradas no mundo: você passa por elas.
+// ---------- bolhas: partículas na água, subindo e oscilando ----------
+// Nascem à frente do jogador (mais quanto maior a velocidade) e ficam fixas no mundo.
 const MAX_BOLHAS = 900;
 const bolhas = {
   pos: new Float32Array(MAX_BOLHAS * 3),
@@ -79,8 +78,8 @@ pontosBolhas.renderOrder = 2;
 cena.add(pontosBolhas);
 
 const _fr = new THREE.Vector3(), _ld = new THREE.Vector3(), _ac = new THREE.Vector3(), _cm = new THREE.Vector3();
-// uma bolha em: frente (distância na sua frente), lado e acima, nos eixos
-// da SUA visão (funciona olhando reto, pra baixo ou pra cima)
+// bolha em: frente (distância à frente), lado e acima, nos eixos do olhar
+// (funciona olhando reto, para baixo ou para cima)
 function soltarBolha(frente, lado, alto, tam, sobe) {
   soltarBolhaEm(
     camera.position.x + _fr.x * frente + _ld.x * lado + _ac.x * alto,
@@ -91,17 +90,17 @@ function soltarBolha(frente, lado, alto, tam, sobe) {
 function soltarBolhaEm(x, y, z, tam, sobe) {
   const i = bolhas.proxima;
   bolhas.proxima = (i + 1) % MAX_BOLHAS;
-  if (y > -0.6) y = -1.2 - (y + 0.6); // acima da superfície: espelha pra baixo dela (mantém o espalhado, sem formar camada)
+  if (y > -0.6) y = -1.2 - (y + 0.6); // acima da superfície: espelha para baixo (mantém a dispersão, sem formar camada)
   bolhas.pos[i * 3] = x; bolhas.pos[i * 3 + 1] = y; bolhas.pos[i * 3 + 2] = z;
   bolhas.tam[i] = tam;
   bolhas.sobe[i] = sobe;
   bolhas.fase[i] = Math.random() * 6.3;
   bolhas.idade[i] = 0;
-  bolhas.alfa[i] = 0.001; // acende aos poucos
+  bolhas.alfa[i] = 0.001; // surge gradualmente
 }
 function direcoesDaCamera() {
-  // os três eixos da câmera. Não usar frente × vertical pro "lado": zera olhando
-  // reto pra baixo e as bolhas caem todas num plano só
+  // os três eixos da câmera. Não usar frente × vertical para o lado: zera olhando
+  // para baixo e as bolhas se concentram num plano
   camera.getWorldDirection(_fr);
   _ld.set(1, 0, 0).applyQuaternion(camera.quaternion);
   _ac.set(0, 1, 0).applyQuaternion(camera.quaternion);
@@ -110,8 +109,8 @@ function atualizarBolhas(dt) {
   uniBolhas.escala.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
   if (submerso) {
     direcoesDaCamera();
-    // parado: poucas; nadando: um bocado; dash: bastante — e nascem mais longe
-    // quanto mais rápido, pra dar tempo de você chegar nelas
+    // parado: poucas; nadando: moderadas; dash: muitas, e nascem mais longe quanto
+    // maior a velocidade, para dar tempo de alcançá-las
     const r = Math.min(vel.length() / AJUSTE.velMax, 1.5);
     bolhas.acumulado += (6 + 160 * Math.pow(r, 1.3)) * dt;
     while (bolhas.acumulado >= 1) {
@@ -125,14 +124,14 @@ function atualizarBolhas(dt) {
   }
   for (let i = 0; i < MAX_BOLHAS; i++) {
     if (bolhas.alfa[i] <= 0) continue;
-    if (!submerso) { bolhas.alfa[i] = 0; continue; } // saiu da água: some tudo
+    if (!submerso) { bolhas.alfa[i] = 0; continue; } // fora da água: todas somem
     bolhas.idade[i] += dt;
     const t = bolhas.idade[i], k = i * 3;
     bolhas.pos[k + 1] += bolhas.sobe[i] * dt;
     bolhas.pos[k] += Math.sin(t * 3 + bolhas.fase[i]) * 0.6 * dt;
     bolhas.pos[k + 2] += Math.cos(t * 2.6 + bolhas.fase[i]) * 0.6 * dt;
     _cm.set(bolhas.pos[k], bolhas.pos[k + 1], bolhas.pos[k + 2]);
-    // chegou na superfície, ficou muito pra trás ou velha demais: some
+    // na superfície, muito para trás ou antiga demais: some
     if (bolhas.pos[k + 1] > -0.3 || _cm.distanceTo(camera.position) > 160 || t > 9) { bolhas.alfa[i] = 0; continue; }
     bolhas.alfa[i] = Math.min(1, t * 3) * Math.min(1, (-0.3 - bolhas.pos[k + 1]) * 2);
   }
@@ -141,13 +140,13 @@ function atualizarBolhas(dt) {
   geoBolhas.attributes.alfa.needsUpdate = true;
 }
 
-// mergulhou rápido: um estouro de bolhas em volta de você, subindo depressa
+// mergulho rápido: estouro de bolhas ao redor do jogador, subindo depressa
 function explosaoDeBolhas(embalo) {
   const n = Math.max(0, Math.min(600, Math.floor((embalo - 40) * 4)));
   if (!n) return;
   direcoesDaCamera();
-  // espalhadas numa bola à sua frente (na direção do olhar), sempre debaixo
-  // d'água; mais juntas no meio, mais raras na beirada
+  // distribuídas numa esfera à frente (na direção do olhar), sempre submersa;
+  // densas no centro, esparsas na borda
   const raio = 16;
   const cx = camera.position.x + _fr.x * 18, cz = camera.position.z + _fr.z * 18;
   const cy = Math.min(camera.position.y + _fr.y * 18, -raio - 2);
@@ -159,22 +158,22 @@ function explosaoDeBolhas(embalo) {
   }
 }
 
-// "Não mergulhar": clique duplo com o botão direito liga/desliga (ou toca no
-// botão do nadador). Fica guardado pro próximo jogo.
+// "Não mergulhar": clique duplo com o botão direito alterna (ou toque no botão do
+// nadador). A escolha fica salva.
 let semMergulho = false;
-try { semMergulho = localStorage.getItem('planeta.semMergulho') === '1'; } catch (e) { /* sem memória: tudo bem */ }
+try { semMergulho = localStorage.getItem('planeta.semMergulho') === '1'; } catch (e) { /* sem armazenamento: ignorado */ }
 const botaoMergulho = document.getElementById('semMergulho');
 function mostrarMergulho() {
   botaoMergulho.classList.toggle('ligado', semMergulho);
   document.getElementById('toqueMergulho').classList.toggle('ligado', semMergulho);
   botaoMergulho.setAttribute('aria-checked', String(semMergulho));
 }
-// aviso: ligou, dois anéis saem do botão e somem; desligou, dois anéis
-// grandes encolhem até encostar na borda dele
+// aviso: ao ligar, dois anéis saem do botão e somem; ao desligar, dois anéis
+// grandes encolhem até a borda dele
 const interruptor = botaoMergulho.querySelector('.interruptor');
 function avisarMergulho() {
   interruptor.querySelectorAll('.anel').forEach(a => a.remove());
-  // até onde o anel vai: do centro do botão até a ponta de cima-esquerda da tecla A
+  // alcance do anel: do centro do botão até o canto superior esquerdo da tecla A
   const b = interruptor.getBoundingClientRect();
   const a = document.querySelector('[data-tecla="KeyA"]').getBoundingClientRect();
   const raio = Math.hypot(a.left - (b.left + b.width / 2), a.top - (b.top + b.height / 2));
@@ -189,7 +188,7 @@ function avisarMergulho() {
 }
 function alternarMergulho() {
   semMergulho = !semMergulho;
-  try { localStorage.setItem('planeta.semMergulho', semMergulho ? '1' : '0'); } catch (e) { /* tudo bem */ }
+  try { localStorage.setItem('planeta.semMergulho', semMergulho ? '1' : '0'); } catch (e) { /* ignorado */ }
   mostrarMergulho();
   avisarMergulho();
 }
@@ -204,7 +203,7 @@ document.addEventListener('mousedown', ev => {
 botaoMergulho.addEventListener('click', alternarMergulho);
 document.getElementById('toqueMergulho').addEventListener('click', alternarMergulho);
 
-// acabou o ar (ou apertou R): volta pro começo e perde as esferas
+// sem ar (ou R): volta ao início e perde as esferas
 function recomecar() {
   camera.position.copy(inicio);
   vel.set(0, 0, 0);
@@ -225,7 +224,7 @@ function recomecar() {
     e.naAgua = false;
     const casa = caixaEsferas.querySelector(`[data-n="${e.n}"]`);
     if (casa) casa.classList.remove('pegou');
-    // pega pelo atalho de teste antes de pousar: não tem bola, volta a esperar no ponto dela
+    // capturada pelo atalho de teste antes de pousar: sem modelo, volta a aguardar no ponto
     if (!e.casca) { e.pos.copy(e.alvo); continue; }
     e.pos.copy(e.origem);
     e.vel.set(0, 0, 0);
@@ -240,9 +239,9 @@ function recomecar() {
   atualizarIlhas();
 }
 
-// ---------- céu escuro + raios quando junta as 7 ----------
+// ---------- céu escuro e raios ao reunir as 7 ----------
 let escuroAlvo = 0;
-let ceuPendente = false; // juntou as 7 debaixo d'água: escurece quando sair
+let ceuPendente = false; // as 7 reunidas debaixo d'água: escurece ao sair
 let proximoRaio = 0, clarao = 0;
 const telaClarao = document.getElementById('clarao');
 let raios = [];
@@ -255,9 +254,9 @@ function escurecerCeu() {
   soltarRaio(); soltarRaio();
   proximoRaio = 0.2;
 }
-// Raio: sai da base de uma nuvem visível e desce em zigue-zague até o mar (às
-// vezes com galho). Fita branca virada pra você + brilho verde; a luz ambiente
-// pisca junto e o clarão na tela é só reforço.
+// Raio: sai da base de uma nuvem visível e desce em zigue-zague até o mar (às vezes
+// com ramificação). Fita branca voltada para a câmera + brilho verde; a luz ambiente
+// pisca junto, e o clarão na tela é só reforço.
 const matRaio = new THREE.MeshBasicMaterial({
   color: '#f4fff6', transparent: true, depthWrite: false, fog: false,
   blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
@@ -269,7 +268,7 @@ const matRaioBrilho = new THREE.MeshBasicMaterial({
 let luzRaio = 0;
 const _frente = new THREE.Vector3(), _pn2 = new THREE.Vector3(), _lado2 = new THREE.Vector3(), _dir2 = new THREE.Vector3();
 
-// fita que passa pelos pontos, sempre de lado pra câmera
+// fita pelos pontos, sempre de lado para a câmera
 function fitaDoRaio(pts, larg) {
   const pos = [], idx = [];
   pts.forEach((pt, n) => {
@@ -299,8 +298,8 @@ function caminhoDoRaio(de, ate, passos, solta) {
   return pts;
 }
 function soltarRaio() {
-  if (submerso) return; // debaixo d'água não dá pra ver
-  // uma nuvem na sua frente, nem perto nem longe demais
+  if (submerso) return; // submerso: não é visível
+  // uma nuvem à frente, a distância média
   camera.getWorldDirection(_frente);
   _frente.y = 0; _frente.normalize();
   const visiveis = [];
@@ -313,13 +312,13 @@ function soltarRaio() {
   }
   const de = visiveis.length
     ? visiveis[Math.floor(Math.random() * visiveis.length)]
-    : camera.position.clone().addScaledVector(_frente, 700 + Math.random() * 800).setY(720); // sem nuvem: do alto, lá na frente
+    : camera.position.clone().addScaledVector(_frente, 700 + Math.random() * 800).setY(720); // sem nuvem: do alto, à frente
   de.x += (Math.random() - 0.5) * 120;
   de.z += (Math.random() - 0.5) * 120;
   const ate = new THREE.Vector3(de.x + (Math.random() - 0.5) * 220, 0, de.z + (Math.random() - 0.5) * 220);
   const tronco = caminhoDoRaio(de, ate, 22, 60);
   const caminhos = [[tronco, 1]];
-  // um galho saindo do meio
+  // ramificação a partir do meio
   if (Math.random() < 0.8) {
     const k = 5 + Math.floor(Math.random() * 10);
     const ini = tronco[k];
@@ -343,7 +342,7 @@ function atualizarRaios(dt) {
     proximoRaio -= dt;
     if (proximoRaio <= 0) {
       soltarRaio();
-      // durante a transição, um atrás do outro; depois, de vez em quando, lá longe
+      // na transição, em sequência; depois, ocasionalmente e ao longe
       proximoRaio = transicao ? 0.15 + Math.random() * 0.4 : 5 + Math.random() * 8;
     }
   }
@@ -354,7 +353,7 @@ function atualizarRaios(dt) {
       r.grupo.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); });
       return false;
     }
-    const a = (r.vida / r.dura) * (0.55 + 0.45 * Math.random()); // pisca
+    const a = (r.vida / r.dura) * (0.55 + 0.45 * Math.random()); // piscar
     r.grupo.children.forEach((m, n) => { m.material.opacity = a * (n % 2 ? 1 : 0.35); });
     return true;
   });

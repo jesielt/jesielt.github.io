@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------
-// Radar: o mundo visto de cima. Você é o pontinho amarelo no meio,
-// e o mapa gira junto, então "pra cima" no radar é sempre pra onde você olha.
+// Radar: vista de cima. O jogador é o ponto amarelo central; o mapa gira junto,
+// de modo que o topo do radar é sempre a direção do olhar.
 // ---------------------------------------------------------------------
 const radar = document.getElementById('radar');
 const rctx = radar.getContext('2d');
-const RADAR_ALCANCE = 700; // metros do centro até a borda do radar
-const RADAR_GRADE = 100;   // cada quadradinho = 100 m
+const RADAR_ALCANCE = 700; // metros do centro até a borda
+const RADAR_GRADE = 100; // cada quadrado = 100 m
 
 function desenharRadar(tempo) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -18,22 +18,22 @@ function desenharRadar(tempo) {
   const cx = camera.position.x, cz = camera.position.z;
 
   rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  // tela verde
+  // fundo verde
   const fundo = rctx.createRadialGradient(R, R, 0, R, R, R);
   fundo.addColorStop(0, '#37b04f');
   fundo.addColorStop(1, '#1d7a33');
   rctx.fillStyle = fundo;
   rctx.fillRect(0, 0, lado, lado);
 
-  // daqui pra frente desenha em metros do mundo, já girado
+  // a partir daqui, desenho em metros do mundo, já rotacionado
   rctx.save();
   rctx.translate(R, R);
   rctx.rotate(yaw);
   rctx.scale(esc, esc);
   rctx.translate(-cx, -cz);
-  const px = 1 / esc; // 1 pixel de tela, medido em metros
+  const px = 1 / esc; // 1 pixel de tela, em metros
 
-  // quadriculado preso ao mundo (ele passa por baixo de você quando voa)
+  // quadriculado fixo no mundo (desliza sob o jogador)
   rctx.strokeStyle = 'rgba(10, 50, 20, 0.55)';
   rctx.lineWidth = px;
   rctx.beginPath();
@@ -61,7 +61,7 @@ function desenharRadar(tempo) {
     rctx.strokeStyle = 'rgba(225, 255, 210, 0.95)';
     rctx.lineWidth = 1.5 * px;
     rctx.stroke();
-    // rochas como manchinhas mais claras
+    // rochas como manchas mais claras
     rctx.fillStyle = 'rgba(235, 255, 225, 0.6)';
     for (let n = 1; n < ilha.solidos.length; n++) {
       const r = ilha.solidos[n];
@@ -72,7 +72,7 @@ function desenharRadar(tempo) {
   }
   rctx.restore();
 
-  // esferas: pontos laranja piscando (as longe ficam grudadas na borda do radar)
+  // esferas: pontos laranja piscantes (as distantes ficam presas à borda)
   const pisca = 0.5 + 0.5 * Math.sin(tempo * 7);
   for (const e of esferas) {
     if (e.capturada) continue;
@@ -89,15 +89,15 @@ function desenharRadar(tempo) {
     rctx.fill();
     rctx.shadowBlur = 0;
 
-    // triângulo vazado branco colado na esfera, apontando
-    // pra ela: quanto mais perto ela está, maior o triângulo
+    // triângulo branco vazado junto à esfera, apontando para ela: quanto mais
+    // perto, maior o triângulo
     const dist = Math.hypot(dx, dz);
     const perto = 1 - Math.min(1, Math.max(0, Math.log(dist / 150) / Math.log(5500 / 150)));
     const tam = 3.5 + 7.5 * perto;
     const len = Math.hypot(ex, ey);
     if (len > tam * 2 + 8) {
-      const ux = ex / len, uy = ey / len;              // de você pra esfera
-      const px = R + ex - ux * 7, py = R + ey - uy * 7; // ponta, logo antes da bolinha
+      const ux = ex / len, uy = ey / len; // do jogador à esfera
+      const px = R + ex - ux * 7, py = R + ey - uy * 7; // ponta, logo antes do ponto da esfera
       const bx = px - ux * tam * 1.3, by = py - uy * tam * 1.3;
       const lx = -uy * tam * 0.75, ly = ux * tam * 0.75;
       rctx.strokeStyle = '#ffffff';
@@ -113,7 +113,7 @@ function desenharRadar(tempo) {
   }
   rctx.shadowBlur = 0;
 
-  // você: um pontinho amarelo pulsando, com um leque mostrando pra onde olha
+  // jogador: ponto amarelo pulsante, com um leque indicando a direção do olhar
   rctx.fillStyle = 'rgba(255, 245, 160, 0.18)';
   rctx.beginPath();
   rctx.moveTo(R, R);
@@ -132,15 +132,15 @@ function desenharRadar(tempo) {
 }
 
 // ---------------------------------------------------------------------
-// Risquinhos de velocidade: nas bordas da tela durante o dash, sorteados de novo
-// a cada quadro (tremem).
+// Linhas de velocidade: nas bordas da tela durante o dash, sorteadas a cada
+// quadro (efeito de tremor).
 // ---------------------------------------------------------------------
 const riscos = document.getElementById('riscos');
 const kctx = riscos.getContext('2d');
 let forcaRiscos = 0;
 
 function desenharRiscos(dt) {
-  const veloz = (vel.length() - AJUSTE.velMax) / AJUSTE.velMax; // 0 = normal, 1 = dash cheio
+  const veloz = (vel.length() - AJUSTE.velMax) / AJUSTE.velMax; // 0 = normal, 1 = dash máximo
   const alvo = segurando('dash') ? Math.max(0, Math.min(1, veloz * 1.3)) : 0;
   forcaRiscos = suavizar(forcaRiscos, alvo, alvo > forcaRiscos ? 6 : 4, dt);
 
@@ -159,17 +159,17 @@ function desenharRiscos(dt) {
   for (let k = 0; k < n; k++) {
     const a = Math.random() * Math.PI * 2;
     const c0 = Math.cos(a), s0 = Math.sin(a);
-    // distância do centro até a borda da tela nessa direção
+    // distância do centro até a borda da tela nesta direção
     const borda = Math.min(cx / Math.max(Math.abs(c0), 1e-6), cy / Math.max(Math.abs(s0), 1e-6));
-    // quanto o risco "invade" a tela: nos lados, cheio; em cima e embaixo, metade
-    // (assim o meio limpo fica oval, não um retângulo tipo mini tela)
+    // avanço da linha sobre a tela: inteiro nas laterais, metade em cima e embaixo
+    // (a área limpa central fica oval)
     const lateral = 1 - 0.5 * s0 * s0;
     const invade = borda * (0.15 + Math.random() * 0.3) * lateral;
-    const r0 = borda - invade;                               // começa dentro da tela...
-    const r1 = r0 + invade * (0.7 + Math.random() * 0.6);    // ...e vai até a borda (ou quase)
+    const r0 = borda - invade; // começa dentro da tela...
+    const r1 = r0 + invade * (0.7 + Math.random() * 0.6); // ...e vai até a borda (ou quase)
     const larg = 1 + Math.random() * 2.4;
     const c = Math.cos(a), s = Math.sin(a);
-    // um triângulo bem fino: ponta pro centro, mais largo pra fora
+    // triângulo fino: ponta para o centro, mais largo para fora
     kctx.fillStyle = `rgba(255, 255, 250, ${(0.55 + Math.random() * 0.4) * forcaRiscos})`;
     kctx.beginPath();
     kctx.moveTo(cx + c * r0, cy + s * r0);
@@ -181,8 +181,8 @@ function desenharRiscos(dt) {
 }
 
 // ---------------------------------------------------------------------
-// Altura acima do mar, na escala sentida (17,5 unidades ≈ 1 m; calibrado pelos
-// olhos rente à grama: 3,5 unidades ≈ 20 cm)
+// Altura acima do mar, na escala sentida (17,5 unidades ≈ 1 m; calibrada pelos
+// olhos rente à grama: 3,5 unidades ≈ 20 cm).
 // ---------------------------------------------------------------------
 const ESCALA_SENTIDA = 17.5;
 const alturaNum = document.getElementById('alturaNum');
@@ -194,7 +194,7 @@ function mostrarAltura() {
   mostrarVelocidade();
 }
 
-// Velocidade em km/h, na mesma régua (unidades/s ÷ 17,5 = m/s; × 3,6 = km/h)
+// Velocidade em km/h, na mesma escala (unidades/s ÷ 17,5 = m/s; × 3,6 = km/h).
 const velNum = document.getElementById('velNum');
 let velMostrada = '';
 function mostrarVelocidade() {
@@ -203,8 +203,8 @@ function mostrarVelocidade() {
   if (texto !== velMostrada) { velNum.textContent = texto; velMostrada = texto; }
 }
 
-// ondinhas: a textura da água desliza devagar
+// ondulação: a textura da água desliza devagar
 function animarAgua(tempo) {
-  texAgua.offset.set(tempo * 0.004, Math.sin(tempo * 0.3) * 0.01); // lago: desliza bem menos
+  texAgua.offset.set(tempo * 0.004, Math.sin(tempo * 0.3) * 0.01); // lago: deslocamento reduzido
   uniAgua.tempo.value = tempo;
 }

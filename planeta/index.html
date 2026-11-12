@@ -4,40 +4,40 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Planeta</title>
-  <!-- fonte do nome e da versão: Orbitron, quadradona (cara de tela de scouter) -->
+  <!-- fonte do nome e da versão: Orbitron -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600&display=swap">
-  <!-- ?v=versão: cada versão tem um endereço novo, então o navegador não
-       mistura a página nova com o estilo/jogo antigos guardados no cache.
-       Mudou a VERSAO no jogo.js? Muda aqui também (nos dois). -->
+  <!-- ?v=versão: cada versão tem endereço próprio, então o navegador não
+       mistura a página nova com estilo ou jogo antigos em cache.
+       Ao alterar VERSAO no jogo.js, alterar aqui também (nos dois). -->
   <link rel="stylesheet" href="estilo.css?v=2.1.1">
 </head>
 <body>
   <canvas id="tela"></canvas>
-  <!-- risquinhos de velocidade (estilo anime) quando dá dash -->
+  <!-- linhas de velocidade durante o dash -->
   <canvas id="riscos" class="riscos" aria-hidden="true"></canvas>
 
-  <!-- debaixo d'água: tudo puxado pro verde, e bolhinhas na frente -->
+  <!-- debaixo d'água: tons verdes e bolhas -->
   <div class="debaixo" id="debaixo" aria-hidden="true"></div>
 
-  <!-- céu escuro (as 7 esferas): clarão dos raios -->
+  <!-- céu escuro (7 esferas reunidas): clarão dos raios -->
   <div class="clarao" id="clarao" aria-hidden="true"></div>
 
-  <!-- fôlego debaixo d'água: a barra azul vai diminuindo -->
+  <!-- ar debaixo d'água: barra azul decrescente -->
   <div class="ar" id="ar" aria-label="fôlego"><div class="ar-nivel" id="arNivel"></div></div>
 
-  <!-- acabou o ar: escurece e volta pro começo -->
+  <!-- sem ar: escurece e volta ao início -->
   <div class="apagao" id="apagao" aria-hidden="true"></div>
 
   <div class="mira"></div>
 
   <div class="creditos"><a class="autor" href="https://github.com/jesielt" target="_blank" rel="noopener">© Jesiel Ternero</a><span class="versao" id="versao"></span></div>
 
-  <!-- radar: o mapa visto de cima, girando junto com você -->
+  <!-- radar: mapa visto de cima, girando com o jogador -->
   <canvas class="radar" id="radar" aria-hidden="true"></canvas>
 
-  <!-- caixinha das esferas capturadas: uma casa pra cada número de estrelas -->
+  <!-- caixa das esferas capturadas: uma casa por número de estrelas -->
   <div class="caixa-esferas" id="caixaEsferas" aria-label="esferas capturadas">
     <div class="casa" data-n="1"><span class="bola">1</span></div>
     <div class="casa" data-n="2"><span class="bola">2</span></div>
@@ -48,7 +48,7 @@
     <div class="casa" data-n="7"><span class="bola">7</span></div>
   </div>
 
-  <!-- aparece em cima da esfera quando dá pra capturar: clique direito -->
+  <!-- sobre a esfera capturável: clique direito -->
   <div class="capturar" id="capturar" aria-label="capturar: botão direito do mouse">
     <svg viewBox="0 0 26 36" aria-hidden="true">
       <path class="apertar" d="M13 1.5 C19.4 1.5 24.5 6.6 24.5 13 V14 H13 Z" />
@@ -57,7 +57,7 @@
     </svg>
   </div>
 
-  <!-- altura acima do mar, com o "m" no alfabeto saiyajin -->
+  <!-- altura acima do mar, com o "m" em alfabeto saiyajin -->
   <div class="altura" aria-label="altura">
     <span id="alturaNum">0</span>
     <svg class="m-saiyajin" viewBox="0 0 28 31" aria-hidden="true">
@@ -65,8 +65,8 @@
       <rect x="0" y="21" width="28" height="10" rx="1.5" />
     </svg>
   </div>
-  <!-- velocidade (km/h na escala que você sente), com o "V" saiyajin:
-       barra da esquerda reta; a da direita com o canto de cima-esquerdo arredondado -->
+  <!-- velocidade (km/h na escala sentida), com o "V" saiyajin:
+       barra esquerda reta; a direita com o canto superior esquerdo arredondado -->
   <div class="velocidade" aria-label="velocidade">
     <span id="velNum">0</span>
     <svg class="v-saiyajin" viewBox="0 0 28 25" aria-hidden="true">
@@ -76,8 +76,8 @@
   </div>
   <div class="convite" id="convite">clique pra voar</div>
 
-  <!-- Painel no canto: acende o que está sendo apertado.
-       As teclas também dá pra clicar/tocar. -->
+  <!-- Painel no canto: acende o que está pressionado.
+       As teclas também aceitam clique e toque. -->
   <div class="teclas" aria-hidden="true">
     <div class="grupo">
       <span class="tecla vazia"></span>
@@ -114,7 +114,7 @@
       <span class="tecla espaco" data-tecla="Space"></span>
       <span class="tecla" data-tecla="KeyC">C</span>
     </div>
-    <!-- não mergulhar: (botão direito) ×2 liga/desliga; o nadador com X aceso = ligado -->
+    <!-- não mergulhar: (botão direito) ×2 alterna; nadador com X aceso = ativo -->
     <div class="mergulho" id="semMergulho" role="switch" aria-checked="false" aria-label="não mergulhar">
       <svg class="mouse-dir" viewBox="0 0 26 36" aria-hidden="true">
         <path d="M13 1.5 C19.4 1.5 24.5 6.6 24.5 13 V14 H13 Z" fill="currentColor" />
@@ -134,8 +134,8 @@
     </div>
   </div>
 
-  <!-- Celular: joystick (aparece onde o dedão encosta, do lado esquerdo) e
-       botões grandes do lado direito. No computador ficam escondidos. -->
+  <!-- Celular: joystick (aparece onde o polegar toca, à esquerda) e
+       botões grandes à direita. Ocultos no computador. -->
   <div class="joystick" id="joystick" aria-hidden="true"><span class="joy-bola"></span></div>
   <div class="toque-botoes">
     <span class="tbotao pequeno" id="toqueRecomecar" aria-label="recomeçar do início"><svg class="caveira-toque" viewBox="0 0 16 16" aria-hidden="true">

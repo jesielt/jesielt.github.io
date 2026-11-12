@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------
-// Teclas (setinhas e WASD fazem a mesma coisa)
+// Teclas (setas e WASD equivalem)
 // ---------------------------------------------------------------------
 const MAPA = {
   KeyW: 'frente',   ArrowUp: 'frente',
@@ -9,14 +9,14 @@ const MAPA = {
   Space: 'subir',
   KeyC: 'descer',
   ShiftLeft: 'dash', ShiftRight: 'dash',
-  KeyR: 'recomecar', // volta pro começo (como se o ar tivesse acabado)
-  KeyM: 'mudo',      // liga/desliga o som
+  KeyR: 'recomecar', // volta ao início (como ao acabar o ar)
+  KeyM: 'mudo', // liga/desliga o som
 };
-// o Shift da direita acende o mesmo desenho do Shift da esquerda
+// o Shift direito acende o mesmo desenho do Shift esquerdo
 const DESENHO = { ShiftRight: 'ShiftLeft' };
 
 const apertadas = new Set();
-let ultimoC = -1e9; // pra perceber o C apertado duas vezes rápido
+let ultimoC = -1e9; // detecta o C pressionado duas vezes em sequência
 
 function segurando(acao) {
   for (const codigo of apertadas) if (MAPA[codigo] === acao) return true;
@@ -46,26 +46,26 @@ function soltar(codigo) {
   if (apertadas.delete(codigo)) marcarTecla(codigo, false);
 }
 
-// ferramentas de teste (teclado numérico): 1-2-3 pega todas as esferas;
-// 4-5-6 te leva pra 499 m (logo abaixo do espaço)
+// Atalhos de teste (teclado numérico): 1-2-3 captura todas as esferas;
+// 4-5-6 leva a 499 m (logo abaixo do espaço).
 let codigoTeste = '';
 window.addEventListener('keydown', e => {
-  if (apertar(e.code)) e.preventDefault(); // impede a página de rolar com setas/espaço
+  if (apertar(e.code)) e.preventDefault(); // impede a rolagem da página com setas e espaço
   if (/^Numpad\d$/.test(e.code)) {
     codigoTeste = (codigoTeste + e.code.slice(-1)).slice(-3);
     if (codigoTeste === '123') { codigoTeste = ''; pegarTodasAsEsferas(); }
-    if (codigoTeste === '456') { codigoTeste = ''; camera.position.y = 499 * ESCALA_SENTIDA; vel.set(0, 0, 0); } // dev: quase no espaço
+    if (codigoTeste === '456') { codigoTeste = ''; camera.position.y = 499 * ESCALA_SENTIDA; vel.set(0, 0, 0); } // teste: quase no espaço
   }
 });
 window.addEventListener('keyup', e => soltar(e.code));
 window.addEventListener('blur', () => [...apertadas].forEach(soltar));
 
-// clicar/tocar nas teclas do painel funciona como apertar de verdade
+// clicar ou tocar nas teclas do painel equivale a pressioná-las
 document.querySelectorAll('[data-tecla]').forEach(el => {
   const codigo = el.dataset.tecla;
   el.addEventListener('pointerdown', e => {
     e.preventDefault();
-    try { el.setPointerCapture(e.pointerId); } catch (erro) { /* tudo bem */ }
+    try { el.setPointerCapture(e.pointerId); } catch (erro) { /* ignorado */ }
     apertar(codigo);
   });
   const fim = () => soltar(codigo);
@@ -75,22 +75,22 @@ document.querySelectorAll('[data-tecla]').forEach(el => {
 });
 
 // ---------------------------------------------------------------------
-// Mouse: clique prende o mouse na tela; Esc solta (regra do navegador)
+// Mouse: o clique trava o cursor na tela; Esc libera (regra do navegador)
 // ---------------------------------------------------------------------
 const convite = document.getElementById('convite');
 const desenhoMouse = document.getElementById('mouse');
 const botaoEsq = document.getElementById('mouseEsq');
 const botaoDir = document.getElementById('mouseDir');
 
-let yaw = 0;    // girar pros lados
-let pitch = 0;  // olhar pra cima/baixo
-const empurraoMouse = { x: 0, y: 0 }; // só pro desenho do mouse escorregar
+let yaw = 0; // giro horizontal
+let pitch = 0; // giro vertical
+const empurraoMouse = { x: 0, y: 0 }; // deslocamento do desenho do mouse (efeito visual)
 
-// Se o navegador não deixar prender o mouse, dá pra olhar clicando e arrastando.
+// Se o navegador não permitir travar o cursor, clicar e arrastar move o olhar.
 let arrastando = false;
 
 // Abertura: no primeiro clique, "FIND", "THE" e "BALLS" em letras saiyajin, crescendo e sumindo.
-// Cada letra é feita de blocos numa grade 10×10 (tabela em Referências).
+// Cada letra é formada por blocos numa grade 10×10 (tabela em Referências).
 const LETRAS_SAIYAJIN = {
   A: [[0, 0, 10, 3], [2.5, 6.5, 5.5, 3.5]],
   B: [[0, 0, 3.2, 10], [6.8, 0, 3.2, 5.2]],
@@ -143,10 +143,10 @@ canvas.addEventListener('click', () => {
   try {
     const pedido = canvas.requestPointerLock();
     if (pedido && pedido.catch) pedido.catch(() => {});
-  } catch (erro) { /* sem trava: segue no modo arrastar */ }
+  } catch (erro) { /* sem trava: modo arrastar */ }
 });
 document.addEventListener('pointerlockchange', () => {
-  // soltou com Esc: mostra o convite de novo
+  // liberado com Esc: o convite volta a aparecer
   convite.classList.toggle('escondido', document.pointerLockElement === canvas);
 });
 canvas.addEventListener('mousedown', () => { arrastando = true; });
@@ -171,9 +171,9 @@ document.addEventListener('mouseup', e => {
 document.addEventListener('contextmenu', e => e.preventDefault());
 
 // ---------------------------------------------------------------------
-// Celular: dedo do lado esquerdo da tela = joystick (anda);
-// dedo em qualquer outro lugar = arrastar pra olhar. Cada dedo é seguido
-// separado, então dá pra andar e olhar ao mesmo tempo.
+// Celular: dedo no lado esquerdo da tela = joystick (movimento); em qualquer outro
+// lugar = arrasto para olhar. Cada dedo é rastreado em separado, permitindo mover
+// e olhar ao mesmo tempo.
 // ---------------------------------------------------------------------
 const joy = { f: 0, l: 0, dedo: null, cx: 0, cy: 0 };
 const joyBase = document.getElementById('joystick');
@@ -185,7 +185,7 @@ function moverJoystick(x, y) {
   const d = Math.hypot(dx, dy), r = AJUSTE.raioJoystick;
   if (d > r) { dx *= r / d; dy *= r / d; }
   joyBola.style.transform = `translate(${dx}px, ${dy}px)`;
-  // zona morta pequena pra não sair andando com o dedo só encostado
+  // zona morta pequena: o dedo apenas encostado não move
   const forca = d < 6 ? 0 : 1;
   joy.l = forca * dx / r;
   joy.f = forca * -dy / r;
@@ -199,9 +199,9 @@ function soltarJoystick() {
 if (TOQUE) {
   canvas.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse') return;
-    e.preventDefault(); // sem "mouse de mentirinha" depois do toque
-    if (tocouNaEsfera(e.clientX, e.clientY)) return; // tocou na esfera: captura (não anda nem vira)
-    try { canvas.setPointerCapture(e.pointerId); } catch (erro) { /* tudo bem */ }
+    e.preventDefault(); // evita o evento de mouse simulado após o toque
+    if (tocouNaEsfera(e.clientX, e.clientY)) return; // toque na esfera: captura (sem mover nem girar)
+    try { canvas.setPointerCapture(e.pointerId); } catch (erro) { /* ignorado */ }
     if (joy.dedo === null && e.clientX < window.innerWidth * 0.42) {
       joy.dedo = e.pointerId;
       joy.cx = e.clientX; joy.cy = e.clientY;
@@ -235,7 +235,7 @@ if (TOQUE) {
     document.getElementById('toqueDash').classList.remove('ativa');
   });
 
-  // primeiro toque: tela cheia e (se o celular deixar) trava deitado
+  // primeiro toque: tela cheia e, se permitido, trava em paisagem
   canvas.addEventListener('pointerdown', () => {
     if (document.fullscreenElement) return;
     const el = document.documentElement;
@@ -244,10 +244,10 @@ if (TOQUE) {
     try {
       const p = pedir.call(el, { navigationUI: 'hide' });
       if (p && p.then) p.then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
-    } catch (erro) { /* sem tela cheia: segue normal */ }
+    } catch (erro) { /* sem tela cheia */ }
   });
 
-  // dash: um toque liga, outro desliga (o dedão já está ocupado no joystick)
+  // dash: um toque liga, outro desliga (o polegar esquerdo está no joystick)
   MAPA.ToqueDash = 'dash';
   const botaoDash = document.getElementById('toqueDash');
   botaoDash.addEventListener('pointerdown', e => {
@@ -256,7 +256,7 @@ if (TOQUE) {
     botaoDash.classList.toggle('ativa', apertadas.has('ToqueDash'));
   });
 
-  // recomeçar pede confirmação (perde as esferas)
+  // recomeçar pede confirmação (as esferas são perdidas)
   document.getElementById('toqueRecomecar').addEventListener('click', () => {
     if (confirm('Recomeçar do início? Você perde as esferas.')) recomecar();
   });
