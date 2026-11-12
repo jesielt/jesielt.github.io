@@ -1,27 +1,23 @@
-// Planeta — etapa 1: voar em primeira pessoa sobre a água.
-// Unidades do mundo ≈ metros. y é a altura; a água fica em y = 0.
+// Planeta: voo em primeira pessoa num mundo de ilhas e mar.
+// y é a altura; a água fica em y = 0. Escala: ver ESCALA_SENTIDA (painel.js).
 
-// A biblioteca de 3D vem de um link. Carregando assim, o jogo funciona
-// tanto no site quanto abrindo o index.html direto (duplo clique).
-// Versão oficial (a que vai pro ar no próximo push). Ver CHANGELOG.md.
-const VERSAO = '2.1.0';
+// three.js vem de um link via import(): funciona no site e abrindo o index.html direto.
+// Versão oficial (muda no push). Ver CHANGELOG.md.
+const VERSAO = '2.1.1';
 console.log(`Planeta v${VERSAO}`);
-// aparece na tela, embaixo do nome (o número vem só daqui)
+// mostrada na tela, embaixo do nome
 document.getElementById('versao').textContent = 'v' + VERSAO;
 
-// Tela de toque (celular/tablet): troca teclado e mouse por joystick, arrastar pra
-// olhar e botões grandes. No computador nada muda.
+// Tela de toque: joystick, arrastar pra olhar e botões no lugar de teclado e mouse.
 const TOQUE = matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0;
 if (TOQUE) {
   document.body.classList.add('toque');
   document.getElementById('convite').textContent = 'toque pra voar';
 }
 
-// O jogo fica dividido em arquivos menores, na pasta js/ (um assunto por arquivo).
-// Eles dividem as mesmas variáveis (são scripts comuns, não módulos), então a
-// ORDEM abaixo importa: um arquivo só pode usar, na hora em que carrega, o que
-// veio antes dele. Dentro de funções (que rodam depois) pode usar qualquer um.
-// Arquivo novo: criar em js/ e pôr na lista, no lugar certo da ordem.
+// Partes do jogo, uma por assunto, em js/. São scripts comuns (não módulos) e
+// dividem as mesmas variáveis: ao carregar, um arquivo só usa o que veio antes
+// na lista; dentro de funções, usa qualquer um. Arquivo novo: pôr na lista, na ordem.
 const PARTES = [
   'cena',       // ajustes de sensação, cores, cena, câmera, luz
   'ceu',        // céu, satélites, nuvens

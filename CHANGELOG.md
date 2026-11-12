@@ -11,6 +11,13 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
+## 2.1.1 — 12/11/2026
+
+Nada muda no jogo; só por dentro:
+- Código dividido em arquivos por assunto (planeta/js/), carregados pelo jogo.js
+- Comentários do código mais curtos e diretos
+- Classe do selo das teclas R e M com nome que diz o que é (com-selo)
+
 ## 2.1.0 — 11/11/2026
 
 - Som de vento, feito na hora com ruído rosa (sem arquivo de áudio)
