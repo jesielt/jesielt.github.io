@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------
-// Ajustes de sensação (é aqui que a gente mexe pra deixar gostoso)
+// Ajustes de sensação (valores pra afinar o jogo)
 // ---------------------------------------------------------------------
 const AJUSTE = {
   sensibilidade: 0.0022,  // quanto o olhar gira por pixel de mouse
@@ -10,34 +10,33 @@ const AJUSTE = {
   velMax: 90,             // m/s
   dash: 2,                // segurando Shift: velocidade e força multiplicadas por isso
   arranqueDash: 450,      // empurrão extra enquanto o dash ainda não chegou na velocidade dele
-  alturaOlhos: 3.5,       // seus olhos nunca chegam mais perto que isso do chão (3,5 aqui ≈ 20 cm na sensação)
+  alturaOlhos: 3.5, // olhos nunca chegam mais perto do chão que isso (~20 cm sentidos)
   fovParado: 70,          // campo de visão parado...
-  fovVeloz: 84,           // ...e no máximo da velocidade (dá sensação de vento)
+  fovVeloz: 84, // ...e no máximo da velocidade
   inclinaLado: 0.07,      // a câmera tomba um pouco quando vai de lado (A/D)
   inclinaCurva: 0.04,     // ...e tomba pra dentro da curva quando você vira o mouse
   inclinaMax: 0.2,
-  neblinaPerto: 650,      // onde a perspectiva atmosférica começa
+  neblinaPerto: 650, // onde a neblina começa
   neblinaLonge: 2200,     // onde tudo já virou cor de horizonte
 };
 
 const CORES = {
   horizonte: '#dbe7ac',
-  agua: '#5fae8a',       // superfície (meio-termo entre o menta antigo e o anime)
+  agua: '#5fae8a', // superfície
   aguaFunda: '#3d8a70',  // o que se vê lá embaixo, através da água turva
   rocha: '#e9aab3',
   grama: '#7d9ce2',
   tronco: '#e6c3b4',
   tufo: '#6683d6',
-  mancha: '#c9b4a2',   // terra compactada, seca e dura (no anime, o chão aparecendo na grama)
+  mancha: '#c9b4a2', // terra batida (onde o chão aparece no meio da grama)
 };
 
 // ---------------------------------------------------------------------
 // Cena, câmera e renderizador
 // ---------------------------------------------------------------------
 const canvas = document.getElementById('tela');
-// logarithmicDepthBuffer: guarda a distância de cada pixel com precisão boa
-// tanto perto quanto longe. Sem isso, lá do alto o topo das ilhas "briga"
-// com a água (z-fighting) e as ilhas piscam/somem.
+// logarithmicDepthBuffer: precisão de profundidade boa perto e longe. Sem isso,
+// do alto o topo das ilhas e a água piscam (z-fighting).
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
 // no celular, resolução um pouco menor: a tela é pequena e o processador é mais fraco
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, TOQUE ? 1.5 : 2));
@@ -47,7 +46,7 @@ const cena = new THREE.Scene();
 cena.fog = new THREE.Fog(CORES.horizonte, AJUSTE.neblinaPerto, AJUSTE.neblinaLonge);
 
 // 0.5 = o mais perto que a câmera enxerga (bem menos que a altura mínima dos olhos)
-const camera = new THREE.PerspectiveCamera(AJUSTE.fovParado, 1, 0.5, 200000); // longe: lá do espaço o planeta é enorme
+const camera = new THREE.PerspectiveCamera(AJUSTE.fovParado, 1, 0.5, 200000); // longe: do espaço o planeta é enorme
 camera.rotation.order = 'YXZ'; // primeiro gira pros lados, depois pra cima/baixo
 camera.position.set(0, 40, 0);
 

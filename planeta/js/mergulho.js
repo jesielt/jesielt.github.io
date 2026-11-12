@@ -1,8 +1,7 @@
 // ---------------------------------------------------------------------
-// Debaixo d'água: tudo se matiza de verde, aparecem bolhinhas na frente
-// da tela (mais quanto mais rápido você vai), o movimento fica "nerfado"
-// e uma barra de ar azul vai diminuindo. Acabou o ar: você volta pro
-// ponto de partida e perde todas as esferas.
+// Debaixo d'água: tudo fica verde, aparecem bolhas (mais quanto mais rápido), o
+// movimento fica mais fraco e a barra de ar diminui. Acabou o ar: volta pro começo
+// e perde as esferas.
 // ---------------------------------------------------------------------
 const AGUA = {
   nerf: 0.55,            // força e velocidade máxima debaixo d'água (× normal)
@@ -24,9 +23,8 @@ const barraAr = document.getElementById('ar');
 const nivelAr = document.getElementById('arNivel');
 const apagao = document.getElementById('apagao');
 
-// ---------- bolhas: partículas de verdade na água, subindo e balançando ----------
-// Nascem espalhadas na sua frente (mais quanto mais rápido você vai) e ficam
-// paradas no lugar delas: avançando, você passa por elas e elas ficam pra trás.
+// ---------- bolhas: partículas na água, subindo e balançando ----------
+// Nascem na sua frente (mais quanto mais rápido) e ficam paradas no mundo: você passa por elas.
 const MAX_BOLHAS = 900;
 const bolhas = {
   pos: new Float32Array(MAX_BOLHAS * 3),
@@ -102,9 +100,8 @@ function soltarBolhaEm(x, y, z, tam, sobe) {
   bolhas.alfa[i] = 0.001; // acende aos poucos
 }
 function direcoesDaCamera() {
-  // os três eixos da câmera (frente, direita, cima). Antes o "lado" saía de
-  // frente × vertical, que zera olhando reto pra baixo: as bolhas caíam
-  // todas num plano só
+  // os três eixos da câmera. Não usar frente × vertical pro "lado": zera olhando
+  // reto pra baixo e as bolhas caem todas num plano só
   camera.getWorldDirection(_fr);
   _ld.set(1, 0, 0).applyQuaternion(camera.quaternion);
   _ac.set(0, 1, 0).applyQuaternion(camera.quaternion);
@@ -149,9 +146,8 @@ function explosaoDeBolhas(embalo) {
   const n = Math.max(0, Math.min(600, Math.floor((embalo - 40) * 4)));
   if (!n) return;
   direcoesDaCamera();
-  // espalhadas numa bola (no mundo, nos 3 eixos) em volta de um ponto à sua
-  // frente — na direção em que você olha, seja reto ou pra baixo — sempre
-  // inteira debaixo d'água; mais juntas no meio, mais raras na beirada
+  // espalhadas numa bola à sua frente (na direção do olhar), sempre debaixo
+  // d'água; mais juntas no meio, mais raras na beirada
   const raio = 16;
   const cx = camera.position.x + _fr.x * 18, cz = camera.position.z + _fr.z * 18;
   const cy = Math.min(camera.position.y + _fr.y * 18, -raio - 2);
@@ -259,10 +255,9 @@ function escurecerCeu() {
   soltarRaio(); soltarRaio();
   proximoRaio = 0.2;
 }
-// Raio de verdade, no mundo: sai da base de uma nuvem que você está vendo
-// e desce em zigue-zague até o mar (às vezes com um galho). É uma fita
-// branca virada pra você, com um brilho verde em volta, e a luz do
-// ambiente pisca junto. O clarão na tela fica só como reforço suave.
+// Raio: sai da base de uma nuvem visível e desce em zigue-zague até o mar (às
+// vezes com galho). Fita branca virada pra você + brilho verde; a luz ambiente
+// pisca junto e o clarão na tela é só reforço.
 const matRaio = new THREE.MeshBasicMaterial({
   color: '#f4fff6', transparent: true, depthWrite: false, fog: false,
   blending: THREE.AdditiveBlending, side: THREE.DoubleSide,

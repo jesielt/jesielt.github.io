@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------
-// Ilhas: uma plataforma baixa logo acima da água, com 1 a 4 rochas em cima.
-// O mundo é dividido em células (um quadriculado); cada célula pode ter
-// uma ilha. Só existem as células perto de você — por isso nunca acaba.
+// Ilhas: plataforma baixa acima da água, com 1 a 4 rochas em cima. O mundo é um
+// quadriculado de células; cada uma pode ter uma ilha. Só existem as células perto
+// de você, por isso o mundo nunca acaba.
 // ---------------------------------------------------------------------
 const CELULA = 340;
 const ALCANCE = Math.ceil(AJUSTE.neblinaLonge / CELULA);
@@ -11,9 +11,8 @@ const geoTopo = new THREE.CylinderGeometry(1.1, 1.1, 1, 16);
 const matRocha = new THREE.MeshLambertMaterial({ color: CORES.rocha });
 const matGrama = new THREE.MeshLambertMaterial({ color: CORES.grama });
 
-// Grama de Namek: azul liso com manchas escuras em degradê, de tamanhos e
-// forças variados (sem pinceladas). A textura é "carimbada" pela posição no mundo
-// (de cima), então é igual em todas as ilhas, de qualquer tamanho.
+// Grama de Namek: azul com manchas escuras em degradê. A textura é projetada de
+// cima pela posição no mundo, então emenda igual em ilhas de qualquer tamanho.
 function texturaDaGrama() {
   const t = 512, c = document.createElement('canvas');
   c.width = c.height = t;
@@ -23,8 +22,7 @@ function texturaDaGrama() {
   let semente = 31;
   const aleatorio = () => (semente = (semente * 16807) % 2147483647) / 2147483647;
   const emVolta = (desenhar) => { for (const dx of [-t, 0, t]) for (const dy of [-t, 0, t]) desenhar(dx, dy); }; // emenda sem costura
-  // manchas escuras, bem suaves, de tamanhos e forças bem diferentes, umas
-  // esticadas pra um lado (nada de bolinhas iguais)
+  // manchas suaves de tamanhos, forças e esticamentos variados
   for (let i = 0; i < 18; i++) {
     const x = aleatorio() * t, y = aleatorio() * t, r = 40 + Math.pow(aleatorio(), 1.5) * 150;
     const forca = 0.1 + aleatorio() * 0.22;
@@ -35,8 +33,8 @@ function texturaDaGrama() {
       g.rotate(giro);
       g.scale(estica, 1 / estica);
       const gr = g.createRadialGradient(0, 0, 0, 0, 0, r);
-      // a borda do degradê é a MESMA cor, só transparente: terminar em
-      // "preto transparente" suja o meio do caminho de cinza/escuro
+      // borda do degradê na MESMA cor, só transparente: terminar em preto transparente
+      // suja o meio de cinza
       gr.addColorStop(0, `rgba(72, 102, 196, ${forca})`);
       gr.addColorStop(1, 'rgba(72, 102, 196, 0)');
       g.fillStyle = gr;
@@ -65,8 +63,7 @@ function pintarGrama(sh) {
     diffuseColor.rgb = min( g1, g2 );
   `);
 }
-// Embaixo d'água a cor some rápido na cor do fundo: a água é turva,
-// então só o pedacinho logo abaixo da superfície ainda aparece.
+// Embaixo d'água a cor some rápido na cor do fundo (água turva).
 const corSubmersa = { value: new THREE.Color(CORES.aguaFunda) };
 // turvo: 1 = vendo de fora da água (tudo lá embaixo some na cor da água);
 // 0 = você mergulhou (aí quem dá o tom é a neblina verde de debaixo d'água)
@@ -114,14 +111,9 @@ turvarEmbaixoDagua(matFundo, (sh) => {
     `);
 });
 
-// Mancha no gramado: um pedaço de terra compactada, seca e dura, aparecendo
-// no meio da grama, como nos cenários de Namek. Ali não nasce grama.
-// Formato de café derramado: borda ondulada.
-// É uma "folha" fininha deitada um tiquinho acima da grama.
-// Textura da terra: nada de formas com contorno (viravam "biscoito"). São
-// três camadas que se misturam: variações de tom bem largas e esfumadas,
-// um granulado fininho de terra batida e umas pedrinhas miúdas espalhadas.
-// Repete sem emenda (uma folha a cada 80 de chão).
+// Mancha de terra batida no gramado (ali não nasce grama): folha fina deitada logo
+// acima da grama, borda ondulada. Textura em 3 camadas (tons largos, granulado,
+// pedrinhas), sem formas com contorno. Repete a cada 80 de chão.
 function texturaDaTerra() {
   const t = 512, c = document.createElement('canvas');
   c.width = c.height = t;
@@ -182,14 +174,10 @@ const matManchaBorda = new THREE.MeshLambertMaterial({
   color: '#5674c8',
   polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, // por baixo da mancha, por cima da grama
 });
-// (cx, cz) = centro da mancha na ilha; a parte que passar da borda é
-// "aparada" rente à borda, então a mancha nunca flutua em cima da água.
-// cresce: quanto a forma aumenta pra fora (usado pra borda escura em volta)
-// Contorno da mancha num ângulo a: a forma de café derramado + "dentes",
-// como pinceladas: pontas de terra entrando na grama e pontas de grama
-// entrando na terra. Os dentes são finos, um pouco tortos (um lado mais
-// comprido que o outro) e mais compridos na direção das pinceladas (o
-// eixo x do mundo), como na pintura de referência.
+// (cx, cz) = centro da mancha; o que passa da borda da ilha é aparado.
+// cresce: quanto a forma aumenta pra fora (pra borda escura em volta).
+// Contorno: borda ondulada + "dentes" finos e tortos de terra entrando na grama e
+// vice-versa, mais compridos no eixo x (direção das pinceladas).
 const _dentes = new Map(); // os dentes de cada mancha, sorteados uma vez só
 function dentesDaMancha(i, j, sem) {
   const chave = i + ',' + j + ',' + sem;
@@ -277,9 +265,8 @@ function dentroDaMancha(px, pz, m, i, j) {
 }
 const ilhas = new Map(); // "i,j" -> { grupo, geo, solidos, copas } ou null (célula vazia)
 
-// graminha: um tufinho de 3 folhas finas em leque. É desenhado com "instâncias":
-// a placa de vídeo recebe o desenho UMA vez e só a lista de posições de cada
-// tufo — por isso milhares deles custam pouco.
+// graminha: tufo de 3 folhas em leque, desenhado com instâncias (a placa de vídeo
+// recebe a forma uma vez + a lista de posições): milhares custam pouco.
 function geometriaTufo() {
   const pos = [];
   for (let f = 0; f < 3; f++) {
@@ -383,14 +370,12 @@ function vizinhaDeEnorme(i, j) {
 }
 
 // ---------------------------------------------------------------------
-// Embaixo d'água a ilha vira montanha: da beira da plataforma (a 3 abaixo
-// da superfície) a encosta desce abrindo até o fundo do mar, com calombos
-// de rocha. A largura que ela abre varia em volta (saia.E, f, g).
+// Embaixo d'água a ilha vira montanha: da beira da plataforma (y = -3) a encosta
+// desce abrindo até o fundo, com calombos. A largura varia em volta (saia.E, f, g).
 // ---------------------------------------------------------------------
 const SAIA_TOPO = -3;
-// a base da plataforma é 6% mais larga que o topo (CylinderGeometry(1, 1.06)):
-// a encosta começa exatamente nessa largura, com os mesmos 40 lados, senão a
-// beira da plataforma fica sobrando pra fora da encosta
+// a base da plataforma é 6% mais larga que o topo: a encosta começa nessa largura,
+// com os mesmos 40 lados, senão a beira da plataforma sobra pra fora
 const BASE_PLATAFORMA = 1.06, LADOS_PLATAFORMA = 40;
 function larguraDaSaia(saia, a) {
   return saia.E * (1 + 0.25 * Math.sin(5 * a + saia.f) + 0.15 * Math.sin(11 * a + saia.g));
@@ -469,7 +454,7 @@ turvarEmbaixoDagua(matAlga, (sh) => {
     transformed.z += cos( tempoAlga * 1.1 + faseAlga + hAlga * 2.4 ) * 0.35 * hAlga * hAlga;
   `);
 });
-// a rocha da encosta submersa: azul-arroxeada, como as rochas debaixo d'água no anime
+// rocha da encosta submersa: azul-arroxeada
 const matSaia = new THREE.MeshLambertMaterial({ color: '#8b80c4' });
 turvarEmbaixoDagua(matSaia);
 const _m4a = new THREE.Matrix4(), _qa = new THREE.Quaternion(), _ea = new THREE.Euler();
@@ -560,11 +545,9 @@ function criarIlha(i, j) {
     geosManchas.push(gb);
   }
 
-  // Montanha: às vezes a ilha ganha uma rocha bem maior e encorpada perto do
-  // centro (12 a 28 m de altura; nas enormes até 35 m; as altas são raras),
-  // com o topo plano dá pra pousar e andar. Só em ilha média pra cima: 15%
-  // das médias/grandes, 35% das enormes (e 10% delas ganham uma segunda). Rocha comum que
-  // encostaria nela não nasce.
+  // Montanha: às vezes uma rocha bem maior perto do centro (12 a 28 m; nas enormes
+  // até 35 m; as altas são raras), com topo plano pra pousar. Em 15% das ilhas médias
+  // e grandes, 35% das enormes (10% delas ganham duas). Rocha comum que encostaria nela não nasce.
   const montanhas = [];
   const querMontanha = (k) => {
     if (enorme) return k === 0 ? hash(i, j, 20000) < 0.35 : hash(i, j, 20010) < 0.1;
@@ -707,7 +690,7 @@ function criarIlha(i, j) {
       const tx = mx + Math.cos(a) * d, tz = mz + Math.sin(a) * d;
       if (encostaEmRocha(x + tx, z + tz, 0.3, solidos)) continue;
       if (secas.some(m => dentroDaMancha(tx, tz, m, i, j))) continue; // terra dura: sem grama
-      const tam = 0.6 + hash(i, j, sm + 30 + k) * 0.8;  // 0,6 a 1,4 aqui ≈ 3 a 8 cm na sensação
+      const tam = 0.6 + hash(i, j, sm + 30 + k) * 0.8; // 0,6 a 1,4 ≈ 3 a 8 cm sentidos
       e.set(0, a * 3, 0);
       m4.compose(p3.set(tx, alt, tz), q.setFromEuler(e), s3.set(tam, tam, tam));
       tufos.setMatrixAt(usados++, m4);
@@ -724,10 +707,9 @@ function criarIlha(i, j) {
   return { grupo, geo, geosManchas, tufos, geoSaia, algas, x, z, solidos, copas, fauna, alt };
 }
 
-// Tamanho das árvores (altura total, do pé ao topo da copa, em metros sentidos):
-// distribuição natural de 2 a 20 m — a maioria entre ~4 e ~11 m, poucas
-// mini e poucas gigantes (média de dois sorteios = curva em sino, puxada pro baixo).
-// Mais alta = mais velha = copa maior; da menor pra maior a copa no máximo dobra.
+// Altura das árvores (do pé ao topo da copa, em metros sentidos): de 2 a 20 m,
+// a maioria entre ~4 e ~11 (média de dois sorteios = curva em sino puxada pra baixo).
+// Mais alta = copa maior; da menor pra maior a copa no máximo dobra.
 const M_ARVORE = 17.5;     // 1 m sentido, em unidades (ver ESCALA_SENTIDA)
 const COPA_MIN = 11;       // raio da copa da árvore de 2 m (a de 20 m tem o dobro)
 const ARVORE_MIN = 2, ARVORE_MAX = 20;
@@ -739,7 +721,7 @@ function sortearArvore(sorteio1, sorteio2) {
   const total = metros * M_ARVORE;
   // a copa vai de th + 0,6r - 1,15r até th + 0,6r + 1,15r: o topo dela é th + 1,75r
   const th = Math.max(6, total - r * 1.75);
-  return { r, th, grossura: 0.8 + metros * 0.115 }; // a de 20 m: ~3 de raio (40% mais fino que antes)
+  return { r, th, grossura: 0.8 + metros * 0.115 }; // a de 20 m: ~3 de raio
 }
 
 // esse ponto (com essa folga) fica em cima de alguma rocha?

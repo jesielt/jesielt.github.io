@@ -14,13 +14,10 @@ function suavizar(atual, alvo, rapidez, dt) {
 }
 
 // ---------------------------------------------------------------------
-// Andar: chegando a 1 m de um chão (topo da ilha ou de uma rocha) voando,
-// você pousa. A câmera dá uma abaixadinha (a "pancada no joelho") e
-// levanta pra altura dos olhos de pé (1,7 m). Andando, W/A/S/D move no
-// chão, Shift corre, Espaço decola de volta. Pisou na beira da ilha:
-// escorrega pro mar (e lá dentro volta a ser o nado de sempre).
-// Saiu da ponta de uma rocha: cai no chão de baixo.
-// (17,5 unidades ≈ 1 m na sensação)
+// Andar: voando a 1 m de um chão (ilha ou rocha), você pousa: a câmera abaixa
+// (joelho) e sobe pra altura de pé. Andando: WASD move, Shift corre, Espaço decola.
+// Na beira da ilha escorrega pro mar; saindo da ponta de uma rocha, cai.
+// (17,5 unidades ≈ 1 m sentido)
 // ---------------------------------------------------------------------
 const ANDAR = {
   pousa: 17.5,         // 1 m: voando a essa altura de um chão, você pousa
@@ -153,7 +150,7 @@ function escorregar(dt) {
   olhosAgora = suavizar(olhosAgora, ANDAR.olhosEscorregando, 5, dt);
   p.y = pesY + olhosAgora;
   vel.set(escorrega.x * escorrega.vel, velQueda, escorrega.z * escorrega.vel);
-  // chegou na água: volta pro voo (que lá dentro é o nado); o tchibum é o de sempre
+  // chegou na água: volta pro voo (que lá dentro é o nado)
   const superficie = semMergulho ? AJUSTE.alturaOlhos : 0;
   if (p.y < superficie) {
     if (semMergulho) p.y = superficie;
@@ -162,9 +159,8 @@ function escorregar(dt) {
   }
 }
 
-// C duas vezes rápido: desiste do voo e cai (gravidade). Chão = pouso com
-// abaixadinha (mais forte quanto mais rápido caiu); água = mergulho de
-// sempre; Espaço no meio da queda volta a voar.
+// C duas vezes rápido: desiste do voo e cai. No chão, pouso com abaixada (mais forte
+// quanto mais rápido caiu); na água, mergulho; Espaço no meio da queda volta a voar.
 function desistirDoVoo() {
   if (modo !== 'voo' || submerso) return;
   modo = 'cair';
@@ -195,7 +191,7 @@ function cair(dt, u) {
   const superficie = semMergulho ? AJUSTE.alturaOlhos : 0;
   if (p.y < superficie) {
     if (semMergulho) { p.y = superficie; vel.y = 0; }
-    modo = 'voo'; // na água: o voo de sempre (mergulho, com tchibum e bolhas)
+    modo = 'voo'; // na água: volta pro voo (mergulho normal)
   }
 }
 
@@ -248,7 +244,7 @@ function atualizarAndar(dt, f, l, u) {
   }
   animarPouso(dt);
 
-  // passos: a cabeça sobe e desce, e cada pé no chão faz clac-nhec
+  // passos: a cabeça sobe e desce, e cada pé no chão toca o som de passo
   const vh = Math.hypot(vel.x, vel.z);
   if (noChao && vh > 2) {
     const antes = Math.floor(fasePasso);
@@ -324,7 +320,7 @@ function voar(dt, f, l, u) {
   desejo.y += u;
   if (desejo.lengthSq() > 1) desejo.normalize();
 
-  // debaixo d'água tudo fica "nerfado": empurra menos, freia mais, dash fraquinho
+  // debaixo d'água: empurra menos, freia mais, dash fraco
   const nerf = submerso ? AGUA.nerf : 1;
   const dashLigado = segurando('dash');
   const fator = dashLigado ? (submerso ? AGUA.dash : AJUSTE.dash) : 1;

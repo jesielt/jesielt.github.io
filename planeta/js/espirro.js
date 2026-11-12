@@ -1,21 +1,11 @@
 // ---------------------------------------------------------------------
-// Espirro: com o dash (Shift), rente ao mar (1,5 m ou menos), a água abre
-// pros lados:  \\\ você ///
-//
-// Visto de lado, cada esguicho é um TRIÂNGULO preso no mar:
-//   - o lado curto fica na FRENTE, perto de você: é onde a água sobe e
-//     estoura em gotas e névoa. Ele é inclinado pra fora, então olhando
-//     reto ele vira uma diagonal de baixo (perto do centro) até a lateral;
-//   - o lado comprido fica deitado na superfície da água, indo pra trás
-//     (e um pouco pra fora). Como está sempre encostado no mar, não aparece
-//     corte de nenhum ângulo;
-//   - a altura vai baixando da frente pra trás até sumir (a hipotenusa).
-// São 5 paredes desse jeito de cada lado, cada uma inclinada pra fora num
-// ângulo diferente e um pouco curvada: juntas têm volume de qualquer ângulo.
-// Mais uma deitada no mar (a "cama"), abrindo pra fora: o tapete de espuma.
-// Por cima, GOTAS saem do topo e da ponta de trás, e NÉVOA fica boiando.
-// Medidas em "alturas dos olhos" (h = sua altura sobre a água), pra ficar
-// igual na tela tanto colado no mar quanto a 1 m.
+// Espirro: com dash, rente ao mar (até 1,5 m), a água abre pros lados em V
+// De lado, cada esguicho é um triângulo preso no mar: o lado curto fica na frente
+// (a água sobe e estoura em gotas e névoa), inclinado pra fora; o lado comprido fica
+// deitado na água indo pra trás (sempre encostado, sem corte visível); a altura
+// baixa até sumir lá atrás. 5 paredes por lado, cada uma num ângulo e curvada, dão
+// volume; mais uma deitada (a "cama") faz o tapete de espuma. Por cima: gotas e névoa.
+// Medidas em h (sua altura sobre a água), pra ficar igual na tela a qualquer altura.
 // ---------------------------------------------------------------------
 const ESPIRRO = {
   alturaMax: 1.5 * ESCALA_SENTIDA, // só espirra a 1,5 m da água ou menos
@@ -240,8 +230,7 @@ function soltarNevoa(rapidez) {
 }
 
 // ---------- gotas ----------
-// Gotinhas e pedaços de espuma que saltam do topo e do lado curto das
-// paredes (onde a água estoura) e caem. São a "bagunça" por cima.
+// Gotinhas e pedaços de espuma que saltam do topo e do lado curto das paredes e caem.
 const MAX_GOTAS = 2400;
 const gotas = {
   pos: new Float32Array(MAX_GOTAS * 3),

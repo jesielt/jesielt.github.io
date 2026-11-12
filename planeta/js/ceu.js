@@ -58,9 +58,8 @@ ceu.renderOrder = -1;
 cena.add(ceu);
 
 // ---------------------------------------------------------------------
-// Satélites no céu: um planeta grande, creme com listras alaranjadas,
-// e uma luazinha clara. Ficam "pregados" no céu (andam junto com você,
-// então nunca chegam mais perto — igual à lua de verdade).
+// Satélites: um planeta listrado e uma lua clara. Andam junto com você,
+// então nunca chegam mais perto (como a lua de verdade).
 // ---------------------------------------------------------------------
 function texturaDoSatelite(listras) {
   const t = 256, c = document.createElement('canvas');
@@ -133,13 +132,12 @@ const satelites = [
 ];
 
 // ---------------------------------------------------------------------
-// Nuvens: coisas de verdade no mundo, lá no alto. Cada uma é um montinho
-// de bolotas macias (sprites); embaixo, bolotas largas e achatadas fazem a
-// base reta. Ficam espalhadas num quadriculado próprio, como as ilhas, e
-// o vento leva todas juntas bem devagar. Dá pra subir e atravessar.
+// Nuvens: cada uma é um monte de sprites redondos; embaixo, sprites largos e
+// achatados fazem a base reta. Quadriculado próprio (como as ilhas); o vento
+// leva todas juntas. Dá pra atravessar.
 // ---------------------------------------------------------------------
 const NUVEM = {
-  alturaMin: 650,   // base da nuvem mais baixa (~37 m na sua régua)
+  alturaMin: 650, // base da nuvem mais baixa (~37 m)
   alturaMax: 850,
   celula: 900,      // uma chance de nuvem a cada 900 x 900
   chance: 0.45,

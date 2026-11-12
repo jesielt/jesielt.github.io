@@ -1,8 +1,7 @@
 // ---------------------------------------------------------------------
-// Fauna de Namek. Cada espécie é um "molde" com criar() e atualizar();
-// a ilha guarda os bichos dela (some junto quando a ilha some).
-// Marca de Namek: todo bicho tem anteninhas (criarAntenas serve pra todos).
-// Por enquanto ninguém entra na água: só andam no chão da plataforma.
+// Fauna de Namek. Cada espécie é um molde com criar() e atualizar(); a ilha guarda
+// os bichos dela (somem junto com a ilha). Todo bicho tem antenas (criarAntenas).
+// Por enquanto nenhum entra na água.
 // ---------------------------------------------------------------------
 const _geoAntena = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
   new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.4, 0.15),
@@ -61,10 +60,8 @@ const _geoBola = new THREE.SphereGeometry(1, 16, 12);
 const _geoCrista = new THREE.ConeGeometry(1, 1, 10);
 
 const FAUNA = {
-  // Sapo: ~45 cm de comprimento. Fica parado um tempo (olhando em volta,
-  // antenas balançando), dá uns pulinhos pra lugares próximos e, se você
-  // chega perto (~2,5 m), foge pulando pra longe de você. Nunca vai pra
-  // beira (não entra na água) nem pra cima de rocha.
+  // Sapo: ~45 cm. Fica parado olhando em volta, dá pulinhos curtos e, se você chega
+  // a ~2,5 m, foge pulando. Nunca vai pra beira nem pra cima de rocha.
   sapo: {
     chance: 0.55,          // chance de ter sapo numa ilha comum
     maxPorIlha: 3,
@@ -202,7 +199,7 @@ function atualizarSapo(b, dt, t, ilha) {
 
   if (b.estado === 'parado') {
     b.espera -= b.fugindo > 0 ? dt * 6 : dt;
-    // achatadinho respirando
+    // respiração
     b.corpo.scale.set(1, 1 + Math.sin(t * 3 + b.fase) * 0.03, 1);
     b.corpo.position.y = 0;
     if (b.espera <= 0) {

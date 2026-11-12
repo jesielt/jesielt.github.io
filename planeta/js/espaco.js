@@ -1,14 +1,10 @@
 // ---------------------------------------------------------------------
-// Subindo até o espaço. Tudo barato: nada do mundo de verdade é montado
-// lá em cima.
-// - de 200 a 500 m o céu escurece (fica rarefeito e depois preto)
-// - aparecem as estrelas: uma nuvem de pontinhos que anda com você
-// - embaixo, o mundo de verdade vai sendo coberto por um planeta PINTADO:
-//   uma bola gigante, pintada pela placa de vídeo, com o mar verde e as faixas claras do
-//   Namek do anime e um brilho azul na borda. Ela gira conforme você anda,
-//   então lá de cima parece que você está sobrevoando o planeta.
-// - acima de 500 m não tem ar: a barra de fôlego aparece; acabou, recomeça.
-// Descendo, tudo volta ao contrário.
+// Subindo até o espaço (barato: nada do mundo é montado lá em cima).
+// - 200 a 500 m: o céu escurece; aparecem estrelas (pontos que andam com você)
+// - embaixo, um planeta pintado pelo shader (mar verde, faixas claras, brilho azul na
+// borda) vai cobrindo o mundo; ele gira conforme você anda (parece sobrevoar)
+// - acima de 500 m não tem ar: aparece a barra de fôlego
+// Descendo, tudo volta.
 // ---------------------------------------------------------------------
 const ESPACO = {
   rarefeito: 200,   // m: o céu começa a mudar
@@ -23,13 +19,10 @@ const uniPlaneta = {
   escuro: uniEscuro,
   alto: uniAlto,
 };
-// A pintura do planeta é feita na hora pela placa de vídeo, a partir do
-// ponto da bola (e não de uma imagem esticada): assim não tem polo, nem
-// emenda, nem "gomos de melancia". São faixas claras compridas e tortas,
-// meio na diagonal, que se juntam em umas regiões e somem em outras, como
-// no planeta do anime, mais umas nuvens brancas soltas.
-// O planeta e o brilho são desenhados por cima de tudo (sem teste de
-// profundidade): assim eles "cobrem" o mundo de verdade aos poucos.
+// Pintura do planeta feita no shader a partir do ponto da esfera (não de imagem
+// esticada): sem polo nem emenda. Faixas claras tortas, na diagonal, que se juntam
+// e somem, mais nuvens brancas soltas. Planeta e brilho são desenhados por cima de
+// tudo (sem teste de profundidade), pra cobrir o mundo aos poucos.
 const planeta = new THREE.Mesh(new THREE.SphereGeometry(ESPACO.raio, 256, 128), new THREE.ShaderMaterial({
   uniforms: uniPlaneta,
   transparent: true, depthTest: false, depthWrite: false,

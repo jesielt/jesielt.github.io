@@ -89,9 +89,8 @@ const empurraoMouse = { x: 0, y: 0 }; // só pro desenho do mouse escorregar
 // Se o navegador não deixar prender o mouse, dá pra olhar clicando e arrastando.
 let arrastando = false;
 
-// Abertura: no primeiro clique, "FIND", "THE" e "BALLS" em letras saiyajin
-// (as mesmas do "m" e do "V"), uma por cima da outra, crescendo e sumindo.
-// Cada letra é feita de blocos numa caixa de 10×10 (tabela em Referências).
+// Abertura: no primeiro clique, "FIND", "THE" e "BALLS" em letras saiyajin, crescendo e sumindo.
+// Cada letra é feita de blocos numa grade 10×10 (tabela em Referências).
 const LETRAS_SAIYAJIN = {
   A: [[0, 0, 10, 3], [2.5, 6.5, 5.5, 3.5]],
   B: [[0, 0, 3.2, 10], [6.8, 0, 3.2, 5.2]],

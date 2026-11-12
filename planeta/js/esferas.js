@@ -1,13 +1,9 @@
 // ---------------------------------------------------------------------
-// As 7 esferas: de 1 a 7 estrelas, sorteadas pelo mundo, cada uma pra um
-// lado de onde você começa, de 600 a 5000 de distância (≈35 a 285 m na
-// sua régua). Metade cai numa ilha, metade no fundo do mar.
-// O mundo só existe perto de você, então cada esfera distante "pousa" na
-// ilha grande mais perto do ponto dela quando você chega a ~1600 de lá;
-// até isso, o radar já aponta pro ponto.
-// Você esbarra, ela rola; se cair no mar, afunda devagar e rola pelo fundo.
-// Chegando perto, aparece o botão direito do mouse: clicou, capturou.
-// Tamanho: um pouco maior que uma cabeça (~30 cm na sensação).
+// As 7 esferas (1 a 7 estrelas), sorteadas cada uma pra um lado de onde você
+// começa, de 600 a 5000 de distância (~35 a 285 m). Metade numa ilha, metade no
+// fundo do mar. Como o mundo só existe perto de você, a esfera distante "pousa" na
+// ilha grande mais perto do ponto dela quando você chega a ~1600; antes disso o
+// radar já aponta pro ponto. Esbarrou, ela rola; na água afunda e rola pelo fundo.
 // ---------------------------------------------------------------------
 const R_ESFERA = 4.3;      // raio, em unidades daqui de dentro (~49 cm de diâmetro na sensação)
 const RAIO_CORPO = 2;      // "tamanho" do seu corpo pra esbarrar nela (voando)
@@ -69,10 +65,9 @@ function texturaDasEstrelas(n) {
 
 const raioDaIlha = il => (il.solidos[0].rx + il.solidos[0].rz) / 2;
 
-// Vidro laranja grosso: opaco, mas com "volume" — o miolo fica mais claro
-// e quente (como luz lá dentro) e a borda mais funda e escura. As estrelas
-// são desenhadas por cima (a casca não grava profundidade), então parecem
-// estar dentro. Só fica transparente quando afunda.
+// Vidro laranja grosso: opaco, miolo mais claro e borda mais escura. As estrelas
+// são desenhadas por cima (a casca não grava profundidade), então parecem dentro.
+// Só fica transparente quando afunda.
 function materialDaCasca() {
   const m = new THREE.MeshPhongMaterial({
     color: '#f7a02c', emissive: '#7a3300', specular: '#fff6e0', shininess: 90,
@@ -227,7 +222,7 @@ function atualizarUmaEsfera(e, dt) {
   if (naAgua && !e.naAgua) v.multiplyScalar(AGUA.choque); // tchibum: perde o embalo
   e.naAgua = naAgua;
   if (naAgua) {
-    // debaixo d'água: afunda devagar (a água segura) e tudo freia ("nerfado")
+    // debaixo d'água: afunda devagar e tudo freia
     const gAgua = GRAVIDADE * AGUA.gravidadeEsfera;
     v.y -= gAgua * dt;
     v.multiplyScalar(Math.exp(-AGUA.arrastoEsfera * dt));
@@ -271,7 +266,7 @@ function atualizarUmaEsfera(e, dt) {
       if (contra < 0) { v.x -= 1.5 * contra * nx; v.z -= 1.5 * contra * nz; somDaEsfera(e, -contra); } // quica e perde metade
     }
 
-    // 3) bate nos bichos (sapo de tabela!): quica neles e eles fogem
+    // 3) bate nos bichos: quica neles e eles fogem
     for (const ilha of ilhasPerto()) {
       for (const b of ilha.fauna || []) {
         const sc = b.g.scale.x, raio = b.esp.raio * sc;

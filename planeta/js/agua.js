@@ -1,9 +1,8 @@
 // ---------------------------------------------------------------------
 // Água: um plano enorme que acompanha você (então nunca acaba)
 // ---------------------------------------------------------------------
-// ESCALA: ~17,5 unidades aqui dentro ≈ 1 m na sensação de quem joga
-// (régua calibrada pela altura dos olhos rente à grama ≈ 20 cm).
-const LADRILHO = 60; // tamanho, em metros, de cada repetição da textura
+// ESCALA: ~17,5 unidades ≈ 1 m sentido (calibrado pela altura dos olhos rente à grama ≈ 20 cm).
+const LADRILHO = 60; // tamanho de cada repetição da textura
 
 function texturaDaAgua() {
   const t = 256;
@@ -35,13 +34,9 @@ function texturaDaAgua() {
 const TAM_AGUA = 12000;
 const texAgua = texturaDaAgua();
 texAgua.repeat.set(TAM_AGUA / LADRILHO, TAM_AGUA / LADRILHO);
-// Mar de lago: quase parado e meio turvo.
-// - ondulação miudinha e lenta (só mexe no brilho, a superfície é plana)
-// - reflete o céu: olhando rente, vira céu; olhando pra baixo, vira água
-// - brilho suave do sol
-// - um pouco transparente: dá pra ver de leve o que está logo embaixo
-// As manchinhas da textura continuam, bem fracas, pra manter o jeito pintado.
-// De longe, a camuflagem da repetição (segunda cópia girada + manchas largas).
+// Mar de lago: quase parado e turvo. Ondulação lenta só no brilho (a superfície é plana);
+// reflete o céu (rente vira céu, de cima vira água); brilho do sol; um pouco transparente.
+// De longe, esconde a repetição com uma segunda cópia girada + manchas largas.
 const uniAgua = {
   escuro: uniEscuro,
   alto: uniAlto,
@@ -112,8 +107,7 @@ agua.rotation.x = -Math.PI / 2;
 agua.renderOrder = -0.9;
 cena.add(agua);
 
-// Fundo: um chão escuro lá embaixo, só pra água turva ter o que mostrar
-// quando você olha de cima (sem ele, apareceria o céu através da água).
+// Leito escuro bem embaixo: sem ele, de cima apareceria o céu através da água.
 const leito = new THREE.Mesh(
   new THREE.PlaneGeometry(TAM_AGUA, TAM_AGUA),
   new THREE.MeshBasicMaterial({ color: CORES.aguaFunda })
@@ -123,10 +117,8 @@ leito.position.y = -150; // bem abaixo do fundo do mar (só pra nunca aparecer b
 cena.add(leito);
 
 // ---------------------------------------------------------------------
-// Fundo do mar: um chão a ~120 de profundidade (≈6,9 m na sua régua), com
-// ondulações e montinhos de terra espalhados — nunca 100% plano.
-// A mesma conta existe em JS (pra você e as esferas pisarem nele) e no
-// shader (pra desenhar), então os dois batem certinho.
+// Fundo do mar a ~120 de profundidade (~6,9 m), com ondulações e montinhos.
+// A mesma conta existe em JS (pra pisar) e no shader (pra desenhar): mudar nos dois.
 // ---------------------------------------------------------------------
 const PROF = 120;
 function alturaDoFundo(x, z) {
@@ -148,7 +140,7 @@ const FUNDO_GLSL = `
 const PASSO_FUNDO = 20; // o chão anda com você de 20 em 20 (pra não "nadar")
 const geoFundo = new THREE.PlaneGeometry(2400, 2400, 120, 120);
 geoFundo.rotateX(-Math.PI / 2);
-const matFundo = new THREE.MeshLambertMaterial({ color: '#7f8fc4' }); // areia azulada (as rochas de Namek embaixo d'água)
+const matFundo = new THREE.MeshLambertMaterial({ color: '#7f8fc4' }); // areia azulada
 const fundoDoMar = new THREE.Mesh(geoFundo, matFundo);
 fundoDoMar.frustumCulled = false;
 cena.add(fundoDoMar);

@@ -1,20 +1,18 @@
 // ---------------------------------------------------------------------
-// Som do vento: ruído rosa filtrado, feito na hora (sem arquivo de áudio).
-// Parado é um sopro baixinho, tipo orla; voando devagar cresce um pouco;
-// rápido (e no dash) fica forte e mais "chiado". Rajadas lentas e aleatórias
-// pra não soar como um chiado parado. Debaixo d'água fica abafado e no
-// espaço some (não tem ar). O navegador só deixa tocar som depois do
-// primeiro clique/tecla/toque, então ele liga aí.
+// Som do vento: ruído rosa filtrado, gerado na hora (sem arquivo de áudio).
+// Parado: sopro baixo; cresce com a velocidade e no dash. Rajadas lentas e
+// aleatórias pra não soar parado. Debaixo d'água fica abafado; no espaço some.
+// O navegador só libera som depois do primeiro clique/tecla/toque.
 // ---------------------------------------------------------------------
 const SOM = {
   volParado: 0.06,   // volume parado (orla)
   volMax: 0.38,      // volume na velocidade normal máxima
   volDash: 0.55,     // volume no máximo do dash
   filtroParado: 300, // Hz: parado o vento é grave e macio...
-  filtroMax: 850,    // ...rápido ele abre um pouco (sem chegar no chiado de rádio)
+  filtroMax: 850, // ...rápido abre um pouco (sem ficar agudo)
   filtroDash: 1300,
   rajada: 0.35,      // quanto as rajadas mexem no volume (0 = nada)
-  passo: 0.3,        // volume do passo (clac-nhec)
+  passo: 0.3, // volume do passo
   vidro: 0.09,       // volume do choque com a esfera (vidro grave)
 };
 let vento = null;
@@ -42,8 +40,7 @@ function criarVento() {
     for (let i = 0; i < f; i++) { const t = i / f; d[n - f + i] = d[n - f + i] * (1 - t) + d[i] * t; }
     return buf;
   }
-  // dois passa-baixas em fila: corta o agudo com força (é o que tirava o
-  // "rádio fora do ar") e deixa o vento redondo
+  // dois passa-baixas em fila: cortam bem o agudo
   const filtro = ctx.createBiquadFilter();
   filtro.type = 'lowpass';
   filtro.Q.value = 0.5;
@@ -54,7 +51,7 @@ function criarVento() {
   ressoa.type = 'peaking';
   ressoa.Q.value = 0.9;
   ressoa.gain.value = 3;
-  const corpo = ctx.createBiquadFilter();  // reforço no grave: dá corpo, tipo vento na janela do carro
+  const corpo = ctx.createBiquadFilter(); // reforço no grave: dá corpo
   corpo.type = 'lowshelf';
   corpo.frequency.value = 180;
   corpo.gain.value = 5;
@@ -65,7 +62,7 @@ function criarVento() {
   const passos = ctx.createGain();
   passos.gain.value = 1;
   passos.connect(ctx.destination);
-  // chiado curtinho pro "clac"
+  // ruído curto pro estalo do passo
   const nClac = Math.floor(ctx.sampleRate * 0.06);
   const ruidoCurto = ctx.createBuffer(1, nClac, ctx.sampleRate);
   const dc = ruidoCurto.getChannelData(0);
@@ -109,17 +106,15 @@ window.addEventListener('blur', aplicarSom);
 window.addEventListener('focus', aplicarSom);
 document.addEventListener('visibilitychange', aplicarSom);
 
-// Passo robótico de corpo pesado: "tum" grave + "clac" (estalo metálico) e
-// logo depois "nhec" (um servo grande rangendo, tom que cai). Pé esquerdo e direito com tons um pouco diferentes;
-// pesado = pouso (mais grave e forte).
+// Som de um passo, em 3 camadas: impacto grave, estalo metálico e, ~80 ms
+// depois, um rangido de motor. lado: 0/1 = pé esquerdo/direito (tom
+// levemente diferente). pesado: pouso (mais grave e mais alto).
 function tocarPasso(correndo = false, lado = 0, pesado = false) {
   if (!vento || vento.ctx.state !== 'running') return;
   const ctx = vento.ctx, t = ctx.currentTime;
   const vol = SOM.passo * (correndo ? 1.2 : 1) * (pesado ? 1.5 : 1);
   const tom = (lado ? 1.06 : 1) * (pesado ? 0.8 : 1) * (0.97 + Math.random() * 0.06);
-  // peso: um "tum" grave que desce, o corpo de 70 kg apoiando no pé.
-  // Duas camadas: o tom (sine) e um baque abafado (chiado bem grave), que
-  // "enche" o espaço em vez de ser só um bip grave
+  // 1. impacto: tom grave descendo + ruído filtrado (sem o ruído, soa como bip)
   const tum = ctx.createOscillator();
   tum.type = 'sine';
   tum.frequency.setValueAtTime(90 * tom, t);
@@ -143,7 +138,7 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   gb.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
   baque.connect(lp).connect(gb).connect(vento.passos);
   baque.start(t);
-  // clac: estalo metálico, mais grosso
+  // 2. estalo metálico: ruído numa faixa estreita + tom triangular curto
   const ruido = ctx.createBufferSource();
   ruido.buffer = vento.ruidoCurto;
   const bp = ctx.createBiquadFilter();
@@ -155,7 +150,7 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   g1.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
   ruido.connect(bp).connect(g1).connect(vento.passos);
   ruido.start(t);
-  const ping = ctx.createOscillator(); // o "metal" do clac
+  const ping = ctx.createOscillator();
   ping.type = 'triangle';
   ping.frequency.value = 520 * tom;
   const g2 = ctx.createGain();
@@ -164,14 +159,14 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   ping.connect(g2).connect(vento.passos);
   ping.start(t);
   ping.stop(t + 0.08);
-  // nhec: servo grande rangendo
+  // 3. rangido de motor: dente de serra descendo, com vibrato de 30 Hz
   const t2 = t + (correndo ? 0.055 : 0.08);
   const dur = correndo ? 0.11 : 0.15;
   const osc = ctx.createOscillator();
   osc.type = 'sawtooth';
   osc.frequency.setValueAtTime(270 * tom, t2);
   osc.frequency.exponentialRampToValueAtTime(175 * tom, t2 + dur);
-  const vib = ctx.createOscillator(); // tremidinha de engrenagem
+  const vib = ctx.createOscillator();
   vib.frequency.value = 30;
   const vg = ctx.createGain();
   vg.gain.value = 14 * tom;
@@ -189,10 +184,9 @@ function tocarPasso(correndo = false, lado = 0, pesado = false) {
   osc.stop(t2 + dur + 0.02); vib.stop(t2 + dur + 0.02);
 }
 
-// Choque com a esfera: "tim" de vidro, mas grave e baixinho (pra não
-// cansar). Parciais desafinadas entre si = som de vidro/cristal. Mais
-// forte quanto maior a pancada; cada esfera espera um pouquinho entre um
-// som e outro (rolando encostada não vira metralhadora).
+// Choque com a esfera: som de vidro grave e baixo (parciais desafinadas entre
+// si). Mais forte quanto maior a pancada; intervalo mínimo por esfera (rolando
+// encostada não vira metralhadora).
 function somDaEsfera(e, forca) {
   if (forca < 6 || !vento || vento.ctx.state !== 'running') return;
   const agora = performance.now();

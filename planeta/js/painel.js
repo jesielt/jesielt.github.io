@@ -132,8 +132,8 @@ function desenharRadar(tempo) {
 }
 
 // ---------------------------------------------------------------------
-// Risquinhos de velocidade (estilo anime): aparecem nas bordas da tela
-// durante o dash, e são sorteados de novo a cada quadro pra "tremer".
+// Risquinhos de velocidade: nas bordas da tela durante o dash, sorteados de novo
+// a cada quadro (tremem).
 // ---------------------------------------------------------------------
 const riscos = document.getElementById('riscos');
 const kctx = riscos.getContext('2d');
@@ -181,9 +181,8 @@ function desenharRiscos(dt) {
 }
 
 // ---------------------------------------------------------------------
-// Altura acima do mar, já convertida pra escala que você sente
-// (17,5 unidades aqui dentro ≈ 1 metro na sensação: com os olhos rente
-// à grama, a 3,5 unidades, a sensação é de uns 20 cm)
+// Altura acima do mar, na escala sentida (17,5 unidades ≈ 1 m; calibrado pelos
+// olhos rente à grama: 3,5 unidades ≈ 20 cm)
 // ---------------------------------------------------------------------
 const ESCALA_SENTIDA = 17.5;
 const alturaNum = document.getElementById('alturaNum');

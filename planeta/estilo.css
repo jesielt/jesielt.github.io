@@ -317,9 +317,10 @@ html, body {
 }
 
 .tecla.vazia { visibility: hidden; }
-/* R recomeça do zero: caveirinha cinza no canto, pra ninguém apertar "pra ver" */
-.tecla.perigo { position: relative; }
-.tecla.perigo .caveira {
+/* selo: desenhinho cinza num círculo no canto da tecla (R: caveira, pra ninguém
+   apertar "pra ver", porque recomeça do zero; M: alto-falante cortado) */
+.tecla.com-selo { position: relative; }
+.tecla.com-selo .selo {
   position: absolute;
   top: -30%;
   right: -30%;
