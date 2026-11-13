@@ -22,12 +22,13 @@ const PARTES = [
   'cena', // ajustes, cores, cena, câmera, luz
   'ceu',        // céu, satélites, nuvens
   'agua',       // superfície do mar e fundo
-  'rochas',     // forma e aparência das rochas, ruído 3D compartilhado
+  'rochas',     // rochas low-poly, contorno irregular, ruído 3D compartilhado
   'ilhas',      // ilhas, rochas, grama, árvores, saia submersa, quais ilhas existem
   'fauna', // fauna (sapos)
   'controles',  // teclado, mouse, toque, abertura
   'movimento',  // voo, andar, pouso, queda, colisão, atualizar()
   'esferas',    // as 7 esferas e a captura
+  'reuniao',    // soltar esferas e reunir as 7 em terra
   'painel', // radar, linhas de velocidade, altura e velocidade
   'espirro', // espirro de água no dash rente ao mar
   'mergulho',   // debaixo d'água, bolhas, ar, recomeçar, céu escuro e raios

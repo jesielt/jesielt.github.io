@@ -186,7 +186,6 @@ function semArAqui() {
 const _corNeblina = new THREE.Color();
 function atualizarDebaixoDagua(dt) {
   if (!(dt > 0)) return;
-  if (ceuPendente && !submerso) { ceuPendente = false; escurecerCeu(); }
   // escurecimento (ou retorno) gradual do céu
   uniEscuro.value = suavizar(uniEscuro.value, escuroAlvo, 0.9, dt);
   if (Math.abs(uniEscuro.value - escuroAlvo) < 0.002) uniEscuro.value = escuroAlvo;

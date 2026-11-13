@@ -1,28 +1,26 @@
 // ---------------------------------------------------------------------
-// Rochas: forma em camadas (geometria) e aparência de pedra (shader).
-// Também guarda o ruído 3D em GLSL usado por outros materiais (copas).
+// Rochas low-poly: paredões quase verticais com colunas irregulares e topo
+// plano de grama, como as mesas rochosas de Namek. Algumas ganham um segundo
+// andar menor por cima. Também guarda o ruído 3D em GLSL usado pelas copas.
 // ---------------------------------------------------------------------
 
-// Valores ajustáveis. A colisão continua cilíndrica: saliências grandes
-// demais deixam o jogador atravessar a parte que sobra para fora.
+// Valores ajustáveis.
 const ROCHA = {
-  camadas: 7,        // degraus na forma de cada rocha (qualquer altura)
-  saliencia: 0.05,   // quanto cada degrau avança ou recua (fração do raio)
-  inclinacao: 0.25,  // ondulação dos degraus ao redor da rocha (0 = retos)
-  irregular: 0.03,   // deformação do contorno (0 = círculo perfeito)
-  lados: 24,         // divisões ao redor; menos lados = aspecto mais facetado
+  ladosMin: 9,       // lados do contorno (sorteado entre mínimo e máximo)
+  ladosMax: 14,
+  fileiras: 5,       // fileiras de faces na parede, da base ao topo
+  colunas: 0.07,     // quanto cada coluna vertical avança ou recua (fração do raio)
+  aspereza: 0.035,   // desvio de cada vértice, para as faces ficarem tortas
+  desnivel: 0.3,     // desvio da altura dos vértices internos (fração de uma fileira)
+  ombro: 0.05,       // recuo da borda do topo (arredonda a quina)
+  pe: 0.04,          // alargamento da base
+  tons: 0.12,        // variação de tom entre faces
+  baseEscura: 0.18,  // escurecimento junto ao chão
+  variantes: 3,      // formas diferentes por afinamento
+  andar: 0.35,       // chance de um segundo andar em cima
 };
-const PEDRA = {
-  espessura: 3.5,    // altura de cada faixa de sedimento, em metros
-  ondulacao: 2.0,    // quanto as faixas sobem e descem, em metros
-  contraste: 0.16,   // diferença de tom entre faixas
-  sulcos: 0.25,      // escurecimento do sulco entre faixas
-  granulado: 0.16,   // riscos finos ao longo das faixas
-  rachaduras: 0.35,  // escurecimento das rachaduras verticais
-  largRachadura: 0.03, // largura das rachaduras (0,01 a 0,08)
-  relevo: 0.6,       // profundidade aparente de sulcos e rachaduras (0 = liso)
-  topoClaro: 0.12,   // clareamento das superfícies voltadas para cima
-};
+// afinamento do topo em relação à base: paredes quase verticais
+const AFINA = [0.68, 0.76, 0.84, 0.92];
 
 // Ruído de valor 3D (sem textura, sem emendas) e degrau antisserrilhado.
 const RUIDO_GLSL = `
@@ -48,73 +46,66 @@ const RUIDO_GLSL = `
   }
 `;
 
-// Cilindro unitário com degraus horizontais: cada camada tem raio próprio
-// sorteado e a borda superior levemente recolhida, o que forma beirais.
-// O deslocamento depende só de (ângulo, altura), logo os vértices repetidos
-// da emenda e das tampas recebem o mesmo valor e a malha não abre frestas.
-function geometriaDaRocha(afina, semente) {
-  const n = ROCHA.camadas;
-  const geo = new THREE.CylinderGeometry(afina, 1, 1, ROCHA.lados, n * 6);
-  const p = geo.attributes.position;
-  const acaso = (k) => { const s = Math.sin(k * 12.9898 + semente * 78.233) * 43758.5453; return s - Math.floor(s); };
-  const fases = [acaso(-1) * 6.3, acaso(-2) * 6.3, acaso(-3) * 6.3, acaso(-4) * 6.3];
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    if (Math.hypot(x, z) < 1e-6) continue; // centro das tampas
-    const a = Math.atan2(z, x);
-    const u = (y + 0.5) * n + ROCHA.inclinacao * Math.sin(2 * a + fases[0]) + 0.15 * Math.sin(5 * a + fases[1]);
-    const id = Math.floor(u), f = u - id;
-    const k = 1
-      + ROCHA.saliencia * (acaso(id) - 0.5) * 2
-      - ROCHA.saliencia * 0.6 * f ** 4
-      + ROCHA.irregular * (0.6 * Math.sin(3 * a + fases[2]) + 0.4 * Math.sin(7 * a + fases[3]));
-    p.setXYZ(i, x * k, y, z * k);
-  }
-  geo.computeVertexNormals();
-  return geo;
+// contorno irregular da ilha: em cada ângulo, quanto a borda expande ou recua
+function contorno(a, ondas) {
+  return 1 + 0.13 * Math.sin(2 * a + ondas[0]) + 0.08 * Math.sin(5 * a + ondas[1]) + 0.04 * Math.sin(11 * a + ondas[2]);
 }
 
-// Pedra: faixas horizontais de sedimento em metros (independem do tamanho da
-// rocha), sulcos entre faixas, riscos finos, rachaduras verticais e topo mais
-// claro. Sulcos e rachaduras também desviam a normal (relevo sem triângulos).
-const glNum = (v) => v.toFixed(4);
-function pintarPedra(sh) {
-  sh.vertexShader = 'varying vec3 vPosPedra;\n' + sh.vertexShader.replace('#include <project_vertex>', `
-    #include <project_vertex>
-    // posição em metros relativa à peça, deslocada por ela (evita perda de
-    // precisão longe da origem e dá desenho diferente a cada rocha)
-    vPosPedra = mat3( modelMatrix ) * transformed + fract( modelMatrix[3].xyz * 0.0137 ) * 50.0;
-  `);
-  sh.fragmentShader = 'varying vec3 vPosPedra;\n' + RUIDO_GLSL + sh.fragmentShader
-    .replace('#include <color_fragment>', `
-      #include <color_fragment>
-      vec3 pp = vPosPedra;
-      float yOnda = pp.y + ${glNum(PEDRA.ondulacao)} * ( ruido3( vec3( pp.xz * 0.04, 0.0 ) ) - 0.5 ) * 2.0;
-      float faixa = yOnda / ${glNum(PEDRA.espessura)};
-      float fFaixa = fract( faixa );
-      float tomFaixa = acaso3( vec3( floor( faixa ), 1.7, 3.1 ) ) - 0.5;
-      float sulco = 1.0 - smoothstep( 0.0, 0.08 + fwidth( faixa ), fFaixa );
-      float risco = camadas3( pp * vec3( 0.5, 3.0, 0.5 ) );
-      float cr = ruido3( vec3( pp.x * 0.15, pp.y * 0.02, pp.z * 0.15 ) );
-      float racha = 1.0 - smoothstep( 0.0, ${glNum(PEDRA.largRachadura)} + fwidth( cr ), abs( cr - 0.5 ) );
-      vec3 nMundo = normalize( cross( dFdx( pp ), dFdy( pp ) ) );
-      diffuseColor.rgb *= ( 1.0 + ${glNum(PEDRA.contraste)} * 2.0 * tomFaixa )
-        * ( 1.0 - ${glNum(PEDRA.sulcos)} * sulco )
-        * ( 1.0 + ${glNum(PEDRA.granulado)} * ( risco - 0.5 ) * 2.0 )
-        * ( 1.0 - ${glNum(PEDRA.rachaduras)} * racha )
-        * ( 1.0 + ${glNum(PEDRA.topoClaro)} * smoothstep( 0.6, 0.9, abs( nMundo.y ) ) );
-      float alturaPedra = ${glNum(PEDRA.relevo)} * ( 0.5 * risco - 0.4 * sulco - 0.8 * racha );
-    `)
-    .replace('#include <normal_fragment_maps>', `
-      #include <normal_fragment_maps>
-      {
-        // perturbação de normal por derivadas (sem normalizar os vetores de
-        // tela: a força do relevo não muda com a distância)
-        vec3 sx = dFdx( -vViewPosition ), sy = dFdy( -vViewPosition );
-        vec3 r1 = cross( sy, normal ), r2 = cross( normal, sx );
-        float det = dot( sx, r1 ) * faceDirection;
-        vec3 grad = sign( det ) * ( dFdx( alturaPedra ) * r1 + dFdy( alturaPedra ) * r2 );
-        normal = normalize( abs( det ) * normal - grad );
-      }
-    `);
+// Rocha unitária: base em y = 0, topo em y = 1, raio 1 na base e `afina` no
+// topo. O contorno segue contorno(ângulo, ondas), a mesma função usada pela
+// colisão, que assim acompanha a forma vista. Geometria não indexada: cada
+// face tem normal e cor próprias (facetas). Grupo 0: parede; grupo 1: topo.
+function geometriaDaRocha(afina, semente) {
+  let s = semente * 7919 + 13;
+  const acaso = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const L = ROCHA.ladosMin + Math.floor(acaso() * (ROCHA.ladosMax - ROCHA.ladosMin + 1));
+  const R = ROCHA.fileiras;
+  const ondas = [acaso() * 6.3, acaso() * 6.3, acaso() * 6.3];
+  const angs = [], colunas = [];
+  for (let c = 0; c < L; c++) {
+    angs.push(((c + (acaso() - 0.5) * 0.5) / L) * Math.PI * 2);
+    colunas.push((acaso() - 0.5) * 2);
+  }
+  // anéis de vértices, da base (r = 0) ao topo (r = R)
+  const anel = [];
+  for (let r = 0; r <= R; r++) {
+    const pts = [];
+    for (let c = 0; c < L; c++) {
+      const meio = r > 0 && r < R;
+      const t = r / R + (meio ? (acaso() - 0.5) * ROCHA.desnivel / R : 0);
+      let f = contorno(angs[c], ondas) * (1 + (afina - 1) * t)
+        * (1 + ROCHA.colunas * colunas[c] + ROCHA.aspereza * (acaso() - 0.5) * 2);
+      if (r === R) f *= 1 - ROCHA.ombro;
+      if (r === 0) f *= 1 + ROCHA.pe;
+      pts.push(new THREE.Vector3(Math.cos(angs[c]) * f, t, Math.sin(angs[c]) * f));
+    }
+    anel.push(pts);
+  }
+  const pos = [], cor = [];
+  const tri = (a, b, c, k) => {
+    pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    cor.push(k, k, k, k, k, k, k, k, k);
+  };
+  const tom = (y) => (1 + ROCHA.tons * (acaso() - 0.5) * 2) * (1 - ROCHA.baseEscura * (1 - y));
+  for (let r = 0; r < R; r++) {
+    for (let c = 0; c < L; c++) {
+      const a = anel[r][c], b = anel[r][(c + 1) % L], d = anel[r + 1][c], e = anel[r + 1][(c + 1) % L];
+      const y = (r + 0.5) / R;
+      tri(a, e, b, tom(y));
+      tri(a, d, e, tom(y));
+    }
+  }
+  const nParede = pos.length / 3;
+  const centro = new THREE.Vector3(0, 1, 0);
+  for (let c = 0; c < L; c++) tri(centro, anel[R][(c + 1) % L], anel[R][c], 1);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(cor, 3));
+  geo.addGroup(0, nParede, 0);
+  geo.addGroup(nParede, pos.length / 3 - nParede, 1);
+  geo.computeVertexNormals();
+  return { geo, ondas };
 }
+// geosRocha[tipo][variante] = { geo, ondas }
+const geosRocha = AFINA.map((afina, tipo) =>
+  Array.from({ length: ROCHA.variantes }, (_, v) => geometriaDaRocha(afina, 1 + tipo * 10 + v)));

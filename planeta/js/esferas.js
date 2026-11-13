@@ -169,6 +169,22 @@ function tentarPousar(e) {
   if (!(melhor && pousarNaIlha(e, melhor))) pousarNaAgua(e); // sem ilha adequada: vai para o fundo
 }
 
+// Topo mais alto da ilha da esfera (plataforma ou rocha) sob (x, z) que não
+// passe de y; null fora da ilha. Permite que a esfera solta pare em cima de rochas.
+function chaoDaEsfera(e, x, z, y) {
+  if (!e.ilha) return null;
+  let melhor = null;
+  for (const s of e.ilha.solidos) {
+    if (s.h > y || (melhor !== null && s.h <= melhor)) continue;
+    const dx = x - s.x, dz = z - s.z;
+    const c = Math.cos(s.giro), sn = Math.sin(s.giro);
+    const lx = (dx * c - dz * sn) / s.rx, lz = (dx * sn + dz * c) / s.rz;
+    const larg = s.afina * (s.ondas ? contorno(Math.atan2(lz, lx), s.ondas) : 1);
+    if (Math.hypot(lx, lz) < larg) melhor = s.h;
+  }
+  return melhor;
+}
+
 // a esfera está sobre a plataforma da sua ilha?
 function emCimaDaIlha(e, x, z) {
   if (!e.ilha) return false; // esfera do fundo do mar
@@ -244,9 +260,10 @@ function atualizarUmaEsfera(e, dt) {
     v.y -= GRAVIDADE * dt;
     p.addScaledVector(v, dt);
 
-    if (sobreIlha && p.y - R_ESFERA <= s.h) {
+    const chao = sobreIlha ? chaoDaEsfera(e, p.x, p.z, p.y - R_ESFERA - v.y * dt + 1) : null;
+    if (chao !== null && p.y - R_ESFERA <= chao) {
       // no chão: quica levemente e rola com o atrito da grama
-      p.y = s.h + R_ESFERA;
+      p.y = chao + R_ESFERA;
       v.y = v.y < -15 ? -v.y * 0.3 : 0;
       v.x *= Math.exp(-0.7 * dt);
       v.z *= Math.exp(-0.7 * dt);
@@ -287,7 +304,7 @@ function atualizarUmaEsfera(e, dt) {
     // colisão com as rochas da ilha
     for (let n = 1; n < (e.ilha ? e.ilha.solidos.length : 0); n++) {
       const r = e.ilha.solidos[n];
-      if (p.y - R_ESFERA >= r.h) continue;
+      if (p.y - R_ESFERA >= r.h - 0.5 || p.y + R_ESFERA <= r.base) continue;
       const dx = p.x - r.x, dz = p.z - r.z;
       const c = Math.cos(r.giro), sn = Math.sin(r.giro);
       const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
@@ -341,11 +358,6 @@ function capturar() {
   iconeCaptura.classList.remove('visivel');
   const casa = caixaEsferas.querySelector(`[data-n="${e.n}"]`);
   if (casa) casa.classList.add('pegou');
-  // última capturada debaixo d'água: o céu só muda após sair (para ser visível)
-  if (esferas.every(x => x.capturada)) {
-    if (submerso) ceuPendente = true;
-    else escurecerCeu();
-  }
 }
 // teste: captura todas de uma vez (1-2-3 no teclado numérico)
 function pegarTodasAsEsferas() {
@@ -357,7 +369,7 @@ function pegarTodasAsEsferas() {
     if (!e.casca) e.sumindo = 0;
   }
 }
-document.addEventListener('mousedown', ev => { if (ev.button === 2) capturar(); });
+// botão direito: ver reuniao.js (clique captura, segurar solta)
 iconeCaptura.addEventListener('click', capturar); // sem mouse (ex.: tablet com caneta): toque no ícone
 
 // Celular: tocar na esfera captura (sem ícone de mouse). Margem generosa em volta,
@@ -388,7 +400,7 @@ function atualizarEsfera(dt) {
     if (e.capturada && e.sumindo <= 0) continue;
     if (!e.casca) { tentarPousar(e); continue; }
     atualizarUmaEsfera(e, dt);
-    if (e.capturada) continue;
+    if (e.capturada || reuniao >= 0) continue; // reunidas: não se capturam mais
     const d = pontoDoCorpo().distanceTo(e.pos);
     if (d < maisPerto) { maisPerto = d; capturavel = e; }
   }

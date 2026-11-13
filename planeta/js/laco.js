@@ -6,6 +6,7 @@ function quadro(agora) {
   const dt = Math.min((agora - antes) / 1000, 0.05);
   antes = agora;
   atualizar(dt);
+  atualizarReuniao(dt);
   atualizarEspirro(dt);
   atualizarDebaixoDagua(dt);
   atualizarSom(dt);

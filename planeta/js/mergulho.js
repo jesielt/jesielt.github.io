@@ -235,13 +235,12 @@ function recomecar() {
     cena.add(e.casca, e.estrelas);
   }
   escuroAlvo = 0;
-  ceuPendente = false;
+  reiniciarReuniao();
   atualizarIlhas();
 }
 
 // ---------- céu escuro e raios ao reunir as 7 ----------
 let escuroAlvo = 0;
-let ceuPendente = false; // as 7 reunidas debaixo d'água: escurece ao sair
 let proximoRaio = 0, clarao = 0;
 const telaClarao = document.getElementById('clarao');
 let raios = [];

@@ -5,9 +5,6 @@
 // ---------------------------------------------------------------------
 const CELULA = 340;
 const ALCANCE = Math.ceil(AJUSTE.neblinaLonge / CELULA);
-const AFINA = [0.4, 0.55, 0.7, 0.85]; // afinamento do topo da rocha em relação à base
-const geosRocha = AFINA.map((t, k) => geometriaDaRocha(t, k + 1)); // forma em camadas (rochas.js)
-const geoTopo = new THREE.CylinderGeometry(1.1, 1.1, 1, 16);
 const matRocha = new THREE.MeshLambertMaterial({ color: CORES.rocha });
 const matGrama = new THREE.MeshLambertMaterial({ color: CORES.grama });
 
@@ -93,7 +90,10 @@ function turvarEmbaixoDagua(mat, antes) {
     `);
   };
 }
-turvarEmbaixoDagua(matRocha, pintarPedra);
+turvarEmbaixoDagua(matRocha);
+// rochas: faces planas com tom próprio por face (cor por vértice, ver rochas.js)
+const matPedra = new THREE.MeshLambertMaterial({ color: CORES.rocha, vertexColors: true, flatShading: true });
+turvarEmbaixoDagua(matPedra);
 turvarEmbaixoDagua(matGrama, pintarGrama);
 turvarEmbaixoDagua(matFundo, (sh) => {
   // o fundo do mar ondula segundo alturaDoFundo (a iluminação acompanha)
@@ -369,10 +369,6 @@ function hash(i, j, s = 0) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-// contorno irregular da ilha: em cada ângulo, quanto a borda expande ou recua
-function contorno(a, ondas) {
-  return 1 + 0.13 * Math.sin(2 * a + ondas[0]) + 0.08 * Math.sin(5 * a + ondas[1]) + 0.04 * Math.sin(11 * a + ondas[2]);
-}
 
 // plataforma: cilindro achatado com a borda deformada pelo contorno
 function geometriaPlataforma(ondas) {
@@ -389,10 +385,23 @@ function geometriaPlataforma(ondas) {
   return geo;
 }
 
-// Ilha enorme: só nasce em células pares (uma a cada 2x2); as 8 células em volta
-// ficam só com água para dar espaço.
+// Ilha gigante (raio de 420 a 560, cerca de 4 vezes a área da maior enorme): só
+// nasce em células múltiplas de 4; as 24 células em volta (2 de cada lado)
+// ficam só com água.
+const CHANCE_GIGANTE = 0.2;
+function ehGigante(i, j) {
+  return (i & 3) === 0 && (j & 3) === 0 && hash(i, j, 88) < CHANCE_GIGANTE;
+}
+function vizinhaDeGigante(i, j) {
+  for (let di = -2; di <= 2; di++) for (let dj = -2; dj <= 2; dj++) {
+    if ((di || dj) && ehGigante(i + di, j + dj)) return true;
+  }
+  return false;
+}
+// Ilha enorme: só nasce em células pares (uma a cada 2x2), fora do espaço das
+// gigantes; as 8 células em volta ficam só com água para dar espaço.
 function ehEnorme(i, j) {
-  return (i & 1) === 0 && (j & 1) === 0 && hash(i, j, 77) < 0.3;
+  return (i & 1) === 0 && (j & 1) === 0 && hash(i, j, 77) < 0.3 && !ehGigante(i, j) && !vizinhaDeGigante(i, j);
 }
 function vizinhaDeEnorme(i, j) {
   for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
@@ -441,9 +450,10 @@ function alturaDaSaia(s, x, z) {
 function chaoDoMar(x, z) {
   let h = alturaDoFundo(x, z);
   const ci = Math.floor(x / CELULA), cj = Math.floor(z / CELULA);
-  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+  // a encosta de uma gigante alcança até 2 células de distância
+  for (let di = -2; di <= 2; di++) for (let dj = -2; dj <= 2; dj++) {
     const ilha = ilhas.get((ci + di) + ',' + (cj + dj));
-    if (ilha) h = Math.max(h, alturaDaSaia(ilha.solidos[0], x, z));
+    if (ilha && (ilha.gigante || (Math.abs(di) <= 1 && Math.abs(dj) <= 1))) h = Math.max(h, alturaDaSaia(ilha.solidos[0], x, z));
   }
   return h;
 }
@@ -495,13 +505,15 @@ const _m4a = new THREE.Matrix4(), _qa = new THREE.Quaternion(), _ea = new THREE.
 const _pa = new THREE.Vector3(), _sa = new THREE.Vector3();
 
 function criarIlha(i, j) {
-  const enorme = ehEnorme(i, j);
-  if (!enorme && (vizinhaDeEnorme(i, j) || hash(i, j) > 0.5)) return null; // só água
+  const gigante = ehGigante(i, j);
+  const enorme = gigante || ehEnorme(i, j); // a gigante segue as regras da enorme
+  if (!enorme && (vizinhaDeEnorme(i, j) || vizinhaDeGigante(i, j) || hash(i, j) > 0.5)) return null; // só água
 
-  // raio médio: maioria média ou grande; as enormes vão de 190 a 300
-  const tam = enorme
-    ? 190 + hash(i, j, 1) * 110
-    : 22 + hash(i, j, 1) ** 1.1 * 115;
+  // raio médio: comuns de 35 a 140, a maioria média ou grande (expoente < 1
+  // puxa para cima); enormes de 190 a 300; gigantes de 420 a 560
+  const tam = gigante ? 420 + hash(i, j, 1) * 140
+    : enorme ? 190 + hash(i, j, 1) * 110
+    : 35 + hash(i, j, 1) ** 0.75 * 105;
   const varia = enorme ? 0.3 : 0.6; // enormes variam menos, para caber no espaço reservado
   const sx = tam * (1 - varia / 2 + hash(i, j, 2) * varia); // largura...
   const sz = tam * (1 - varia / 2 + hash(i, j, 3) * varia); // ...e profundidade independentes
@@ -578,6 +590,32 @@ function criarIlha(i, j) {
     geosManchas.push(gb);
   }
 
+  // Ergue uma rocha com o pé em (px, base, pz), em coordenadas da ilha, e registra
+  // o sólido de colisão com o mesmo contorno da forma. Às vezes um segundo andar
+  // menor nasce sobre o topo, fora do centro.
+  function erguerRocha(px, pz, rx, rz, rh, tipo, sem, base = alt - 1) {
+    const giro = hash(i, j, sem + 7) * Math.PI;
+    const afina = AFINA[tipo];
+    const { geo, ondas } = geosRocha[tipo][Math.floor(hash(i, j, sem + 8) * ROCHA.variantes)];
+    const corpo = new THREE.Mesh(geo, [matPedra, matGrama]);
+    corpo.scale.set(rx, rh, rz);
+    corpo.position.set(px, base, pz);
+    corpo.rotation.y = giro;
+    corpo.userData.sombra = true; // material duplo: sem esta marca, não projetaria sombra
+    grupo.add(corpo);
+    const sol = { x: x + px, z: z + pz, rx, rz, base, h: base + rh, afina, giro, ondas };
+    solidos.push(sol);
+    const topo = Math.min(rx, rz) * afina; // raio aproximado do topo
+    if (base === alt - 1 && topo > 8 && hash(i, j, sem + 9) < ROCHA.andar) {
+      const k = 0.35 + hash(i, j, sem + 10) * 0.2;
+      const a = hash(i, j, sem + 11) * Math.PI * 2;
+      const d = topo * 0.15 * hash(i, j, sem + 12);
+      erguerRocha(px + Math.cos(a) * d, pz + Math.sin(a) * d, rx * afina * k, rz * afina * k,
+        rh * (0.25 + hash(i, j, sem + 13) * 0.4), tipo, sem + 50, base + rh);
+    }
+    return sol;
+  }
+
   // Montanha: ocasionalmente, uma rocha bem maior perto do centro (12 a 28 m; nas
   // enormes, até 35 m; as altas são raras), com topo plano para pouso. Ocorre em 15%
   // das ilhas médias e grandes e em 35% das enormes (10% destas com duas). Rochas comuns que a tocariam não são geradas.
@@ -598,22 +636,9 @@ function criarIlha(i, j) {
     if (k > 0 && montanhas.some(m => Math.hypot(m.x - (x + px), m.z - (z + pz)) < (m.rx + rx) * 1.1)) continue;
     const metros = 12 + Math.pow(hash(i, j, sm + 5), 1.8) * (enorme ? 23 : 16); // maioria entre as mais baixas
     const rh = metros * 17.5;
-    const tipo = 1 + Math.floor(hash(i, j, sm + 6) * 3); // 0,55 a 0,85: encorpada, sem formato de agulha
-    const afina = AFINA[tipo];
-    const giro = hash(i, j, sm + 7) * Math.PI;
-    const rocha = new THREE.Group();
-    rocha.position.set(px, alt - 1, pz);
-    rocha.rotation.y = giro;
-    const corpo = new THREE.Mesh(geosRocha[tipo], matRocha);
-    corpo.scale.set(rx, rh, rz);
-    corpo.position.y = rh / 2;
-    const topo = new THREE.Mesh(geoTopo, matGrama);
-    topo.scale.set(rx * afina, 2.5, rz * afina);
-    topo.position.y = rh;
-    rocha.add(corpo, topo);
-    grupo.add(rocha);
-    const sol = { x: x + px, z: z + pz, rx, rz, base: alt - 1, h: alt - 1 + rh + 1.25, afina, giro, montanha: true };
-    solidos.push(sol);
+    const tipo = Math.floor(hash(i, j, sm + 6) * AFINA.length);
+    const sol = erguerRocha(px, pz, rx, rz, rh, tipo, sm);
+    sol.montanha = true;
     montanhas.push(sol);
   }
 
@@ -635,23 +660,8 @@ function criarIlha(i, j) {
     const rz = base * (0.65 + hash(i, j, s + 4) * 0.7);
     const rh = 10 + hash(i, j, s + 5) ** 1.5 * 95;
     const tipo = Math.floor(hash(i, j, s + 6) * AFINA.length);
-    const afina = AFINA[tipo];
-    const giro = hash(i, j, s + 7) * Math.PI;
     if (montanhas.length && encostaEmRocha(x + px, z + pz, Math.max(rx, rz) + 4, [null, ...montanhas])) continue;
-
-    const rocha = new THREE.Group();
-    rocha.position.set(px, alt - 1, pz);
-    rocha.rotation.y = giro;
-    const corpo = new THREE.Mesh(geosRocha[tipo], matRocha);
-    corpo.scale.set(rx, rh, rz);
-    corpo.position.y = rh / 2;
-    const topo = new THREE.Mesh(geoTopo, matGrama);
-    topo.scale.set(rx * afina, 2.5, rz * afina);
-    topo.position.y = rh;
-    rocha.add(corpo, topo);
-    grupo.add(rocha);
-
-    solidos.push({ x: x + px, z: z + pz, rx, rz, base: alt - 1, h: alt - 1 + rh + 1.25, afina, giro });
+    erguerRocha(px, pz, rx, rz, rh, tipo, s);
   }
 
   // árvores: poucas e espalhadas, de 0 a 5 conforme o tamanho da ilha
@@ -683,6 +693,7 @@ function criarIlha(i, j) {
   for (let n = 1; n < solidos.length; n++) {
     if (hash(i, j, 500 + n * 10) > 0.1) continue;
     const roc = solidos[n];
+    if (solidos.some(o => o.base === roc.h)) continue; // topo coberto por um segundo andar
     const arv = sortearArvore(hash(i, j, 501 + n * 10), hash(i, j, 502 + n * 10));
     // um pouco fora do centro, sempre dentro do topo
     const a = hash(i, j, 503 + n * 10) * Math.PI * 2;
@@ -706,7 +717,7 @@ function criarIlha(i, j) {
 
   // grama: em moitas espalhadas (quanto maior a ilha, mais moitas)
   const area = Math.PI * sx * sz;
-  const nMoitas = Math.min(260, Math.floor(area / 160));
+  const nMoitas = Math.min(gigante ? 1000 : 260, Math.floor(area / 160));
   const POR_MOITA = 10;
   const tufos = new THREE.InstancedMesh(geoTufo, matTufo, nMoitas * POR_MOITA);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
@@ -740,11 +751,11 @@ function criarIlha(i, j) {
   grupo.traverse(o => {
     if (!o.isMesh) return;
     o.receiveShadow = true;
-    o.castShadow = !o.isInstancedMesh && !Array.isArray(o.material) && !SEM_SOMBRA.includes(o.material);
+    o.castShadow = o.userData.sombra || (!o.isInstancedMesh && !Array.isArray(o.material) && !SEM_SOMBRA.includes(o.material));
   });
 
   cena.add(grupo);
-  return { grupo, geo, geosManchas, tufos, geoSaia, algas, x, z, solidos, copas, fauna, alt };
+  return { grupo, geo, geosManchas, tufos, geoSaia, algas, x, z, solidos, copas, fauna, alt, gigante };
 }
 
 // Altura das árvores (do pé ao topo da copa, em metros sentidos): de 2 a 20 m,
@@ -809,12 +820,13 @@ function atualizarIlhas() {
   }
 }
 
-// ilhas das 9 células ao redor do jogador (as únicas com colisão)
+// ilhas das 9 células ao redor do jogador (as únicas com colisão), mais as
+// gigantes a até 2 células: a borda delas alcança além da célula vizinha
 function* ilhasPerto() {
   const ci = Math.floor(camera.position.x / CELULA);
   const cj = Math.floor(camera.position.z / CELULA);
-  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+  for (let di = -2; di <= 2; di++) for (let dj = -2; dj <= 2; dj++) {
     const ilha = ilhas.get((ci + di) + ',' + (cj + dj));
-    if (ilha) yield ilha;
+    if (ilha && (ilha.gigante || (Math.abs(di) <= 1 && Math.abs(dj) <= 1))) yield ilha;
   }
 }
