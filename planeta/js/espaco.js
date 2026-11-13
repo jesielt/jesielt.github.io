@@ -199,8 +199,6 @@ function atualizarDebaixoDagua(dt) {
     sat.sprite.material.opacity = Math.min(1, 0.82 * (1 - 0.55 * esc) + 0.18 * uniAlto.value);
     sat.sprite.material.color.setRGB(1 - 0.5 * esc, 1 - 0.42 * esc, 1 - 0.48 * esc);
   }
-  // a copa das árvores não recebe luz: escurecida manualmente, junto com o resto
-  for (const m of matsCopa) m.color.setRGB(1 - 0.8 * esc, 1 - 0.7 * esc, 1 - 0.82 * esc);
   matNuvemTopo.color.copy(corNuvemTopo).lerp(corNuvemEscura, esc);
   matNuvemBase.color.copy(corNuvemBase).lerp(corNuvemBaseEscura, esc);
   atualizarRaios(dt);

@@ -291,44 +291,41 @@ const DIST_TUFOS = 350; // além desta distância a grama é ocultada (economia)
 const geoTronco = new THREE.CylinderGeometry(0.7, 1, 1, 6);
 const matTronco = new THREE.MeshLambertMaterial({ color: CORES.tronco });
 
-function texturaDaCopa(semente) {
-  const t = 128, c = document.createElement('canvas');
-  c.width = c.height = t;
-  const g = c.getContext('2d');
+// Copa: esfera central com calombos ao redor, em poucas faces (sólida de todos os
+// ângulos). Cor por vértice: escura embaixo, clara em cima. Três variações fixas.
+const CORES_COPA = ['#283d8f', '#3d5cc0', '#5f84de'].map(c => new THREE.Color(c));
+function geometriaDaCopa(semente) {
   let s = semente;
   const aleatorio = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  const meio = t / 2, raio = t * 0.36;
-  // corpo da copa: escuro embaixo, claro em cima
-  const grad = g.createLinearGradient(0, meio - raio, 0, meio + raio);
-  grad.addColorStop(0, '#5f84de');
-  grad.addColorStop(0.55, '#3d5cc0');
-  grad.addColorStop(1, '#283d8f');
-  g.fillStyle = grad;
-  g.beginPath(); g.arc(meio, meio, raio, 0, Math.PI * 2); g.fill();
-  // círculos na borda tornam o contorno felpudo
-  for (let k = 0; k < 34; k++) {
-    const a = (k / 34) * Math.PI * 2 + aleatorio() * 0.2;
-    const r = raio * (0.95 + aleatorio() * 0.08);
-    const x = meio + Math.cos(a) * r, y = meio + Math.sin(a) * r;
-    g.fillStyle = y < meio ? '#557ad6' : '#2f479f';
-    g.beginPath(); g.arc(x, y, 5 + aleatorio() * 6, 0, Math.PI * 2); g.fill();
+  // [x, y, z, raio] de cada bola, em unidades do raio da copa
+  const bolas = [[0, 0, 0, 0.78]];
+  const n = 8 + Math.floor(aleatorio() * 3);
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2 + aleatorio() * 0.5;
+    const el = -0.35 + aleatorio() * 1.1; // mais calombos na metade de cima
+    const d = 0.55 + aleatorio() * 0.1;
+    bolas.push([Math.cos(a) * Math.cos(el) * d, Math.sin(el) * d * 0.85, Math.sin(a) * Math.cos(el) * d, 0.34 + aleatorio() * 0.16]);
   }
-  // pontos de luz na parte de cima
-  for (let k = 0; k < 18; k++) {
-    const a = Math.PI * (1.05 + aleatorio() * 0.9);
-    const r = raio * aleatorio() * 0.85;
-    g.fillStyle = `rgba(150,180,245,${0.25 + aleatorio() * 0.3})`;
-    g.beginPath();
-    g.ellipse(meio + Math.cos(a) * r, meio + Math.sin(a) * r * 0.8, 6 + aleatorio() * 8, 3 + aleatorio() * 4, aleatorio(), 0, Math.PI * 2);
-    g.fill();
+  const pos = [], cor = [], c = new THREE.Color();
+  for (const [bx, by, bz, br] of bolas) {
+    const p = new THREE.IcosahedronGeometry(br, 1).attributes.position;
+    for (let v = 0; v < p.count; v++) {
+      const x = bx + p.getX(v), y = by + p.getY(v), z = bz + p.getZ(v);
+      pos.push(x, y, z);
+      const t = THREE.MathUtils.clamp((y + 0.9) / 1.8, 0, 1);
+      if (t < 0.55) c.lerpColors(CORES_COPA[0], CORES_COPA[1], t / 0.55);
+      else c.lerpColors(CORES_COPA[1], CORES_COPA[2], (t - 0.55) / 0.45);
+      cor.push(c.r, c.g, c.b);
+    }
   }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(cor, 3));
+  geo.computeVertexNormals();
+  return geo;
 }
-const matsCopa = [11, 222, 3333].map(sem =>
-  new THREE.SpriteMaterial({ map: texturaDaCopa(sem), alphaTest: 0.5 })
-);
+const geosCopa = [11, 222, 3333].map(geometriaDaCopa);
+const matCopa = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
 
 // número pseudoaleatório fixo por célula: o mesmo lugar gera sempre o mesmo conteúdo
 function hash(i, j, s = 0) {
@@ -661,9 +658,9 @@ function criarIlha(i, j) {
     const tronco = new THREE.Mesh(geoTronco, matTronco);
     tronco.scale.set(grossura, th, grossura);
     tronco.position.set(px, chao + th / 2 - 0.5, pz);
-    // copa: figura plana sempre voltada para a câmera (2.5D)
-    const copa = new THREE.Sprite(matsCopa[Math.floor(sorteio * matsCopa.length)]);
-    copa.scale.set(r * 2.3, r * 2.3, 1);
+    const copa = new THREE.Mesh(geosCopa[Math.floor(sorteio * geosCopa.length)], matCopa);
+    copa.scale.setScalar(r);
+    copa.rotation.y = sorteio * 40; // a mesma variação aparece em ângulos diferentes
     copa.position.set(px, chao + th + r * 0.6, pz);
     grupo.add(tronco, copa);
     // tronco: base, topo e grossura guardados para a colisão da esfera
