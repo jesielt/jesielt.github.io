@@ -1,15 +1,18 @@
 // ---------------------------------------------------------------------
-// Soltar e reunir: segurar o botão direito solta a esfera de menor número que
-// estiver na caixa (no toque, segurar a própria caixa). Com as 7 soltas juntas
-// em terra, elas piscam em amarelo, passam a brilhar e o céu escurece com raios.
+// Soltar e reunir: clique no botão direito captura; segurar solta a esfera de
+// menor número que estiver na caixa (no toque, segurar a própria caixa). Com
+// as 7 soltas juntas em terra, elas pulsam em amarelo, passam a brilhar
+// (as estrelas somem no brilho e a luz delas ilumina em volta) e o céu
+// escurece com raios.
 // ---------------------------------------------------------------------
 const SEGURAR = 0.5;       // segundos com o botão pressionado para soltar
 const DIST_REUNIAO = 90;   // distância máxima de cada esfera ao centro do grupo (~5 m sentidos)
-const PISCADAS = 10, DUR_PISCADA = 0.3; // segundos por piscada
+const PISCADAS = 10;       // pulsos antes do brilho fixo
+const CICLO_PISCADA = 2;   // segundos por pulso: 1 s acendendo, 1 s apagando
 const AVISO_SOLTAR = 5;    // segundos em que o ícone pisca antes de ficar fixo
+const LUZ_REUNIAO = 60;    // intensidade máxima da luz das esferas
 const COR_CASCA = new THREE.Color('#7a3300');   // emissivo normal (ver materialDaCasca)
-const COR_PISCA = new THREE.Color('#fff200');
-const COR_BRILHO = new THREE.Color('#ffb21e');
+const COR_BRILHO = new THREE.Color('#ffe14a');  // emissivo no brilho máximo
 
 let segurandoDesde = -1;   // instante do aperto, em ms (-1 = solto)
 let juntouAs7 = false;     // as 7 já estiveram na caixa ao mesmo tempo
@@ -17,13 +20,42 @@ let reuniao = -1;          // segundos desde o início do evento (-1 = inativo)
 const iconeSoltar = document.getElementById('soltar');
 let piscarSoltar = 0;
 
-// botão direito: clique captura (se houver esfera ao alcance); segurar solta
-document.addEventListener('mousedown', ev => {
-  if (ev.button !== 2) return;
-  if (capturavel) { capturar(); return; }
-  segurandoDesde = performance.now();
+// Luz das esferas: criada desde a abertura com intensidade 0. Acrescentar uma
+// luz depois obrigaria a recompilar todos os materiais (travada visível).
+const luzReuniao = new THREE.PointLight('#ffd75a', 0, 320, 1);
+cena.add(luzReuniao);
+
+// halo: brilho aditivo em volta de cada esfera
+const texHalo = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255, 240, 150, 1)');
+  gr.addColorStop(0.35, 'rgba(255, 200, 60, 0.55)');
+  gr.addColorStop(1, 'rgba(255, 170, 30, 0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+const halos = esferas.map(() => {
+  const h = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: texHalo, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  h.scale.set(R_ESFERA * 6, R_ESFERA * 6, 1);
+  h.renderOrder = 3;
+  h.visible = false;
+  cena.add(h);
+  return h;
 });
-document.addEventListener('mouseup', ev => { if (ev.button === 2) segurandoDesde = -1; });
+
+// botão direito: clique (apertar e soltar antes de SEGURAR) captura; segurar solta
+document.addEventListener('mousedown', ev => { if (ev.button === 2) segurandoDesde = performance.now(); });
+document.addEventListener('mouseup', ev => {
+  if (ev.button !== 2 || segurandoDesde < 0) return;
+  segurandoDesde = -1;
+  if (capturavel) capturar();
+});
 caixaEsferas.addEventListener('pointerdown', ev => { if (ev.pointerType !== 'mouse') segurandoDesde = performance.now(); });
 for (const tipo of ['pointerup', 'pointercancel', 'pointerleave']) {
   caixaEsferas.addEventListener(tipo, () => { segurandoDesde = -1; });
@@ -73,9 +105,25 @@ function reunidasEmTerra() {
   return esferas.every(e => Math.hypot(e.pos.x - cx, e.pos.z - cz) < DIST_REUNIAO);
 }
 
+// b: 0 = aparência normal, 1 = brilho máximo (estrelas encobertas pela luz)
+function aplicarBrilho(b) {
+  luzReuniao.position.set(0, 0, 0);
+  esferas.forEach((e, k) => {
+    if (!e.casca) return;
+    e.casca.material.emissive.lerpColors(COR_CASCA, COR_BRILHO, b);
+    e.estrelas.material.opacity = 1 - b;
+    halos[k].visible = b > 0;
+    halos[k].material.opacity = b * 0.9;
+    halos[k].position.copy(e.pos);
+    luzReuniao.position.addScaledVector(e.pos, 1 / 7);
+  });
+  luzReuniao.position.y += R_ESFERA * 3;
+  luzReuniao.intensity = b * LUZ_REUNIAO;
+}
+
 function atualizarReuniao(dt) {
   if (segurandoDesde >= 0 && performance.now() - segurandoDesde > SEGURAR * 1000) {
-    segurandoDesde = -1;
+    segurandoDesde = -1; // o mesmo aperto já não captura ao soltar o botão
     if (reuniao < 0) soltarEsfera();
   }
   // ícone: surge piscando quando as 7 estão na caixa, depois fica fixo
@@ -95,12 +143,10 @@ function atualizarReuniao(dt) {
   }
   const antes = reuniao;
   reuniao += dt;
-  const fim = PISCADAS * DUR_PISCADA;
-  for (const e of esferas) {
-    const m = e.casca.material;
-    if (reuniao < fim) m.emissive.copy(reuniao % DUR_PISCADA < DUR_PISCADA / 2 ? COR_PISCA : COR_CASCA);
-    else m.emissive.copy(COR_BRILHO);
-  }
+  const fim = PISCADAS * CICLO_PISCADA;
+  // pulso em rampa: sobe de 0 a 1 na primeira metade do ciclo e desce na segunda
+  const fase = (reuniao % CICLO_PISCADA) / CICLO_PISCADA;
+  aplicarBrilho(reuniao < fim ? 1 - Math.abs(fase * 2 - 1) : 1);
   if (antes < fim && reuniao >= fim) escurecerCeu();
 }
 
@@ -111,5 +157,5 @@ function reiniciarReuniao() {
   reuniao = -1;
   piscarSoltar = 0;
   iconeSoltar.classList.remove('visivel', 'piscando');
-  for (const e of esferas) if (e.casca) e.casca.material.emissive.copy(COR_CASCA);
+  aplicarBrilho(0);
 }

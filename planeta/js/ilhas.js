@@ -596,14 +596,14 @@ function criarIlha(i, j) {
   function erguerRocha(px, pz, rx, rz, rh, tipo, sem, base = alt - 1) {
     const giro = hash(i, j, sem + 7) * Math.PI;
     const afina = AFINA[tipo];
-    const { geo, ondas } = geosRocha[tipo][Math.floor(hash(i, j, sem + 8) * ROCHA.variantes)];
+    const { geo, cantos, alcance } = geosRocha[tipo][Math.floor(hash(i, j, sem + 8) * ROCHA.variantes)];
     const corpo = new THREE.Mesh(geo, [matPedra, matGrama]);
     corpo.scale.set(rx, rh, rz);
     corpo.position.set(px, base, pz);
     corpo.rotation.y = giro;
     corpo.userData.sombra = true; // material duplo: sem esta marca, não projetaria sombra
     grupo.add(corpo);
-    const sol = { x: x + px, z: z + pz, rx, rz, base, h: base + rh, afina, giro, ondas };
+    const sol = { x: x + px, z: z + pz, rx, rz, base, h: base + rh, afina, giro, cantos, alcance };
     solidos.push(sol);
     const topo = Math.min(rx, rz) * afina; // raio aproximado do topo
     if (base === alt - 1 && topo > 8 && hash(i, j, sem + 9) < ROCHA.andar) {
@@ -660,7 +660,7 @@ function criarIlha(i, j) {
     const rz = base * (0.65 + hash(i, j, s + 4) * 0.7);
     const rh = 10 + hash(i, j, s + 5) ** 1.5 * 95;
     const tipo = Math.floor(hash(i, j, s + 6) * AFINA.length);
-    if (montanhas.length && encostaEmRocha(x + px, z + pz, Math.max(rx, rz) + 4, [null, ...montanhas])) continue;
+    if (montanhas.length && encostaEmRocha(x + px, z + pz, Math.max(rx, rz) * 1.3 + 4, [null, ...montanhas])) continue;
     erguerRocha(px, pz, rx, rz, rh, tipo, s);
   }
 
@@ -782,7 +782,8 @@ function encostaEmRocha(px, pz, folga, solidos) {
     const dx = px - s.x, dz = pz - s.z;
     const c = Math.cos(s.giro), sn = Math.sin(s.giro);
     const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
-    if (Math.hypot(lx / (s.rx + folga), lz / (s.rz + folga)) < 1) return true;
+    const a = s.alcance || 1; // os cantos do polígono vão além de rx e rz
+    if (Math.hypot(lx / (s.rx * a + folga), lz / (s.rz * a + folga)) < 1) return true;
   }
   return false;
 }

@@ -57,7 +57,7 @@ function chaoSob(x, z, maxY) {
       const c = Math.cos(s.giro), sn = Math.sin(s.giro);
       const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
       let larg = s.afina;
-      if (s.ondas) larg *= contorno(Math.atan2(lz / s.rz, lx / s.rx), s.ondas);
+      larg *= formaDoSolido(s, Math.atan2(lz / s.rz, lx / s.rx));
       const q = Math.hypot(lx / (s.rx * larg), lz / (s.rz * larg));
       if (q >= 1) continue;
       melhor = { h: s.h, s, beira: (1 - q) * Math.min(s.rx, s.rz) * larg };
@@ -75,7 +75,7 @@ function empurrarDaParede(s) {
   const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
   const t = Math.min(1, Math.max(0, (pesY - s.base) / (s.h - s.base)));
   let larg = 1 + (s.afina - 1) * t;
-  if (s.ondas) larg *= contorno(Math.atan2(lz / s.rz, lx / s.rx), s.ondas);
+  larg *= formaDoSolido(s, Math.atan2(lz / s.rz, lx / s.rx));
   const ex = s.rx * larg + ANDAR.raioPe, ez = s.rz * larg + ANDAR.raioPe;
   const q = Math.hypot(lx / ex, lz / ez);
   if (q >= 1) return;
@@ -278,7 +278,7 @@ function colidir(s) {
   // largura na altura atual (a rocha afina para cima)
   const t = Math.min(1, Math.max(0, (p.y - s.base) / (s.h - s.base)));
   let larg = 1 + (s.afina - 1) * t;
-  if (s.ondas) larg *= contorno(Math.atan2(lz / s.rz, lx / s.rx), s.ondas);
+  larg *= formaDoSolido(s, Math.atan2(lz / s.rz, lx / s.rx));
   const ex = s.rx * larg + FOLGA_LADO, ez = s.rz * larg + FOLGA_LADO;
   const q = Math.hypot(lx / ex, lz / ez);
   if (q >= 1) return;

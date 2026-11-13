@@ -179,7 +179,7 @@ function chaoDaEsfera(e, x, z, y) {
     const dx = x - s.x, dz = z - s.z;
     const c = Math.cos(s.giro), sn = Math.sin(s.giro);
     const lx = (dx * c - dz * sn) / s.rx, lz = (dx * sn + dz * c) / s.rz;
-    const larg = s.afina * (s.ondas ? contorno(Math.atan2(lz, lx), s.ondas) : 1);
+    const larg = s.afina * formaDoSolido(s, Math.atan2(lz, lx));
     if (Math.hypot(lx, lz) < larg) melhor = s.h;
   }
   return melhor;
@@ -308,7 +308,10 @@ function atualizarUmaEsfera(e, dt) {
       const dx = p.x - r.x, dz = p.z - r.z;
       const c = Math.cos(r.giro), sn = Math.sin(r.giro);
       const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
-      const q = Math.hypot(lx / (r.rx + R_ESFERA), lz / (r.rz + R_ESFERA));
+      // largura na altura do centro da esfera (a rocha afina para cima) e no ângulo dela
+      const t = Math.min(1, Math.max(0, (p.y - r.base) / (r.h - r.base)));
+      const larg = (1 + (r.afina - 1) * t) * formaDoSolido(r, Math.atan2(lz / r.rz, lx / r.rx));
+      const q = Math.hypot(lx / (r.rx * larg + R_ESFERA), lz / (r.rz * larg + R_ESFERA));
       if (q >= 1) continue;
       p.x = r.x + (lx / q) * c + (lz / q) * sn;
       p.z = r.z - (lx / q) * sn + (lz / q) * c;
@@ -331,6 +334,33 @@ function atualizarUmaEsfera(e, dt) {
   }
   e.casca.position.copy(p);
   e.estrelas.position.copy(p);
+}
+
+// Esferas soltas não se sobrepõem: cada par que se toca é afastado e troca
+// parte da velocidade na direção do choque.
+const _ab = new THREE.Vector3();
+function separarEsferas() {
+  const soltas = esferas.filter(e => e.casca && !e.capturada && e.sumindo <= 0);
+  for (let a = 0; a < soltas.length; a++) {
+    for (let b = a + 1; b < soltas.length; b++) {
+      const ea = soltas[a], eb = soltas[b];
+      _ab.subVectors(ea.pos, eb.pos);
+      const dist = _ab.length(), min = R_ESFERA * 2;
+      if (dist >= min) continue;
+      if (dist < 1e-4) _ab.set(1, 0, 0); else _ab.divideScalar(dist);
+      // uma exatamente sobre a outra: desvia para o lado, senão ficaria equilibrada
+      if (Math.abs(_ab.y) > 0.9) { _ab.x += 0.3; _ab.z += 0.2; _ab.normalize(); }
+      const sobra = (min - Math.min(dist, min)) / 2;
+      ea.pos.addScaledVector(_ab, sobra);
+      eb.pos.addScaledVector(_ab, -sobra);
+      const aproxima = ea.vel.dot(_ab) - eb.vel.dot(_ab);
+      if (aproxima < 0) {
+        ea.vel.addScaledVector(_ab, -aproxima * 0.65);
+        eb.vel.addScaledVector(_ab, aproxima * 0.65);
+      }
+      for (const e of [ea, eb]) { e.casca.position.copy(e.pos); e.estrelas.position.copy(e.pos); }
+    }
+  }
 }
 
 // ---------- captura ----------
@@ -404,6 +434,7 @@ function atualizarEsfera(dt) {
     const d = pontoDoCorpo().distanceTo(e.pos);
     if (d < maisPerto) { maisPerto = d; capturavel = e; }
   }
+  separarEsferas();
   // o aviso (ícone do mouse ou anel) aparece só nos primeiros 3 s perto de cada
   // esfera; a captura continua funcionando depois
   let aviso = capturavel;
