@@ -291,10 +291,12 @@ const DIST_TUFOS = 350; // além desta distância a grama é ocultada (economia)
 const geoTronco = new THREE.CylinderGeometry(0.7, 1, 1, 6);
 const matTronco = new THREE.MeshLambertMaterial({ color: CORES.tronco });
 
-// Copa: uma só bola com a superfície levemente ondulada (soma de ondas em
-// direções sorteadas), base um pouco achatada. Cor por vértice: gradiente de
-// baixo para cima; as partes salientes ficam mais claras e os vãos, mais escuros.
-// Três variações fixas.
+// Copa low-poly: icosaedro pouco subdividido, com a superfície ondulada (soma
+// de ondas em direções sorteadas) e cada vértice empurrado ao acaso para dentro
+// ou para fora, de modo que as faces fiquem tortas e de tamanhos diferentes.
+// Base um pouco achatada. Faces planas, cada uma com cor única: gradiente de
+// baixo para cima, saliências mais claras, vãos mais escuros e uma pequena
+// variação sorteada por face. Três variações fixas.
 const CORES_COPA = ['#3a55b0', '#5b7bd6', '#8eaaf0'].map(c => new THREE.Color(c));
 function geometriaDaCopa(semente) {
   let s = semente;
@@ -305,41 +307,44 @@ function geometriaDaCopa(semente) {
     ondas.push([d, 5 + aleatorio() * 5, aleatorio() * 6.3]); // direção, frequência, fase
   }
   const relevo = (v) => ondas.reduce((t, [d, f, fase]) => t + Math.sin(v.dot(d) * f + fase), 0) / ondas.length;
-  const geo = new THREE.IcosahedronGeometry(1, 10);
+  const geo = new THREE.IcosahedronGeometry(1, 4);
   const p = geo.attributes.position, v = new THREE.Vector3();
-  const cor = [], c = new THREE.Color();
+  // A geometria não é indexada: vértices na mesma posição recebem o mesmo
+  // deslocamento (guardado por posição original), senão a malha abre frestas.
+  const deslocados = new Map(), relevos = new Float32Array(p.count);
   for (let n = 0; n < p.count; n++) {
     v.fromBufferAttribute(p, n);
-    const h = relevo(v); // de -1 a 1, na prática perto de ±0,5
-    const y = v.y;
-    v.multiplyScalar(1 + 0.07 * h);
-    if (v.y < -0.6) v.y = -0.6 + (v.y + 0.6) * 0.6; // achata a base
-    p.setXYZ(n, v.x, v.y, v.z);
+    const k = `${v.x.toFixed(4)},${v.y.toFixed(4)},${v.z.toFixed(4)}`;
+    let d = deslocados.get(k);
+    if (!d) {
+      const h = relevo(v); // de -1 a 1, na prática perto de ±0,5
+      const u = v.clone().multiplyScalar(1 + 0.08 * h + 0.07 * (aleatorio() - 0.5));
+      // desvio lateral: quebra a simetria regular do icosaedro
+      u.x += 0.04 * (aleatorio() - 0.5); u.y += 0.04 * (aleatorio() - 0.5); u.z += 0.04 * (aleatorio() - 0.5);
+      if (u.y < -0.6) u.y = -0.6 + (u.y + 0.6) * 0.6; // achata a base
+      d = { u, h };
+      deslocados.set(k, d);
+    }
+    p.setXYZ(n, d.u.x, d.u.y, d.u.z);
+    relevos[n] = d.h;
+  }
+  // cor por face: os três vértices de cada triângulo recebem o mesmo tom
+  const cor = [], c = new THREE.Color();
+  for (let n = 0; n < p.count; n += 3) {
+    const y = (p.getY(n) + p.getY(n + 1) + p.getY(n + 2)) / 3;
+    const h = (relevos[n] + relevos[n + 1] + relevos[n + 2]) / 3;
     const t = THREE.MathUtils.clamp((y + 1) / 2, 0, 1);
     if (t < 0.5) c.lerpColors(CORES_COPA[0], CORES_COPA[1], t / 0.5);
     else c.lerpColors(CORES_COPA[1], CORES_COPA[2], (t - 0.5) / 0.5);
-    c.multiplyScalar(1 + 0.35 * h);
-    cor.push(c.r, c.g, c.b);
+    c.multiplyScalar(1 + 0.35 * h + 0.16 * (aleatorio() - 0.5));
+    cor.push(c.r, c.g, c.b, c.r, c.g, c.b, c.r, c.g, c.b);
   }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(cor, 3));
-  // a geometria não é indexada: vértices na mesma posição têm a normal média
-  // das faces vizinhas (superfície lisa, sem facetas)
-  geo.computeVertexNormals();
-  const nor = geo.attributes.normal, soma = new Map();
-  const chave = (n) => `${p.getX(n).toFixed(4)},${p.getY(n).toFixed(4)},${p.getZ(n).toFixed(4)}`;
-  for (let n = 0; n < p.count; n++) {
-    const k = chave(n), m = soma.get(k) || soma.set(k, new THREE.Vector3()).get(k);
-    m.x += nor.getX(n); m.y += nor.getY(n); m.z += nor.getZ(n);
-  }
-  for (let n = 0; n < p.count; n++) {
-    const m = soma.get(chave(n));
-    v.copy(m).normalize();
-    nor.setXYZ(n, v.x, v.y, v.z);
-  }
+  geo.computeVertexNormals(); // sem índice, cada face fica com a própria normal (facetas)
   return geo;
 }
 const geosCopa = [11, 222, 3333].map(geometriaDaCopa);
-const matCopa = new THREE.MeshLambertMaterial({ vertexColors: true });
+const matCopa = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
 // Textura da copa: manchas de folhagem em poucos tons (estilo pôster), calculadas
 // no próprio shader a partir de ruído 3D na posição local da copa. Não há imagem
 // nem coordenadas UV, logo não há emenda nem distorção nos polos. A posição da
