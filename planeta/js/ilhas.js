@@ -291,41 +291,51 @@ const DIST_TUFOS = 350; // além desta distância a grama é ocultada (economia)
 const geoTronco = new THREE.CylinderGeometry(0.7, 1, 1, 6);
 const matTronco = new THREE.MeshLambertMaterial({ color: CORES.tronco });
 
-// Copa: bola redonda com calombos pequenos rentes à superfície (contorno felpudo,
-// sólida de todos os ângulos). Cor por face: gradiente de baixo para cima.
+// Copa: uma só bola com a superfície levemente ondulada (soma de ondas em
+// direções sorteadas), base um pouco achatada. Cor por vértice: gradiente de
+// baixo para cima; as partes salientes ficam mais claras e os vãos, mais escuros.
 // Três variações fixas.
 const CORES_COPA = ['#3a55b0', '#5b7bd6', '#8eaaf0'].map(c => new THREE.Color(c));
 function geometriaDaCopa(semente) {
   let s = semente;
   const aleatorio = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  // [x, y, z, raio, detalhe] de cada bola, em unidades do raio da copa
-  const bolas = [[0, 0, 0, 0.9, 3]];
-  const n = 14 + Math.floor(aleatorio() * 5);
-  for (let k = 0; k < n; k++) {
-    const a = aleatorio() * Math.PI * 2;
-    const el = Math.asin(aleatorio() * 1.7 - 0.85);
-    bolas.push([Math.cos(a) * Math.cos(el) * 0.78, Math.sin(el) * 0.78, Math.sin(a) * Math.cos(el) * 0.78, 0.22 + aleatorio() * 0.08, 1]);
+  const ondas = [];
+  for (let k = 0; k < 9; k++) {
+    const d = new THREE.Vector3(aleatorio() - 0.5, aleatorio() - 0.5, aleatorio() - 0.5).normalize();
+    ondas.push([d, 5 + aleatorio() * 5, aleatorio() * 6.3]); // direção, frequência, fase
   }
-  const pos = [], nor = [], cor = [], c = new THREE.Color();
-  for (const [bx, by, bz, br, det] of bolas) {
-    const p = new THREE.IcosahedronGeometry(br, det).attributes.position;
-    for (let v = 0; v < p.count; v += 3) {
-      // uma cor por face (três vértices)
-      const y = by + (p.getY(v) + p.getY(v + 1) + p.getY(v + 2)) / 3;
-      const t = THREE.MathUtils.clamp((y + 0.9) / 1.8, 0, 1);
-      if (t < 0.5) c.lerpColors(CORES_COPA[0], CORES_COPA[1], t / 0.5);
-      else c.lerpColors(CORES_COPA[1], CORES_COPA[2], (t - 0.5) / 0.5);
-      for (let w = v; w < v + 3; w++) {
-        pos.push(bx + p.getX(w), by + p.getY(w), bz + p.getZ(w));
-        nor.push(p.getX(w) / br, p.getY(w) / br, p.getZ(w) / br); // normal lisa: do centro da bola para fora
-        cor.push(c.r, c.g, c.b);
-      }
-    }
+  const relevo = (v) => ondas.reduce((t, [d, f, fase]) => t + Math.sin(v.dot(d) * f + fase), 0) / ondas.length;
+  const geo = new THREE.IcosahedronGeometry(1, 10);
+  const p = geo.attributes.position, v = new THREE.Vector3();
+  const cor = [], c = new THREE.Color();
+  for (let n = 0; n < p.count; n++) {
+    v.fromBufferAttribute(p, n);
+    const h = relevo(v); // de -1 a 1, na prática perto de ±0,5
+    const y = v.y;
+    v.multiplyScalar(1 + 0.07 * h);
+    if (v.y < -0.6) v.y = -0.6 + (v.y + 0.6) * 0.6; // achata a base
+    p.setXYZ(n, v.x, v.y, v.z);
+    const t = THREE.MathUtils.clamp((y + 1) / 2, 0, 1);
+    if (t < 0.5) c.lerpColors(CORES_COPA[0], CORES_COPA[1], t / 0.5);
+    else c.lerpColors(CORES_COPA[1], CORES_COPA[2], (t - 0.5) / 0.5);
+    c.multiplyScalar(1 + 0.35 * h);
+    cor.push(c.r, c.g, c.b);
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(cor, 3));
+  // a geometria não é indexada: vértices na mesma posição têm a normal média
+  // das faces vizinhas (superfície lisa, sem facetas)
+  geo.computeVertexNormals();
+  const nor = geo.attributes.normal, soma = new Map();
+  const chave = (n) => `${p.getX(n).toFixed(4)},${p.getY(n).toFixed(4)},${p.getZ(n).toFixed(4)}`;
+  for (let n = 0; n < p.count; n++) {
+    const k = chave(n), m = soma.get(k) || soma.set(k, new THREE.Vector3()).get(k);
+    m.x += nor.getX(n); m.y += nor.getY(n); m.z += nor.getZ(n);
+  }
+  for (let n = 0; n < p.count; n++) {
+    const m = soma.get(chave(n));
+    v.copy(m).normalize();
+    nor.setXYZ(n, v.x, v.y, v.z);
+  }
   return geo;
 }
 const geosCopa = [11, 222, 3333].map(geometriaDaCopa);
