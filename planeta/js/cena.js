@@ -73,8 +73,10 @@ sol.castShadow = true;
 sol.shadow.mapSize.set(SOMBRA_MAPA, SOMBRA_MAPA);
 Object.assign(sol.shadow.camera, { left: -SOMBRA_RAIO, right: SOMBRA_RAIO, top: SOMBRA_RAIO, bottom: -SOMBRA_RAIO, near: 1, far: 4000 });
 sol.shadow.camera.updateProjectionMatrix();
-sol.shadow.bias = -0.0002;
-sol.shadow.normalBias = 0.8;
+// Folgas contra listras na superfície. Valores altos descolam a sombra da base
+// dos objetos (faixa clara no pé de rochas e troncos).
+sol.shadow.bias = -0.00005;
+sol.shadow.normalBias = 0.3;
 cena.add(sol.target);
 const DIR_SOL = sol.position.clone().normalize();
 // giro da câmera de sombra (fixo, pois o sol não se move)
