@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------
 const SEGURAR = 0.5;       // segundos com o botão pressionado para soltar
 const DIST_REUNIAO = 90;   // distância máxima de cada esfera ao centro do grupo (~5 m sentidos)
-const PISCADAS = 10;       // pulsos antes do brilho fixo
+const PISCADAS = 5;        // pulsos antes do brilho fixo
 const CICLO_PISCADA = 2;   // segundos por pulso: 1 s acendendo, 1 s apagando
 const AVISO_SOLTAR = 5;    // segundos em que o ícone pisca antes de ficar fixo
 const LUZ_REUNIAO = 60;    // intensidade máxima da luz das esferas
@@ -105,20 +105,22 @@ function reunidasEmTerra() {
   return esferas.every(e => Math.hypot(e.pos.x - cx, e.pos.z - cz) < DIST_REUNIAO);
 }
 
-// b: 0 = aparência normal, 1 = brilho máximo (estrelas encobertas pela luz)
-function aplicarBrilho(b) {
+// b: 0 = aparência normal, 1 = brilho máximo (estrelas encobertas pela luz).
+// aura: halo e luz em volta (só durante os pulsos).
+function aplicarBrilho(b, aura = true) {
+  const a = aura ? b : 0;
   luzReuniao.position.set(0, 0, 0);
   esferas.forEach((e, k) => {
     if (!e.casca) return;
     e.casca.material.emissive.lerpColors(COR_CASCA, COR_BRILHO, b);
     e.estrelas.material.opacity = 1 - b;
-    halos[k].visible = b > 0;
-    halos[k].material.opacity = b * 0.9;
+    halos[k].visible = a > 0;
+    halos[k].material.opacity = a * 0.9;
     halos[k].position.copy(e.pos);
     luzReuniao.position.addScaledVector(e.pos, 1 / 7);
   });
   luzReuniao.position.y += R_ESFERA * 3;
-  luzReuniao.intensity = b * LUZ_REUNIAO;
+  luzReuniao.intensity = a * LUZ_REUNIAO;
 }
 
 function atualizarReuniao(dt) {
@@ -146,7 +148,9 @@ function atualizarReuniao(dt) {
   const fim = PISCADAS * CICLO_PISCADA;
   // pulso em rampa: sobe de 0 a 1 na primeira metade do ciclo e desce na segunda
   const fase = (reuniao % CICLO_PISCADA) / CICLO_PISCADA;
-  aplicarBrilho(reuniao < fim ? 1 - Math.abs(fase * 2 - 1) : 1);
+  // depois dos pulsos: amarelas e sem estrelas, mas sem halo nem luz em volta
+  if (reuniao < fim) aplicarBrilho(1 - Math.abs(fase * 2 - 1));
+  else if (antes < fim) aplicarBrilho(1, false);
   if (antes < fim && reuniao >= fim) escurecerCeu();
 }
 

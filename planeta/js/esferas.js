@@ -357,6 +357,7 @@ function separarEsferas() {
       if (aproxima < 0) {
         ea.vel.addScaledVector(_ab, -aproxima * 0.65);
         eb.vel.addScaledVector(_ab, aproxima * 0.65);
+        somDaEsfera(ea, -aproxima); // o mesmo som do choque com o jogador
       }
       for (const e of [ea, eb]) { e.casca.position.copy(e.pos); e.estrelas.position.copy(e.pos); }
     }

@@ -5,7 +5,7 @@
 
 // Valores ajustáveis.
 const ROCHA = {
-  chanceTriangulo: 0.4, // chance de base com 3 cantos (tronco de tetraedro); senão, 4 (tronco de pirâmide)
+  chanceTriangulo: 0,   // chance de base com 3 cantos (tronco de tetraedro); senão, 4 (tronco de pirâmide)
   torto: 0.35,       // desvio do ângulo de cada canto (0 = polígono regular)
   cantos: 0.15,      // desvio da distância de cada canto ao centro
   porLado: 3,        // divisões de cada lado da base (mais = contorno mais quebrado)
