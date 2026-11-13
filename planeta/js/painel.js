@@ -142,13 +142,6 @@ function desenharRadar(tempo) {
   rctx.arc(R, R, 3.5 + pulso * 1.2, 0, Math.PI * 2);
   rctx.fill();
   rctx.shadowBlur = 0;
-
-  // anel escuro entre o aro prateado e a tela
-  rctx.strokeStyle = 'rgba(0, 35, 12, 0.6)';
-  rctx.lineWidth = 2;
-  rctx.beginPath();
-  rctx.arc(R, R, R - 1, 0, Math.PI * 2);
-  rctx.stroke();
 }
 
 // ---------------------------------------------------------------------

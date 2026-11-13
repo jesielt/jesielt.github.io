@@ -292,9 +292,9 @@ const geoTronco = new THREE.CylinderGeometry(0.7, 1, 1, 6);
 const matTronco = new THREE.MeshLambertMaterial({ color: CORES.tronco });
 
 // Copa: bola redonda com calombos pequenos rentes à superfície (contorno felpudo,
-// sólida de todos os ângulos). Cor por face: gradiente de baixo para cima, com
-// pontos claros espalhados na metade de cima. Três variações fixas.
-const CORES_COPA = ['#3a55b0', '#5b7bd6', '#8eaaf0', '#d2defb'].map(c => new THREE.Color(c));
+// sólida de todos os ângulos). Cor por face: gradiente de baixo para cima.
+// Três variações fixas.
+const CORES_COPA = ['#3a55b0', '#5b7bd6', '#8eaaf0'].map(c => new THREE.Color(c));
 function geometriaDaCopa(semente) {
   let s = semente;
   const aleatorio = () => (s = (s * 16807) % 2147483647) / 2147483647;
@@ -315,7 +315,6 @@ function geometriaDaCopa(semente) {
       const t = THREE.MathUtils.clamp((y + 0.9) / 1.8, 0, 1);
       if (t < 0.5) c.lerpColors(CORES_COPA[0], CORES_COPA[1], t / 0.5);
       else c.lerpColors(CORES_COPA[1], CORES_COPA[2], (t - 0.5) / 0.5);
-      if (t > 0.5 && aleatorio() < 0.1) c.lerp(CORES_COPA[3], 0.6);
       for (let w = v; w < v + 3; w++) {
         pos.push(bx + p.getX(w), by + p.getY(w), bz + p.getZ(w));
         nor.push(p.getX(w) / br, p.getY(w) / br, p.getZ(w) / br); // normal lisa: do centro da bola para fora

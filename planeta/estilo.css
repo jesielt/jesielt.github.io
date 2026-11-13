@@ -160,9 +160,7 @@ html, body {
   width: var(--radar);
   height: var(--radar);
   border-radius: 50%;
-  /* aro prateado: o fundo aparece sob a borda transparente */
-  border: 8px solid transparent;
-  background: linear-gradient(150deg, #ffffff 0%, #d5d9dd 30%, #8f969c 55%, #e9ecee 80%, #b4babf 100%) border-box;
+  border: 8px solid rgba(240, 245, 235, 0.75);
   box-shadow: 0 3px 10px rgba(30, 60, 50, 0.25);
   opacity: 0.95;
   pointer-events: none;
@@ -176,8 +174,7 @@ html, body {
   height: calc(var(--radar) * 0.05);
   transform: translateX(50%);
   border-radius: 2px 2px 0 0;
-  background: linear-gradient(90deg, #9aa0a6, #eef0f2 45%, #a9afb4);
-  opacity: 0.95;
+  background: rgba(240, 245, 235, 0.75);
   pointer-events: none;
 }
 .radar-botao::before {
@@ -189,7 +186,7 @@ html, body {
   height: calc(var(--radar) * 0.075);
   transform: translateX(-50%);
   border-radius: 50% 50% 30% 30% / 90% 90% 20% 20%;
-  background: radial-gradient(ellipse at 45% 30%, #ffffff, #d3d7da 45%, #9ba1a6);
+  background: rgba(240, 245, 235, 0.75);
 }
 
 /* altura: logo acima do radar, no canto direito;
