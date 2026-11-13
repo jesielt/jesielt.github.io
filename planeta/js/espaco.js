@@ -191,8 +191,10 @@ function atualizarDebaixoDagua(dt) {
   uniEscuro.value = suavizar(uniEscuro.value, escuroAlvo, 0.9, dt);
   if (Math.abs(uniEscuro.value - escuroAlvo) < 0.002) uniEscuro.value = escuroAlvo;
   const esc = uniEscuro.value;
-  hemi.intensity = 2.2 * (1 - 0.62 * esc) + luzRaio * 1.8; // o raio ilumina tudo por um instante
-  sol.intensity = 1.6 * (1 - 0.72 * esc);
+  // No escuro, o sol quase some e a luz difusa compensa: as sombras ficam fracas.
+  // O raio acende o sol por um instante: as sombras reaparecem fortes no clarão.
+  hemi.intensity = 2.2 * (1 - 0.62 * esc) + 0.3 * esc + luzRaio * 0.6;
+  sol.intensity = 1.6 * (1 - 0.95 * esc) + luzRaio * 2.5;
   // o planeta no céu perde brilho (senão parece uma lua acesa)
   for (const sat of satelites) {
     // no espaço, sem ar à frente, fica mais nítido

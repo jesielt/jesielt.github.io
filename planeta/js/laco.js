@@ -10,6 +10,7 @@ function quadro(agora) {
   atualizarDebaixoDagua(dt);
   atualizarSom(dt);
   animarAgua(agora / 1000);
+  seguirSombra();
   renderer.render(cena, camera);
   desenharRadar(agora / 1000);
   desenharRiscos(dt);

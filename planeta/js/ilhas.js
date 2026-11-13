@@ -453,6 +453,8 @@ turvarEmbaixoDagua(matAlga, (sh) => {
 });
 // rocha da encosta submersa: azul-arroxeada
 const matSaia = new THREE.MeshLambertMaterial({ color: '#8b80c4' });
+// superfícies rentes ao chão ou submersas: não projetam sombra
+const SEM_SOMBRA = [matGrama, matMancha, matManchaBorda, matSaia];
 turvarEmbaixoDagua(matSaia);
 const _m4a = new THREE.Matrix4(), _qa = new THREE.Quaternion(), _ea = new THREE.Euler();
 const _pa = new THREE.Vector3(), _sa = new THREE.Vector3();
@@ -698,6 +700,13 @@ function criarIlha(i, j) {
 
   // fauna: só no chão da plataforma (nunca sobre rocha ou montanha)
   const fauna = criarFaunaDaIlha(i, j, { grupo, alt, sx, sz, ondas, solidos, copas, x, z, tam, enorme });
+
+  // sombras: tudo recebe; só o que tem volume projeta
+  grupo.traverse(o => {
+    if (!o.isMesh) return;
+    o.receiveShadow = true;
+    o.castShadow = !o.isInstancedMesh && !Array.isArray(o.material) && !SEM_SOMBRA.includes(o.material);
+  });
 
   cena.add(grupo);
   return { grupo, geo, geosManchas, tufos, geoSaia, algas, x, z, solidos, copas, fauna, alt };

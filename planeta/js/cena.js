@@ -61,5 +61,34 @@ ajustarTela();
 const hemi = new THREE.HemisphereLight('#e8f6d0', '#9fb3e6', 2.2);
 cena.add(hemi);
 const sol = new THREE.DirectionalLight('#fff4e0', 1.6);
-sol.position.set(-0.5, 1, 0.3);
+sol.position.set(-0.5, 1, 0.3); // ~60° acima do horizonte: sol de 14 h, sombra curta
 cena.add(sol);
+
+// Sombras: só numa área em volta do jogador, que o acompanha.
+// Fazem sombra rochas, árvores e bichos; grama, plataforma e manchas só recebem.
+const SOMBRA_RAIO = 700;              // meia largura da área com sombra, em unidades
+const SOMBRA_MAPA = TOQUE ? 1024 : 2048;
+renderer.shadowMap.enabled = true;
+sol.castShadow = true;
+sol.shadow.mapSize.set(SOMBRA_MAPA, SOMBRA_MAPA);
+Object.assign(sol.shadow.camera, { left: -SOMBRA_RAIO, right: SOMBRA_RAIO, top: SOMBRA_RAIO, bottom: -SOMBRA_RAIO, near: 1, far: 4000 });
+sol.shadow.camera.updateProjectionMatrix();
+sol.shadow.bias = -0.0002;
+sol.shadow.normalBias = 0.8;
+cena.add(sol.target);
+const DIR_SOL = sol.position.clone().normalize();
+// giro da câmera de sombra (fixo, pois o sol não se move)
+const _giroSol = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(DIR_SOL, new THREE.Vector3(), new THREE.Vector3(0, 1, 0)));
+const _giroSolInv = _giroSol.clone().invert();
+const _pSombra = new THREE.Vector3();
+// Centraliza a área de sombra no jogador. O centro anda em passos de um texel
+// do mapa: sem isso, a borda das sombras tremula durante o movimento.
+function seguirSombra() {
+  const passo = (2 * SOMBRA_RAIO) / SOMBRA_MAPA;
+  _pSombra.set(camera.position.x, Math.min(camera.position.y, 300), camera.position.z).applyQuaternion(_giroSolInv);
+  _pSombra.x = Math.round(_pSombra.x / passo) * passo;
+  _pSombra.y = Math.round(_pSombra.y / passo) * passo;
+  _pSombra.applyQuaternion(_giroSol);
+  sol.target.position.copy(_pSombra);
+  sol.position.copy(_pSombra).addScaledVector(DIR_SOL, 2000);
+}
