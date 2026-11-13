@@ -22,6 +22,7 @@ const PARTES = [
   'cena', // ajustes, cores, cena, câmera, luz
   'ceu',        // céu, satélites, nuvens
   'agua',       // superfície do mar e fundo
+  'rochas',     // forma e aparência das rochas, ruído 3D compartilhado
   'ilhas',      // ilhas, rochas, grama, árvores, saia submersa, quais ilhas existem
   'fauna', // fauna (sapos)
   'controles',  // teclado, mouse, toque, abertura

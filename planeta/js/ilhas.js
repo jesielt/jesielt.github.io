@@ -6,7 +6,7 @@
 const CELULA = 340;
 const ALCANCE = Math.ceil(AJUSTE.neblinaLonge / CELULA);
 const AFINA = [0.4, 0.55, 0.7, 0.85]; // afinamento do topo da rocha em relação à base
-const geosRocha = AFINA.map(t => new THREE.CylinderGeometry(t, 1, 1, 16));
+const geosRocha = AFINA.map((t, k) => geometriaDaRocha(t, k + 1)); // forma em camadas (rochas.js)
 const geoTopo = new THREE.CylinderGeometry(1.1, 1.1, 1, 16);
 const matRocha = new THREE.MeshLambertMaterial({ color: CORES.rocha });
 const matGrama = new THREE.MeshLambertMaterial({ color: CORES.grama });
@@ -93,7 +93,7 @@ function turvarEmbaixoDagua(mat, antes) {
     `);
   };
 }
-turvarEmbaixoDagua(matRocha);
+turvarEmbaixoDagua(matRocha, pintarPedra);
 turvarEmbaixoDagua(matGrama, pintarGrama);
 turvarEmbaixoDagua(matFundo, (sh) => {
   // o fundo do mar ondula segundo alturaDoFundo (a iluminação acompanha)
@@ -291,12 +291,8 @@ const DIST_TUFOS = 350; // além desta distância a grama é ocultada (economia)
 const geoTronco = new THREE.CylinderGeometry(0.7, 1, 1, 6);
 const matTronco = new THREE.MeshLambertMaterial({ color: CORES.tronco });
 
-// Copa low-poly: icosaedro pouco subdividido, com a superfície ondulada (soma
-// de ondas em direções sorteadas) e cada vértice empurrado ao acaso para dentro
-// ou para fora, de modo que as faces fiquem tortas e de tamanhos diferentes.
-// Base um pouco achatada. Faces planas, cada uma com cor única: gradiente de
-// baixo para cima, saliências mais claras, vãos mais escuros e uma pequena
-// variação sorteada por face. Três variações fixas.
+// Copa low-poly: icosaedro com vértices deslocados ao acaso e superfície ondulada.
+// Base achatada. Faces planas com gradiente vertical e variações de cor por face.
 const CORES_COPA = ['#3a55b0', '#5b7bd6', '#8eaaf0'].map(c => new THREE.Color(c));
 function geometriaDaCopa(semente) {
   let s = semente;
@@ -307,7 +303,7 @@ function geometriaDaCopa(semente) {
     ondas.push([d, 5 + aleatorio() * 5, aleatorio() * 6.3]); // direção, frequência, fase
   }
   const relevo = (v) => ondas.reduce((t, [d, f, fase]) => t + Math.sin(v.dot(d) * f + fase), 0) / ondas.length;
-  const geo = new THREE.IcosahedronGeometry(1, 4);
+  const geo = new THREE.IcosahedronGeometry(1, 6);
   const p = geo.attributes.position, v = new THREE.Vector3();
   // A geometria não é indexada: vértices na mesma posição recebem o mesmo
   // deslocamento (guardado por posição original), senão a malha abre frestas.
@@ -355,28 +351,7 @@ matCopa.onBeforeCompile = (sh) => {
     #include <begin_vertex>
     vPosCopa = position + fract( modelMatrix[3].xyz * 0.0137 ) * 50.0;
   `);
-  sh.fragmentShader = `varying vec3 vPosCopa;
-    float acaso3( vec3 p ) {
-      p = fract( p * 0.3183099 + 0.1 ) * 17.0;
-      return fract( p.x * p.y * p.z * ( p.x + p.y + p.z ) );
-    }
-    float ruido3( vec3 x ) {
-      vec3 i = floor( x ), f = fract( x );
-      f = f * f * ( 3.0 - 2.0 * f );
-      return mix(
-        mix( mix( acaso3( i ), acaso3( i + vec3( 1, 0, 0 ) ), f.x ), mix( acaso3( i + vec3( 0, 1, 0 ) ), acaso3( i + vec3( 1, 1, 0 ) ), f.x ), f.y ),
-        mix( mix( acaso3( i + vec3( 0, 0, 1 ) ), acaso3( i + vec3( 1, 0, 1 ) ), f.x ), mix( acaso3( i + vec3( 0, 1, 1 ) ), acaso3( i + 1.0 ), f.x ), f.y ),
-        f.z );
-    }
-    float camadas3( vec3 p ) {
-      return 0.55 * ruido3( p ) + 0.3 * ruido3( p * 2.1 + 3.7 ) + 0.15 * ruido3( p * 4.3 + 7.1 );
-    }
-    // degrau com borda suavizada pela largura do pixel (evita serrilhado de longe)
-    float degrau( float limite, float v ) {
-      float w = fwidth( v ) + 0.004;
-      return smoothstep( limite - w, limite + w, v );
-    }
-  ` + sh.fragmentShader.replace('#include <color_fragment>', `
+  sh.fragmentShader = 'varying vec3 vPosCopa;\n' + RUIDO_GLSL + sh.fragmentShader.replace('#include <color_fragment>', `
     #include <color_fragment>
     float manchas = camadas3( vPosCopa * 2.8 );
     float pintas = camadas3( vPosCopa * 6.5 + 11.0 );
