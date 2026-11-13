@@ -340,6 +340,47 @@ function geometriaDaCopa(semente) {
 }
 const geosCopa = [11, 222, 3333].map(geometriaDaCopa);
 const matCopa = new THREE.MeshLambertMaterial({ vertexColors: true });
+// Textura da copa: manchas de folhagem em poucos tons (estilo pôster), calculadas
+// no próprio shader a partir de ruído 3D na posição local da copa. Não há imagem
+// nem coordenadas UV, logo não há emenda nem distorção nos polos. A posição da
+// árvore desloca o ruído: cada copa recebe um desenho diferente.
+matCopa.customProgramCacheKey = () => 'copa';
+matCopa.onBeforeCompile = (sh) => {
+  sh.vertexShader = 'varying vec3 vPosCopa;\n' + sh.vertexShader.replace('#include <begin_vertex>', `
+    #include <begin_vertex>
+    vPosCopa = position + fract( modelMatrix[3].xyz * 0.0137 ) * 50.0;
+  `);
+  sh.fragmentShader = `varying vec3 vPosCopa;
+    float acaso3( vec3 p ) {
+      p = fract( p * 0.3183099 + 0.1 ) * 17.0;
+      return fract( p.x * p.y * p.z * ( p.x + p.y + p.z ) );
+    }
+    float ruido3( vec3 x ) {
+      vec3 i = floor( x ), f = fract( x );
+      f = f * f * ( 3.0 - 2.0 * f );
+      return mix(
+        mix( mix( acaso3( i ), acaso3( i + vec3( 1, 0, 0 ) ), f.x ), mix( acaso3( i + vec3( 0, 1, 0 ) ), acaso3( i + vec3( 1, 1, 0 ) ), f.x ), f.y ),
+        mix( mix( acaso3( i + vec3( 0, 0, 1 ) ), acaso3( i + vec3( 1, 0, 1 ) ), f.x ), mix( acaso3( i + vec3( 0, 1, 1 ) ), acaso3( i + 1.0 ), f.x ), f.y ),
+        f.z );
+    }
+    float camadas3( vec3 p ) {
+      return 0.55 * ruido3( p ) + 0.3 * ruido3( p * 2.1 + 3.7 ) + 0.15 * ruido3( p * 4.3 + 7.1 );
+    }
+    // degrau com borda suavizada pela largura do pixel (evita serrilhado de longe)
+    float degrau( float limite, float v ) {
+      float w = fwidth( v ) + 0.004;
+      return smoothstep( limite - w, limite + w, v );
+    }
+  ` + sh.fragmentShader.replace('#include <color_fragment>', `
+    #include <color_fragment>
+    float manchas = camadas3( vPosCopa * 2.8 );
+    float pintas = camadas3( vPosCopa * 6.5 + 11.0 );
+    diffuseColor.rgb *= 1.0
+      + 0.26 * degrau( 0.56, manchas )         // manchas claras
+      - 0.20 * ( 1.0 - degrau( 0.40, manchas ) ) // manchas escuras
+      + 0.12 * degrau( 0.62, pintas );         // pintas claras menores
+  `);
+};
 
 // número pseudoaleatório fixo por célula: o mesmo lugar gera sempre o mesmo conteúdo
 function hash(i, j, s = 0) {
