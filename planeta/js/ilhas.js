@@ -590,29 +590,25 @@ function criarIlha(i, j) {
     geosManchas.push(gb);
   }
 
-  // Ergue uma rocha com o pé em (px, base, pz), em coordenadas da ilha, e registra
-  // o sólido de colisão com o mesmo contorno da forma. Às vezes um segundo andar
-  // menor nasce sobre o topo, fora do centro.
-  function erguerRocha(px, pz, rx, rz, rh, tipo, sem, base = alt - 1) {
-    const giro = hash(i, j, sem + 7) * Math.PI;
-    const afina = AFINA[tipo];
-    const { geo, cantos, alcance } = geosRocha[tipo][Math.floor(hash(i, j, sem + 8) * ROCHA.variantes)];
-    const corpo = new THREE.Mesh(geo, [matPedra, matGrama]);
-    corpo.scale.set(rx, rh, rz);
+  // Ergue uma rocha (forma sorteada entre formasDeRocha) com o pé em (px, pz), em
+  // coordenadas da ilha, e registra o sólido de colisão com o mesmo mapa de alturas.
+  // r: raio aproximado do corpo; a grade cobre um pouco mais (a borda fica enterrada).
+  function erguerRocha(px, pz, rx, rz, rh, sem) {
+    const base = alt - 1;
+    const giro = hash(i, j, sem + 7) * Math.PI * 2;
+    const forma = formasDeRocha[Math.floor(hash(i, j, sem + 8) * formasDeRocha.length)];
+    const gx = rx * 1.2, gz = rz * 1.2;
+    const corpo = new THREE.Mesh(forma.geo, [matPedra, matGrama]);
+    corpo.scale.set(gx, rh, gz);
     corpo.position.set(px, base, pz);
     corpo.rotation.y = giro;
     corpo.userData.sombra = true; // material duplo: sem esta marca, não projetaria sombra
     grupo.add(corpo);
-    const sol = { x: x + px, z: z + pz, rx, rz, base, h: base + rh, afina, giro, cantos, alcance };
+    const sol = {
+      x: x + px, z: z + pz, rx: gx, rz: gz, base, h: base + rh, rh, giro, afina: 1, alcance: 0.9,
+      mapa: forma.mapa, G: forma.G, pico: forma.pico,
+    };
     solidos.push(sol);
-    const topo = Math.min(rx, rz) * afina; // raio aproximado do topo
-    if (base === alt - 1 && topo > 8 && hash(i, j, sem + 9) < ROCHA.andar) {
-      const k = 0.35 + hash(i, j, sem + 10) * 0.2;
-      const a = hash(i, j, sem + 11) * Math.PI * 2;
-      const d = topo * 0.15 * hash(i, j, sem + 12);
-      erguerRocha(px + Math.cos(a) * d, pz + Math.sin(a) * d, rx * afina * k, rz * afina * k,
-        rh * (0.25 + hash(i, j, sem + 13) * 0.4), tipo, sem + 50, base + rh);
-    }
     return sol;
   }
 
@@ -636,8 +632,7 @@ function criarIlha(i, j) {
     if (k > 0 && montanhas.some(m => Math.hypot(m.x - (x + px), m.z - (z + pz)) < (m.rx + rx) * 1.1)) continue;
     const metros = 12 + Math.pow(hash(i, j, sm + 5), 1.8) * (enorme ? 23 : 16); // maioria entre as mais baixas
     const rh = metros * 17.5;
-    const tipo = Math.floor(hash(i, j, sm + 6) * AFINA.length);
-    const sol = erguerRocha(px, pz, rx, rz, rh, tipo, sm);
+    const sol = erguerRocha(px, pz, rx, rz, rh, sm);
     sol.montanha = true;
     montanhas.push(sol);
   }
@@ -659,9 +654,8 @@ function criarIlha(i, j) {
     const rx = base * (0.65 + hash(i, j, s + 3) * 0.7);
     const rz = base * (0.65 + hash(i, j, s + 4) * 0.7);
     const rh = 10 + hash(i, j, s + 5) ** 1.5 * 95;
-    const tipo = Math.floor(hash(i, j, s + 6) * AFINA.length);
-    if (montanhas.length && encostaEmRocha(x + px, z + pz, Math.max(rx, rz) * 1.3 + 4, [null, ...montanhas])) continue;
-    erguerRocha(px, pz, rx, rz, rh, tipo, s);
+    if (montanhas.length && encostaEmRocha(x + px, z + pz, Math.max(rx, rz) * 1.1 + 4, [null, ...montanhas])) continue;
+    erguerRocha(px, pz, rx, rz, rh, s);
   }
 
   // árvores: poucas e espalhadas, de 0 a 5 conforme o tamanho da ilha
@@ -689,16 +683,15 @@ function criarIlha(i, j) {
     plantar(lugar.px, alt, lugar.pz, arv, hash(i, j, 320 + k));
   }
 
-  // raro: ~10% das rochas têm uma árvore no topo plano
+  // raro: ~10% das rochas têm uma árvore no ponto mais alto
   for (let n = 1; n < solidos.length; n++) {
     if (hash(i, j, 500 + n * 10) > 0.1) continue;
     const roc = solidos[n];
-    if (solidos.some(o => o.base === roc.h)) continue; // topo coberto por um segundo andar
     const arv = sortearArvore(hash(i, j, 501 + n * 10), hash(i, j, 502 + n * 10));
-    // um pouco fora do centro, sempre dentro do topo
-    const a = hash(i, j, 503 + n * 10) * Math.PI * 2;
-    const d = Math.min(roc.rx, roc.rz) * roc.afina * 0.4 * hash(i, j, 504 + n * 10);
-    plantar(roc.x - x + Math.cos(a) * d, roc.h, roc.z - z + Math.sin(a) * d, arv, hash(i, j, 505 + n * 10));
+    const [pu, pv] = roc.pico, c = Math.cos(roc.giro), sn = Math.sin(roc.giro);
+    const wx = pu * roc.rx * c + pv * roc.rz * sn, wz = -pu * roc.rx * sn + pv * roc.rz * c;
+    const chao = alturaNoMapa(roc, roc.x + wx, roc.z + wz);
+    if (chao > -Infinity) plantar(roc.x - x + wx, chao, roc.z - z + wz, arv, hash(i, j, 505 + n * 10));
   }
 
   // planta uma árvore com o pé em (px, chao, pz), em coordenadas da ilha
@@ -830,4 +823,22 @@ function* ilhasPerto() {
     const ilha = ilhas.get((ci + di) + ',' + (cj + dj));
     if (ilha && (ilha.gigante || (Math.abs(di) <= 1 && Math.abs(dj) <= 1))) yield ilha;
   }
+}
+
+// Teste (7-8-9 no teclado numérico): as formas de rocha lado a lado, sobre a
+// água, à frente do jogador, para comparar. Repetir o código as remove.
+let vitrineDeRochas = null;
+function mostrarFormasDasRochas() {
+  if (vitrineDeRochas) { cena.remove(vitrineDeRochas); vitrineDeRochas = null; return; }
+  vitrineDeRochas = new THREE.Group();
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), lx = Math.cos(yaw), lz = -Math.sin(yaw);
+  const meio = (formasDeRocha.length - 1) / 2;
+  formasDeRocha.forEach((forma, k) => {
+    const m = new THREE.Mesh(forma.geo, [matPedra, matGrama]);
+    m.scale.set(40, 70, 40);
+    m.position.set(camera.position.x + fx * 260 + lx * (k - meio) * 95, 0, camera.position.z + fz * 260 + lz * (k - meio) * 95);
+    m.castShadow = m.receiveShadow = true;
+    vitrineDeRochas.add(m);
+  });
+  cena.add(vitrineDeRochas);
 }

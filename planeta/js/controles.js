@@ -54,6 +54,7 @@ window.addEventListener('keydown', e => {
   if (/^Numpad\d$/.test(e.code)) {
     codigoTeste = (codigoTeste + e.code.slice(-1)).slice(-3);
     if (codigoTeste === '123') { codigoTeste = ''; pegarTodasAsEsferas(); }
+    if (codigoTeste === '789') { codigoTeste = ''; mostrarFormasDasRochas(); } // teste: formas de rocha lado a lado
     if (codigoTeste === '456') { codigoTeste = ''; camera.position.y = 499 * ESCALA_SENTIDA; vel.set(0, 0, 0); } // teste: quase no espaço
   }
 });

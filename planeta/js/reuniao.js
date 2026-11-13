@@ -12,7 +12,9 @@ const CICLO_PISCADA = 2;   // segundos por pulso: 1 s acendendo, 1 s apagando
 const AVISO_SOLTAR = 5;    // segundos em que o ícone pisca antes de ficar fixo
 const LUZ_REUNIAO = 60;    // intensidade máxima da luz das esferas
 const COR_CASCA = new THREE.Color('#7a3300');   // emissivo normal (ver materialDaCasca)
-const COR_BRILHO = new THREE.Color('#ffe14a');  // emissivo no brilho máximo
+const COR_BRILHO = new THREE.Color('#ffe14a');  // emissivo no brilho máximo dos pulsos
+const COR_FINAL = new THREE.Color('#fff6dc');   // emissivo depois dos pulsos: quase branco
+const AURA_FINAL = { escala: 3.2, opacidade: 0.45 }; // halo curto que passa pouco da borda
 
 let segurandoDesde = -1;   // instante do aperto, em ms (-1 = solto)
 let juntouAs7 = false;     // as 7 já estiveram na caixa ao mesmo tempo
@@ -106,21 +108,23 @@ function reunidasEmTerra() {
 }
 
 // b: 0 = aparência normal, 1 = brilho máximo (estrelas encobertas pela luz).
-// aura: halo e luz em volta (só durante os pulsos).
-function aplicarBrilho(b, aura = true) {
-  const a = aura ? b : 0;
+// final: depois dos pulsos, quase branca, com halo curto e sem luz em volta.
+function aplicarBrilho(b, final = false) {
+  const a = final ? AURA_FINAL.opacidade : b * 0.9;
+  const escala = R_ESFERA * (final ? AURA_FINAL.escala : 6);
   luzReuniao.position.set(0, 0, 0);
   esferas.forEach((e, k) => {
     if (!e.casca) return;
-    e.casca.material.emissive.lerpColors(COR_CASCA, COR_BRILHO, b);
+    e.casca.material.emissive.lerpColors(COR_CASCA, final ? COR_FINAL : COR_BRILHO, b);
     e.estrelas.material.opacity = 1 - b;
     halos[k].visible = a > 0;
-    halos[k].material.opacity = a * 0.9;
+    halos[k].material.opacity = a;
+    halos[k].scale.set(escala, escala, 1);
     halos[k].position.copy(e.pos);
     luzReuniao.position.addScaledVector(e.pos, 1 / 7);
   });
   luzReuniao.position.y += R_ESFERA * 3;
-  luzReuniao.intensity = a * LUZ_REUNIAO;
+  luzReuniao.intensity = final ? 0 : b * LUZ_REUNIAO;
 }
 
 function atualizarReuniao(dt) {
@@ -148,9 +152,9 @@ function atualizarReuniao(dt) {
   const fim = PISCADAS * CICLO_PISCADA;
   // pulso em rampa: sobe de 0 a 1 na primeira metade do ciclo e desce na segunda
   const fase = (reuniao % CICLO_PISCADA) / CICLO_PISCADA;
-  // depois dos pulsos: amarelas e sem estrelas, mas sem halo nem luz em volta
+  // depois dos pulsos: quase brancas e sem estrelas, com halo curto e sem luz em volta
   if (reuniao < fim) aplicarBrilho(1 - Math.abs(fase * 2 - 1));
-  else if (antes < fim) aplicarBrilho(1, false);
+  else aplicarBrilho(1, true); // a cada quadro: o halo acompanha a esfera se ela rolar
   if (antes < fim && reuniao >= fim) escurecerCeu();
 }
 

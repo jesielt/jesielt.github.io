@@ -175,6 +175,11 @@ function chaoDaEsfera(e, x, z, y) {
   if (!e.ilha) return null;
   let melhor = null;
   for (const s of e.ilha.solidos) {
+    if (s.mapa) {
+      const hy = alturaNoMapa(s, x, z);
+      if (hy !== -Infinity && hy <= y && (melhor === null || hy > melhor)) melhor = hy;
+      continue;
+    }
     if (s.h > y || (melhor !== null && s.h <= melhor)) continue;
     const dx = x - s.x, dz = z - s.z;
     const c = Math.cos(s.giro), sn = Math.sin(s.giro);
@@ -305,6 +310,15 @@ function atualizarUmaEsfera(e, dt) {
     for (let n = 1; n < (e.ilha ? e.ilha.solidos.length : 0); n++) {
       const r = e.ilha.solidos[n];
       if (p.y - R_ESFERA >= r.h - 0.5 || p.y + R_ESFERA <= r.base) continue;
+      if (r.mapa) { // relevo: parede onde o chão sobe acima da base da esfera
+        const limite = p.y - R_ESFERA + 1;
+        if (alturaNoMapa(r, p.x, p.z) <= limite) continue;
+        descidaNoMapa(r, p.x, p.z, _n);
+        for (let k = 0; k < 30 && alturaNoMapa(r, p.x, p.z) > limite; k++) { p.x += _n.x * 0.5; p.z += _n.z * 0.5; }
+        const contra = v.x * _n.x + v.z * _n.z;
+        if (contra < 0) { v.x -= 1.5 * contra * _n.x; v.z -= 1.5 * contra * _n.z; somDaEsfera(e, -contra); }
+        continue;
+      }
       const dx = p.x - r.x, dz = p.z - r.z;
       const c = Math.cos(r.giro), sn = Math.sin(r.giro);
       const lx = dx * c - dz * sn, lz = dx * sn + dz * c;

@@ -52,6 +52,12 @@ function chaoSob(x, z, maxY) {
   let melhor = null;
   for (const ilha of ilhasPerto()) {
     for (const s of ilha.solidos) {
+      if (s.mapa) { // rocha de relevo: altura no ponto
+        const hy = alturaNoMapa(s, x, z);
+        if (hy === -Infinity || hy > maxY || (melhor && hy <= melhor.h)) continue;
+        melhor = { h: hy, s, beira: Infinity };
+        continue;
+      }
       if (s.h > maxY || (melhor && s.h <= melhor.h)) continue;
       const dx = x - s.x, dz = z - s.z;
       const c = Math.cos(s.giro), sn = Math.sin(s.giro);
@@ -69,6 +75,7 @@ function chaoSob(x, z, maxY) {
 // andando, rochas mais altas que um degrau são paredes: empurra para fora
 function empurrarDaParede(s) {
   if (s.h <= pesY + ANDAR.degrau || pesY + olhosAgora < s.base) return;
+  if (s.mapa) { afastarDoRelevo(s, pesY + ANDAR.degrau); return; }
   const p = camera.position;
   const dx = p.x - s.x, dz = p.z - s.z;
   const c = Math.cos(s.giro), sn = Math.sin(s.giro);
@@ -228,6 +235,7 @@ function atualizarAndar(dt, f, l, u) {
   if (c.s.ondas && c.beira < ANDAR.beira && pesY <= c.h + 0.5) { comecarEscorregar(c.s); escorregar(dt); return; }
 
   let noChao = true;
+  if (pesY > c.h + 0.01 && velQueda === 0 && pesY - c.h < ANDAR.degrau / 2) pesY = c.h; // descida de encosta: acompanha o chão
   if (pesY > c.h + 0.01) { // no ar: saiu da ponta de uma rocha
     noChao = false;
     velQueda -= GRAVIDADE * dt;
@@ -270,6 +278,7 @@ function colidir(s) {
   const olhos = AJUSTE.alturaOlhos;
   if (p.y >= s.h + olhos) return;
   if (p.y < s.base) return; // abaixo do sólido (submerso): tratado pela encosta
+  if (s.mapa) { colidirComRelevo(s); return; }
   // converte a posição para o referencial do sólido (desfaz a rotação)
   const dx = p.x - s.x, dz = p.z - s.z;
   const c = Math.cos(s.giro), sn = Math.sin(s.giro);
@@ -299,6 +308,39 @@ function colidir(s) {
   if (contra < 0) { vel.x -= contra * nx; vel.z -= contra * nz; }
 }
 
+
+// Relevo das rochas (mapa de alturas). Parede: onde o chão passa de `limite`.
+// Empurra o jogador morro abaixo, em passos curtos, até sair da parede, e
+// anula a velocidade contra ela.
+const _desce = new THREE.Vector3();
+function alturaComFolga(s, x, z, f) {
+  // a mais alta entre o ponto e quatro em volta: o corpo tem largura
+  return Math.max(alturaNoMapa(s, x, z), alturaNoMapa(s, x + f, z), alturaNoMapa(s, x - f, z),
+    alturaNoMapa(s, x, z + f), alturaNoMapa(s, x, z - f));
+}
+function afastarDoRelevo(s, limite, folga = ANDAR.raioPe) {
+  const p = camera.position;
+  if (alturaComFolga(s, p.x, p.z, folga) <= limite) return;
+  descidaNoMapa(s, p.x, p.z, _desce);
+  for (let k = 0; k < 40 && alturaComFolga(s, p.x, p.z, folga) > limite; k++) {
+    p.x += _desce.x; p.z += _desce.z;
+  }
+  const contra = vel.x * _desce.x + vel.z * _desce.z;
+  if (contra < 0) { vel.x -= contra * _desce.x; vel.z -= contra * _desce.z; }
+}
+// voando: chegando por cima, fica na altura dos olhos sobre o relevo; de lado, é parede
+function colidirComRelevo(s) {
+  const p = camera.position;
+  const olhos = AJUSTE.alturaOlhos;
+  const hy = alturaComFolga(s, p.x, p.z, FOLGA_LADO);
+  if (hy === -Infinity || p.y >= hy + olhos) return;
+  if (p.y > hy - 2.5) {
+    p.y = hy + olhos;
+    if (vel.y < 0) vel.y = 0;
+    return;
+  }
+  afastarDoRelevo(s, p.y - 2.5, FOLGA_LADO);
+}
 
 // copa da árvore: esfera que empurra para fora (o tronco fino é atravessável)
 const _d = new THREE.Vector3();
