@@ -72,6 +72,19 @@ function desenharRadar(tempo) {
   }
   rctx.restore();
 
+  // pontos cardeais em letras saiyajin, na borda interna (norte = -z)
+  const tamL = Math.max(7, R * 0.085); // altura da letra, em pixels
+  const uL = tamL / 10;                // a letra é desenhada numa grade 10×10
+  const dL = R - tamL * 0.9 - 3;
+  rctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  for (const [l, dx, dz] of [['N', 0, -1], ['E', 1, 0], ['S', 0, 1], ['W', -1, 0]]) {
+    const ox = R + (dx * Math.cos(yaw) - dz * Math.sin(yaw)) * dL - tamL / 2;
+    const oy = R + (dx * Math.sin(yaw) + dz * Math.cos(yaw)) * dL - tamL / 2;
+    rctx.beginPath();
+    for (const [x, y, w, h, r = 0.7] of LETRAS_SAIYAJIN[l]) rctx.roundRect(ox + x * uL, oy + y * uL, w * uL, h * uL, r * uL);
+    rctx.fill();
+  }
+
   // esferas: pontos laranja piscantes (as distantes ficam presas à borda)
   const pisca = 0.5 + 0.5 * Math.sin(tempo * 7);
   for (const e of esferas) {
@@ -129,6 +142,13 @@ function desenharRadar(tempo) {
   rctx.arc(R, R, 3.5 + pulso * 1.2, 0, Math.PI * 2);
   rctx.fill();
   rctx.shadowBlur = 0;
+
+  // anel escuro entre o aro prateado e a tela
+  rctx.strokeStyle = 'rgba(0, 35, 12, 0.6)';
+  rctx.lineWidth = 2;
+  rctx.beginPath();
+  rctx.arc(R, R, R - 1, 0, Math.PI * 2);
+  rctx.stroke();
 }
 
 // ---------------------------------------------------------------------

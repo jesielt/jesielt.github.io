@@ -291,41 +291,46 @@ const DIST_TUFOS = 350; // além desta distância a grama é ocultada (economia)
 const geoTronco = new THREE.CylinderGeometry(0.7, 1, 1, 6);
 const matTronco = new THREE.MeshLambertMaterial({ color: CORES.tronco });
 
-// Copa: esfera central com calombos ao redor, em poucas faces (sólida de todos os
-// ângulos). Cor por vértice: escura embaixo, clara em cima. Três variações fixas.
-const CORES_COPA = ['#283d8f', '#3d5cc0', '#5f84de'].map(c => new THREE.Color(c));
+// Copa: bola redonda com calombos pequenos rentes à superfície (contorno felpudo,
+// sólida de todos os ângulos). Cor por face: gradiente de baixo para cima, com
+// pontos claros espalhados na metade de cima. Três variações fixas.
+const CORES_COPA = ['#3a55b0', '#5b7bd6', '#8eaaf0', '#d2defb'].map(c => new THREE.Color(c));
 function geometriaDaCopa(semente) {
   let s = semente;
   const aleatorio = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  // [x, y, z, raio] de cada bola, em unidades do raio da copa
-  const bolas = [[0, 0, 0, 0.78]];
-  const n = 8 + Math.floor(aleatorio() * 3);
+  // [x, y, z, raio, detalhe] de cada bola, em unidades do raio da copa
+  const bolas = [[0, 0, 0, 0.9, 3]];
+  const n = 14 + Math.floor(aleatorio() * 5);
   for (let k = 0; k < n; k++) {
-    const a = (k / n) * Math.PI * 2 + aleatorio() * 0.5;
-    const el = -0.35 + aleatorio() * 1.1; // mais calombos na metade de cima
-    const d = 0.55 + aleatorio() * 0.1;
-    bolas.push([Math.cos(a) * Math.cos(el) * d, Math.sin(el) * d * 0.85, Math.sin(a) * Math.cos(el) * d, 0.34 + aleatorio() * 0.16]);
+    const a = aleatorio() * Math.PI * 2;
+    const el = Math.asin(aleatorio() * 1.7 - 0.85);
+    bolas.push([Math.cos(a) * Math.cos(el) * 0.78, Math.sin(el) * 0.78, Math.sin(a) * Math.cos(el) * 0.78, 0.22 + aleatorio() * 0.08, 1]);
   }
-  const pos = [], cor = [], c = new THREE.Color();
-  for (const [bx, by, bz, br] of bolas) {
-    const p = new THREE.IcosahedronGeometry(br, 1).attributes.position;
-    for (let v = 0; v < p.count; v++) {
-      const x = bx + p.getX(v), y = by + p.getY(v), z = bz + p.getZ(v);
-      pos.push(x, y, z);
+  const pos = [], nor = [], cor = [], c = new THREE.Color();
+  for (const [bx, by, bz, br, det] of bolas) {
+    const p = new THREE.IcosahedronGeometry(br, det).attributes.position;
+    for (let v = 0; v < p.count; v += 3) {
+      // uma cor por face (três vértices)
+      const y = by + (p.getY(v) + p.getY(v + 1) + p.getY(v + 2)) / 3;
       const t = THREE.MathUtils.clamp((y + 0.9) / 1.8, 0, 1);
-      if (t < 0.55) c.lerpColors(CORES_COPA[0], CORES_COPA[1], t / 0.55);
-      else c.lerpColors(CORES_COPA[1], CORES_COPA[2], (t - 0.55) / 0.45);
-      cor.push(c.r, c.g, c.b);
+      if (t < 0.5) c.lerpColors(CORES_COPA[0], CORES_COPA[1], t / 0.5);
+      else c.lerpColors(CORES_COPA[1], CORES_COPA[2], (t - 0.5) / 0.5);
+      if (t > 0.5 && aleatorio() < 0.1) c.lerp(CORES_COPA[3], 0.6);
+      for (let w = v; w < v + 3; w++) {
+        pos.push(bx + p.getX(w), by + p.getY(w), bz + p.getZ(w));
+        nor.push(p.getX(w) / br, p.getY(w) / br, p.getZ(w) / br); // normal lisa: do centro da bola para fora
+        cor.push(c.r, c.g, c.b);
+      }
     }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(cor, 3));
-  geo.computeVertexNormals();
   return geo;
 }
 const geosCopa = [11, 222, 3333].map(geometriaDaCopa);
-const matCopa = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+const matCopa = new THREE.MeshLambertMaterial({ vertexColors: true });
 
 // número pseudoaleatório fixo por célula: o mesmo lugar gera sempre o mesmo conteúdo
 function hash(i, j, s = 0) {

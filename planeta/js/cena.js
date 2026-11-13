@@ -58,9 +58,12 @@ function ajustarTela() {
 window.addEventListener('resize', ajustarTela);
 ajustarTela();
 
-const hemi = new THREE.HemisphereLight('#e8f6d0', '#9fb3e6', 2.2);
+// Intensidades de dia. A sombra só bloqueia o sol: quanto maior a parte do sol
+// no total, mais escura a sombra.
+const LUZ_CEU = 1.95, LUZ_SOL = 1.9;
+const hemi = new THREE.HemisphereLight('#e8f6d0', '#9fb3e6', LUZ_CEU);
 cena.add(hemi);
-const sol = new THREE.DirectionalLight('#fff4e0', 1.6);
+const sol = new THREE.DirectionalLight('#fff4e0', LUZ_SOL);
 sol.position.set(-0.5, 1, 0.3); // ~60° acima do horizonte: sol de 14 h, sombra curta
 cena.add(sol);
 
