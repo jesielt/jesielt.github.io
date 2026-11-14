@@ -45,7 +45,6 @@ const halos = esferas.map(() => {
     map: texHalo, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
   }));
   h.scale.set(R_ESFERA * 6, R_ESFERA * 6, 1);
-  h.renderOrder = 3;
   h.visible = false;
   cena.add(h);
   return h;

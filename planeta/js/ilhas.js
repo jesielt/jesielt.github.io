@@ -388,7 +388,11 @@ function geometriaPlataforma(ondas) {
 // Ilha gigante (raio de 420 a 560, cerca de 4 vezes a área da maior enorme): só
 // nasce em células múltiplas de 4; as 24 células em volta (2 de cada lado)
 // ficam só com água.
-const CHANCE_GIGANTE = 0.2;
+const CHANCE_GIGANTE = 0.45;
+// Ilha rochosa: muitas rochas e poucas árvores (só a partir de tamanho médio).
+const CHANCE_ROCHOSA = 0.12;
+// Árvores: chance máxima de uma ilha comum ter alguma, e tamanho de ilha por árvore.
+const ARVORES = { chanceMax: 0.7, porTam: 40 };
 function ehGigante(i, j) {
   return (i & 3) === 0 && (j & 3) === 0 && hash(i, j, 88) < CHANCE_GIGANTE;
 }
@@ -593,8 +597,13 @@ function criarIlha(i, j) {
   // Ergue uma rocha (forma sorteada entre formasDeRocha) com o pé em (px, pz), em
   // coordenadas da ilha, e registra o sólido de colisão com o mesmo mapa de alturas.
   // r: raio aproximado do corpo; a grade cobre um pouco mais (a borda fica enterrada).
-  function erguerRocha(px, pz, rx, rz, rh, sem) {
+  // maxR: raio máximo que cabe no lugar. Rocha magra para a altura é alargada
+  // até maxR; se ainda assim ficar magra, a altura é reduzida (RELEVO.proporcao).
+  function erguerRocha(px, pz, rx, rz, rh, sem, maxR = Infinity) {
     const base = alt - 1;
+    const menorR = Math.min(rx, rz), minR = rh * RELEVO.proporcao;
+    if (menorR < minR) { const k = Math.min(minR, maxR) / menorR; if (k > 1) { rx *= k; rz *= k; } }
+    rh = Math.min(rh, Math.min(rx, rz) / RELEVO.proporcao);
     const giro = hash(i, j, sem + 7) * Math.PI * 2;
     const forma = formasDeRocha[Math.floor(hash(i, j, sem + 8) * formasDeRocha.length)];
     const gx = rx * 1.2, gz = rz * 1.2;
@@ -606,7 +615,7 @@ function criarIlha(i, j) {
     grupo.add(corpo);
     const sol = {
       x: x + px, z: z + pz, rx: gx, rz: gz, base, h: base + rh, rh, giro, afina: 1, alcance: 0.9,
-      mapa: forma.mapa, G: forma.G, pico: forma.pico,
+      mapa: forma.mapa, G: forma.G, pico: forma.pico, perfil: forma.perfil,
     };
     solidos.push(sol);
     return sol;
@@ -632,16 +641,18 @@ function criarIlha(i, j) {
     if (k > 0 && montanhas.some(m => Math.hypot(m.x - (x + px), m.z - (z + pz)) < (m.rx + rx) * 1.1)) continue;
     const metros = 12 + Math.pow(hash(i, j, sm + 5), 1.8) * (enorme ? 23 : 16); // maioria entre as mais baixas
     const rh = metros * 17.5;
-    const sol = erguerRocha(px, pz, rx, rz, rh, sm);
+    const sol = erguerRocha(px, pz, rx, rz, rh, sm, menor * 0.45);
     sol.montanha = true;
     montanhas.push(sol);
   }
 
-  // rochas: ilha maior comporta mais (até 4);
-  // nas enormes, proporcional ao tamanho (de ~4 a ~11)
-  const maxRochas = enorme ? 1 + Math.floor(tam / 28) : Math.min(4, 1 + Math.floor(tam / 28));
-  const n = enorme
-    ? Math.ceil(maxRochas / 2) + Math.floor(hash(i, j, 7) * (maxRochas / 2 + 1))
+  // rochas: ilha maior comporta mais (até 4); nas enormes, proporcional ao
+  // tamanho. Ilha rochosa (CHANCE_ROCHOSA, a partir de tamanho médio): o triplo
+  // do máximo, sempre perto dele, e poucas árvores.
+  const rochosa = tam >= 60 && hash(i, j, 21000) < CHANCE_ROCHOSA;
+  const maxRochas = (enorme ? 1 + Math.floor(tam / 45) : Math.min(4, 1 + Math.floor(tam / 28))) * (rochosa ? (enorme ? 2 : 3) : 1);
+  const n = rochosa ? Math.ceil(maxRochas * 0.7) + Math.floor(hash(i, j, 7) * maxRochas * 0.3)
+    : enorme ? Math.ceil(maxRochas / 2) + Math.floor(hash(i, j, 7) * (maxRochas / 2 + 1))
     : 1 + Math.floor(hash(i, j, 7) * maxRochas);
   for (let k = 0; k < n; k++) {
     const s = 100 + k * 10;
@@ -650,21 +661,27 @@ function criarIlha(i, j) {
     const px = Math.cos(ang) * dist * sx;
     const pz = Math.sin(ang) * dist * sz;
 
-    const base = 5 + hash(i, j, s + 2) * Math.min(tam * 0.32, 28);
+    // nas enormes e gigantes, rochas maiores; só 1 em 5 é pequena
+    const miuda = !enorme || hash(i, j, s + 8) < 0.2;
+    const base = miuda ? 5 + hash(i, j, s + 2) * Math.min(tam * 0.32, 28)
+      : 22 + hash(i, j, s + 2) * Math.min(tam * 0.1, 50);
     const rx = base * (0.65 + hash(i, j, s + 3) * 0.7);
     const rz = base * (0.65 + hash(i, j, s + 4) * 0.7);
-    const rh = 10 + hash(i, j, s + 5) ** 1.5 * 95;
+    const rh = 10 + hash(i, j, s + 5) ** 1.5 * (miuda ? 95 : 170);
     if (montanhas.length && encostaEmRocha(x + px, z + pz, Math.max(rx, rz) * 1.1 + 4, [null, ...montanhas])) continue;
-    erguerRocha(px, pz, rx, rz, rh, s);
+    erguerRocha(px, pz, rx, rz, rh, s, miuda ? Math.min(tam * 0.3, 40) : tam * 0.16);
   }
 
-  // árvores: poucas e espalhadas, de 0 a 5 conforme o tamanho da ilha
+  // árvores: poucas e espalhadas. Nas comuns, a chance de ter alguma cresce com
+  // o tamanho (quase nula nas menores, ARVORES.chanceMax nas maiores), e são de 1
+  // a 3; nas enormes, proporcional ao tamanho. Ilha rochosa: um terço.
   const copas = [];
-  // nas enormes, proporcional: de ~4 a ~12
-  const maxArvores = enorme ? Math.floor(tam / 24) : Math.min(5, Math.floor(tam / 24));
-  const nArvores = enorme
-    ? Math.floor(maxArvores / 2) + Math.floor(hash(i, j, 8) * (maxArvores / 2 + 1))
-    : Math.floor(hash(i, j, 8) * (maxArvores + 1));
+  const maxArvores = enorme ? Math.floor(tam / ARVORES.porTam) : Math.min(3, Math.floor(tam / ARVORES.porTam));
+  const temArvore = enorme || hash(i, j, 21010) < ARVORES.chanceMax * Math.min(1, Math.max(0, (tam - 35) / 105));
+  let nArvores = !temArvore || maxArvores < 1 ? 0
+    : enorme ? Math.floor(maxArvores / 2) + Math.floor(hash(i, j, 8) * (maxArvores / 2 + 1))
+    : 1 + Math.floor(hash(i, j, 8) * maxArvores);
+  if (rochosa) nArvores = Math.round(nArvores / 3);
   for (let k = 0; k < nArvores; k++) {
     const arv = sortearArvore(hash(i, j, 300 + k), hash(i, j, 310 + k));
     const r = arv.r;

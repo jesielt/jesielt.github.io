@@ -7,6 +7,7 @@
 // Valores ajustáveis do relevo.
 const RELEVO = {
   grade: 28,          // divisões da grade (28 x 28 células; mais = mais faces)
+  proporcao: 0.5,     // raio mínimo em relação à altura (0,5: largura ≥ altura); evita torres finas
   variantes: 8,       // formas diferentes, reaproveitadas com tamanho e giro sorteados
   raio: 0.85,         // alcance da queda a partir do centro (1 = borda da grade)
   ombro: 0.35,        // até onde o topo fica cheio antes de começar a cair (sino)
@@ -129,22 +130,38 @@ function geometriaDoMapa({ mapa, G }, sem) {
 
 const formasDeRocha = Array.from({ length: RELEVO.variantes }, (_, v) => {
   const m = mapaDaRocha(1 + v * 37);
-  return { ...m, geo: geometriaDoMapa(m, 1 + v) };
+  return { ...m, geo: geometriaDoMapa(m, 1 + v), perfil: perfilDaForma(m.mapa, m.G) };
 });
 
-// Altura do relevo de uma rocha em (x, z) do mundo, interpolada no mesmo
-// triângulo desenhado; -Infinity fora da rocha ou abaixo do pé dela.
+// Altura unitária do mapa em (lx, lz) de -1 a 1, interpolada no mesmo
+// triângulo desenhado (fora da grade: -1).
+function alturaLocal(mapa, G, lx, lz) {
+  if (lx <= -1 || lx >= 1 || lz <= -1 || lz >= 1) return -1;
+  const L = G + 1, gu = (lx + 1) / 2 * G, gv = (lz + 1) / 2 * G;
+  const i = Math.min(G - 1, Math.floor(gu)), j = Math.min(G - 1, Math.floor(gv));
+  const fu = gu - i, fv = gv - j;
+  const a = mapa[i * L + j], b = mapa[(i + 1) * L + j], c = mapa[i * L + j + 1], d = mapa[(i + 1) * L + j + 1];
+  return fu + fv <= 1 ? a + (b - a) * fu + (c - a) * fv : d + (c - d) * (1 - fu) + (b - d) * (1 - fv);
+}
+// Altura do relevo de uma rocha em (x, z) do mundo; -Infinity fora da rocha
+// ou abaixo do pé dela.
 function alturaNoMapa(s, x, z) {
   const dx = x - s.x, dz = z - s.z;
   const c = Math.cos(s.giro), sn = Math.sin(s.giro);
-  const lx = (dx * c - dz * sn) / s.rx, lz = (dx * sn + dz * c) / s.rz;
-  if (lx <= -1 || lx >= 1 || lz <= -1 || lz >= 1) return -Infinity;
-  const G = s.G, L = G + 1, gu = (lx + 1) / 2 * G, gv = (lz + 1) / 2 * G;
-  const i = Math.min(G - 1, Math.floor(gu)), j = Math.min(G - 1, Math.floor(gv));
-  const fu = gu - i, fv = gv - j, m = s.mapa;
-  const a = m[i * L + j], b = m[(i + 1) * L + j], cc = m[i * L + j + 1], d = m[(i + 1) * L + j + 1];
-  const h = fu + fv <= 1 ? a + (b - a) * fu + (cc - a) * fv : d + (cc - d) * (1 - fu) + (b - d) * (1 - fv);
+  const h = alturaLocal(s.mapa, s.G, (dx * c - dz * sn) / s.rx, (dx * sn + dz * c) / s.rz);
   return h <= 0 ? -Infinity : s.base + h * s.rh;
+}
+// Contorno do pé da rocha para o radar: em cada um de 32 ângulos, a distância
+// (unitária) mais longe do centro em que o relevo ainda está acima do chão.
+function perfilDaForma(mapa, G) {
+  const raios = [];
+  for (let k = 0; k < 32; k++) {
+    const a = (k / 32) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+    let r = 0;
+    for (let t = 1; t > 0; t -= 0.5 / G) if (alturaLocal(mapa, G, ca * t, sa * t) > 0) { r = t; break; }
+    raios.push(r);
+  }
+  return raios;
 }
 // Direção horizontal morro abaixo em (x, z), normalizada; sem declive, aponta
 // para fora a partir do centro da rocha.

@@ -127,11 +127,12 @@ function criarBola(e) {
   e.vel.set(0, 0, 0);
   // casca: ver materialDaCasca
   e.casca = new THREE.Mesh(new THREE.SphereGeometry(R_ESFERA, 32, 20), materialDaCasca());
-  e.casca.renderOrder = 1;
+  // ordem de desenho padrão: a esfera é ordenada pela distância junto com nuvens e
+  // água. As estrelas ficam na mesma posição e foram criadas depois, logo são
+  // desenhadas logo após a casca.
   // estrelas: sempre voltadas para a câmera
   e.estrelas = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaDasEstrelas(e.n), transparent: true }));
   e.estrelas.scale.set(R_ESFERA * 1.5, R_ESFERA * 1.5, 1);
-  e.estrelas.renderOrder = 2;
   e.casca.position.copy(e.pos);
   e.estrelas.position.copy(e.pos);
   cena.add(e.casca, e.estrelas);
@@ -269,6 +270,7 @@ function atualizarUmaEsfera(e, dt) {
     if (chao !== null && p.y - R_ESFERA <= chao) {
       // no chão: quica levemente e rola com o atrito da grama
       p.y = chao + R_ESFERA;
+      if (v.y < -30) somDaEsfera(e, -v.y * 0.6); // queda de lugar alto: choque
       v.y = v.y < -15 ? -v.y * 0.3 : 0;
       v.x *= Math.exp(-0.7 * dt);
       v.z *= Math.exp(-0.7 * dt);

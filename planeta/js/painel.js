@@ -61,14 +61,23 @@ function desenharRadar(tempo) {
     rctx.strokeStyle = 'rgba(225, 255, 210, 0.95)';
     rctx.lineWidth = 1.5 * px;
     rctx.stroke();
-    // rochas como manchas mais claras
-    rctx.fillStyle = 'rgba(235, 255, 225, 0.6)';
+    // rochas como manchas mais claras, pelo contorno real do pé. Todas entram num
+    // só caminho e são pintadas de uma vez: onde se sobrepõem, o tom não soma.
+    rctx.beginPath();
     for (let n = 1; n < ilha.solidos.length; n++) {
       const r = ilha.solidos[n];
-      rctx.beginPath();
-      rctx.ellipse(r.x, r.z, r.rx, r.rz, -r.giro, 0, Math.PI * 2);
-      rctx.fill();
+      if (!r.perfil) continue;
+      const c = Math.cos(r.giro), sn = Math.sin(r.giro), q = r.perfil.length;
+      for (let k = 0; k < q; k++) {
+        const a = (k / q) * Math.PI * 2;
+        const lx = Math.cos(a) * r.perfil[k] * r.rx, lz = Math.sin(a) * r.perfil[k] * r.rz;
+        const x = r.x + lx * c + lz * sn, z = r.z - lx * sn + lz * c;
+        k ? rctx.lineTo(x, z) : rctx.moveTo(x, z);
+      }
+      rctx.closePath();
     }
+    rctx.fillStyle = 'rgba(235, 255, 225, 0.6)';
+    rctx.fill();
   }
   rctx.restore();
 
