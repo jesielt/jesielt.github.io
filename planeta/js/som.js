@@ -1,7 +1,9 @@
 // ---------------------------------------------------------------------
-// Vento: ruído rosa filtrado, gerado em tempo real (sem arquivo de áudio).
-// Parado, sopro baixo; cresce com a velocidade e no dash. Rajadas lentas e aleatórias
-// evitam som estático. Abafado debaixo d'água; ausente no espaço.
+// Sons, todos gerados em tempo real (sem arquivo de áudio): vento, espuma do voo
+// rente à água, passos e impacto com as esferas.
+// Vento: ruído rosa filtrado. Parado, sopro baixo; cresce com a velocidade e no
+// dash. Rajadas lentas e aleatórias evitam som estático. Abafado debaixo d'água;
+// ausente no espaço.
 // O navegador só libera áudio após o primeiro clique, tecla ou toque.
 // ---------------------------------------------------------------------
 const SOM = {
@@ -14,7 +16,9 @@ const SOM = {
   rajada: 0.35, // efeito das rajadas no volume (0 = nenhum)
   passo: 0.3, // volume do passo
   vidro: 0.09, // volume do impacto com a esfera
-  espuma: 0.22, // volume do chiado da espuma (voo rente à água)
+  espuma: 0.52, // volume do chiado da espuma (voo rente à água)
+  ventoSobEspuma: 0.8, // quanto o vento abaixa com a espuma no máximo (0 = nada, 1 = some)
+  ventoVoltaDe: 1, // m: acima desta altura, com espuma, o vento volta aos poucos até o topo da espuma (1,5 m)
 };
 let vento = null;
 function criarVento() {
@@ -79,27 +83,61 @@ function criarVento() {
     fonte.start();
     return g;
   });
-  // Espuma: ruído branco em laço por um passa-faixa aberto (chiado de água
-  // espirrando, "shhhaaa"); o volume acompanha a força do espirro.
-  const nEspuma = Math.floor(ctx.sampleRate * 3);
-  const bufEspuma = ctx.createBuffer(1, nEspuma, ctx.sampleRate);
-  const de = bufEspuma.getChannelData(0);
-  for (let i = 0; i < nEspuma; i++) de[i] = Math.random() * 2 - 1;
-  const fonteEspuma = ctx.createBufferSource();
-  fonteEspuma.buffer = bufEspuma;
-  fonteEspuma.loop = true;
-  const faixaEspuma = ctx.createBiquadFilter();
-  faixaEspuma.type = 'bandpass';
-  faixaEspuma.frequency.value = 2200;
-  faixaEspuma.Q.value = 0.6;
-  const graveEspuma = ctx.createBiquadFilter(); // tira o ronco: só o chiado
-  graveEspuma.type = 'highpass';
-  graveEspuma.frequency.value = 600;
-  const espuma = ctx.createGain();
+  // Espuma (voo rente à água): lavada contínua e grave, "chuaaa", em três
+  // camadas: sopro de ruído marrom e chiado de ruído rosa, ambos em passa-baixas,
+  // e hiss (só os agudos do ruído rosa). Cada lado tem ruído próprio (estéreo
+  // descorrelacionado). Ondulação e varrido: ver atualizarEspuma.
+  function ruidoMarrom(seg) {
+    const n = Math.floor(ctx.sampleRate * seg);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let ult = 0;
+    for (let i = 0; i < n; i++) { ult = (ult + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = ult * 3.5; }
+    const f = Math.floor(ctx.sampleRate * 0.05);
+    for (let i = 0; i < f; i++) { const t = i / f; d[n - f + i] = d[n - f + i] * (1 - t) + d[i] * t; }
+    return buf;
+  }
+  const espuma = ctx.createGain(); // volume geral da espuma
   espuma.gain.value = 0;
-  fonteEspuma.connect(faixaEspuma).connect(graveEspuma).connect(espuma).connect(ctx.destination);
-  fonteEspuma.start();
-  return { ctx, passos, ruidoCurto, filtro, filtro2, ressoa, volume, lados, rajada: [1, 1], alvoRajada: [1, 1], troca: [0, 0], espuma, faixaEspuma, ondaEspuma: 0 };
+  espuma.connect(ctx.destination);
+  const passaGrave = ctx.createBiquadFilter();
+  passaGrave.type = 'lowpass';
+  passaGrave.frequency.value = 500;
+  passaGrave.Q.value = 0.7;
+  const sopro = ctx.createGain();
+  sopro.gain.value = 0.9;
+  passaGrave.connect(sopro).connect(espuma);
+  const passaChiado = ctx.createBiquadFilter();
+  passaChiado.type = 'lowpass';
+  passaChiado.frequency.value = 1500;
+  passaChiado.Q.value = 0.5;
+  const chiado = ctx.createGain();
+  chiado.gain.value = ESPUMA.chiado;
+  passaChiado.connect(chiado).connect(espuma);
+  // hiss: só os agudos do ruído rosa (o "sss" da água borrifada)
+  const passaHiss = ctx.createBiquadFilter();
+  passaHiss.type = 'highpass';
+  passaHiss.frequency.value = 3500;
+  passaHiss.Q.value = 0.5;
+  const hiss = ctx.createGain();
+  hiss.gain.value = ESPUMA.hiss; // já no volume certo: sem subida gradual no início
+  passaHiss.connect(hiss).connect(espuma);
+  for (const lado of [-1, 1]) {
+    for (const [buf, destino] of [[ruidoMarrom(5 + lado * 0.7), passaGrave], [ruidoRosa(4.6 + lado * 0.3), passaChiado], [ruidoRosa(3.7 - lado * 0.4), passaHiss]]) {
+      const fonte = ctx.createBufferSource();
+      fonte.buffer = buf;
+      fonte.loop = true;
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = lado * 0.6;
+      fonte.connect(pan).connect(destino);
+      fonte.start();
+    }
+  }
+  return {
+    ctx, passos, ruidoCurto, filtro, filtro2, ressoa, volume, lados, rajada: [1, 1], alvoRajada: [1, 1], troca: [0, 0],
+    espuma, passaGrave, sopro, passaChiado, chiado, hiss,
+    esp: { troca: 0, onda: 0.5, forcaAntes: 0, varrido: 0, ultimoVarrido: -9 },
+  };
 }
 // M liga/desliga o som (preferência salva)
 let mudo = false;
@@ -252,17 +290,83 @@ function atualizarSom(dt) {
   }
   if (submerso) { vol *= 0.35; freq = 220; } // abafado debaixo d'água
   vol *= 1 - uniAlto.value; // diminui até sumir no espaço
+  // Com espuma, o vento abre espaço para ela: abaixo de SOM.ventoVoltaDe metros
+  // fica baixo; daí até a altura máxima da espuma, volta aos poucos ao normal.
+  const metros = camera.position.y / ESCALA_SENTIDA, topoEspuma = ESPIRRO.alturaMax / ESCALA_SENTIDA;
+  const rente = 1 - Math.min(1, Math.max(0, (metros - SOM.ventoVoltaDe) / (topoEspuma - SOM.ventoVoltaDe)));
+  vol *= 1 - SOM.ventoSobEspuma * presencaEspuma * rente;
   const t = vento.ctx.currentTime;
   const media = (vento.rajada[0] + vento.rajada[1]) / 2;
-  vento.volume.gain.setTargetAtTime(vol, t, 0.12);
+  vento.volume.gain.setTargetAtTime(vol, t, 0);
   vento.filtro.frequency.setTargetAtTime(freq * (0.85 + 0.15 * media), t, 0.12);
   vento.filtro2.frequency.setTargetAtTime(freq * 1.3, t, 0.12);
   vento.ressoa.frequency.setTargetAtTime(freq * 0.45, t, 0.2);
   vento.lados[0].gain.setTargetAtTime(vento.rajada[0], t, 0.3);
   vento.lados[1].gain.setTargetAtTime(vento.rajada[1], t, 0.3);
-  // espuma: ondula devagar (o jato não é constante) e fica mais aguda com a velocidade
-  vento.ondaEspuma += dt * (2 + Math.random() * 3);
-  const ondula = 0.8 + 0.2 * Math.sin(vento.ondaEspuma) * Math.sin(vento.ondaEspuma * 0.37);
-  vento.espuma.gain.setTargetAtTime(SOM.espuma * forcaEspirro * ondula * (1 - uniAlto.value), t, 0.08);
-  vento.faixaEspuma.frequency.setTargetAtTime(1700 + 1300 * Math.min(1, rapidez / 2), t, 0.2);
+  atualizarEspuma(dt, rapidez, t);
+}
+
+// Espuma: o volume vem da força do espirro e da proximidade da água; a
+// velocidade abre um pouco o som. Uma ondulação lenta e irregular (0,5 a 2 Hz)
+// mexe volume e corte juntos: mais alto = mais aberto. Ao começar a espuma, ou
+// ao descer rápido rente à água, um varrido curto faz o "chu" virar "aaa".
+const ESPUMA = {
+  corteMin: 700,     // Hz: corte do ruído rosa no vale da ondulação, devagar...
+  corteMax: 2600,    // ...e no pico, rápido (menos = mais grave e macio)
+  varridoDe: 5500,   // Hz: início do varrido (o "chu")
+  varridoAte: 900,   // Hz: fim do varrido (o "aaa")
+  varridoDur: 0.4,   // segundos
+  incha: 2.8,        // volume do chiado no auge do varrido (× o normal)
+  chiado: 0.35,      // volume da camada média (ruído rosa abafado)
+  hiss: 0.14,        // volume do hiss (agudos acima de 3,5 kHz); mais = mais "sss"
+  cheia: 0.2,        // força da espuma em que o som já está no volume máximo
+  entra: 30,         // rapidez com que o som da espuma entra...
+  sai: 15,           // ...e sai (o vento volta no mesmo ritmo); maior = mais rápido
+  subidaRapida: 40,  // velocidade de subida que conta como saída brusca da água
+  cauda: 2.2,        // saída brusca: a espuma some devagar (a água ainda se acomoda); menor = mais longa
+};
+// 0 a 1: presença do som da espuma. Entra e sai rápido, seguindo a força pedida
+// (alvoEspirro) e não a suavizada: ao sair da espuma, o vento volta em seguida,
+// sem um intervalo em que os dois estão baixos. Usada também para abaixar o vento.
+let presencaEspuma = 0;
+function atualizarEspuma(dt, rapidez, t) {
+  const e = vento.esp, f = forcaEspirro;
+  const quer = Math.min(1, alvoEspirro / ESPUMA.cheia);
+  // saída brusca (subindo rápido): a água continua soando um pouco depois de sumir
+  if (quer > 0 || presencaEspuma < 0.02) e.cauda = false;
+  else if (presencaEspuma > 0.3 && vel.y > ESPUMA.subidaRapida) e.cauda = true;
+  presencaEspuma = suavizar(presencaEspuma, quer, quer > presencaEspuma ? ESPUMA.entra : e.cauda ? ESPUMA.cauda : ESPUMA.sai, dt);
+  const rente = Math.min(1, Math.max(0, 1 - (camera.position.y - AJUSTE.alturaOlhos) / (ESPIRRO.alturaMax - AJUSTE.alturaOlhos)));
+  const veloz = Math.min(1, Math.max(0, rapidez / 2)); // 1 = dash máximo
+  vento.espuma.gain.setTargetAtTime(SOM.espuma * presencaEspuma * (0.45 + 0.55 * rente) * (1 - uniAlto.value), t, 0.015);
+  // varrido: no início da espuma, ou descendo rápido rente à água (no máximo 1 por segundo)
+  const comeca = e.forcaAntes < 0.03 && f >= 0.03;
+  const mergulha = f > 0.03 && vel.y < -60 && rente > 0.4;
+  e.forcaAntes = f;
+  if ((comeca || mergulha) && t - e.ultimoVarrido > 1) {
+    e.ultimoVarrido = t;
+    e.varrido = ESPUMA.varridoDur + 0.05;
+    const corte = vento.passaChiado.frequency, g = vento.chiado.gain;
+    corte.cancelScheduledValues(t); g.cancelScheduledValues(t);
+    corte.setValueAtTime(ESPUMA.varridoDe, t);
+    corte.exponentialRampToValueAtTime(ESPUMA.varridoAte, t + ESPUMA.varridoDur);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(ESPUMA.chiado * ESPUMA.incha, t + ESPUMA.varridoDur * 0.4);
+    g.linearRampToValueAtTime(ESPUMA.chiado, t + ESPUMA.varridoDur);
+  }
+  if (f < 0.01) return;
+  // ondulação: novo alvo a cada 0,5 a 2 s, alcançado suavemente
+  e.troca -= dt;
+  if (e.troca <= 0) {
+    e.troca = 0.5 + Math.random() * 1.5;
+    e.onda = Math.random();
+  }
+  const w = e.onda;
+  vento.sopro.gain.setTargetAtTime(0.9 * (0.7 + 0.5 * w), t, 0.35);
+  vento.hiss.gain.setTargetAtTime(ESPUMA.hiss * (0.6 + 0.6 * w) * (0.6 + 0.4 * veloz), t, 0.2);
+  vento.passaGrave.frequency.setTargetAtTime((300 + 300 * veloz) * (0.8 + 0.4 * w), t, 0.35);
+  if (e.varrido > 0) { e.varrido -= dt; return; } // o varrido manda no chiado até acabar
+  vento.chiado.gain.setTargetAtTime(ESPUMA.chiado * (0.55 + 0.6 * w), t, 0.35);
+  const corteBase = ESPUMA.corteMin + (ESPUMA.corteMax - ESPUMA.corteMin) * (0.4 * veloz + 0.6 * w);
+  vento.passaChiado.frequency.setTargetAtTime(corteBase, t, 0.35);
 }

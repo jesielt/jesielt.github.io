@@ -19,6 +19,7 @@ const ESPIRRO = {
   maxNevoa: 300,
 };
 let forcaEspirro = 0; // 0 a 1: transição suave
+let alvoEspirro = 0;  // força pedida agora, sem suavização (o som reage a ela)
 const _rumo = new THREE.Vector3(0, 0, -1); // direção do movimento (no plano)
 const _lado = new THREE.Vector3();
 const _cimaY = new THREE.Vector3(0, 1, 0);
@@ -351,6 +352,7 @@ function atualizarEspirro(dt) {
     const rente = 1 - (c.y - AJUSTE.alturaOlhos) / (ESPIRRO.alturaMax - AJUSTE.alturaOlhos);
     alvo = Math.max(0.35, Math.min(1, rente)) * Math.min(rapidez / (AJUSTE.velMax * 1.5), 1);
   }
+  alvoEspirro = alvo;
   forcaEspirro = suavizar(forcaEspirro, alvo, alvo > forcaEspirro ? 6 : 3, dt);
 
   // paredes
