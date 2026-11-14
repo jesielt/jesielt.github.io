@@ -4,7 +4,9 @@
 // jogador; por isso o mundo não tem fim.
 // ---------------------------------------------------------------------
 const CELULA = 340;
-const ALCANCE = Math.ceil(AJUSTE.neblinaLonge / CELULA);
+// Laço de células percorrido em volta do jogador; a seleção fina é feita por
+// ilhaAoAlcance. 1000 = folga para a maior ilha (gigante com encosta).
+const ALCANCE = Math.ceil((AJUSTE.neblinaLonge + 1000) / CELULA) + 1;
 const matRocha = new THREE.MeshLambertMaterial({ color: CORES.rocha });
 const matGrama = new THREE.MeshLambertMaterial({ color: CORES.grama });
 
@@ -508,6 +510,9 @@ const matSaia = new THREE.MeshLambertMaterial({ color: '#8b80c4' });
 // superfícies rentes ao chão ou submersas: não projetam sombra
 const SEM_SOMBRA = [matGrama, matMancha, matManchaBorda, matSaia];
 turvarEmbaixoDagua(matSaia);
+// Partes acima da água: neblina pela distância real. Fundo, saia e algas ficam
+// com a padrão, como a água.
+neblinaEsferica(matRocha, matPedra, matGrama, matMancha, matManchaBorda, matTufo, matTronco, matCopa);
 const _m4a = new THREE.Matrix4(), _qa = new THREE.Quaternion(), _ea = new THREE.Euler();
 const _pa = new THREE.Vector3(), _sa = new THREE.Vector3();
 
@@ -895,6 +900,18 @@ function encostaEmRocha(px, pz, folga, solidos) {
 }
 
 
+// Indica se a ilha da célula (di, dj), relativa à do jogador, pode ter alguma
+// parte antes do fim da neblina. Usa a menor distância possível entre as duas
+// células (o jogador e a ilha podem estar em qualquer ponto delas) menos o raio
+// da ilha com a encosta. Assim a ilha é criada já toda coberta pela neblina.
+function ilhaAoAlcance(i, j, di, dj) {
+  const forma = formaDaIlha(i, j);
+  if (!forma) return false;
+  const raio = Math.max(forma.sx, forma.sz) * 1.3 + 100;
+  const perto = CELULA * Math.hypot(Math.max(Math.abs(di) - 1, 0), Math.max(Math.abs(dj) - 1, 0));
+  return perto - raio <= AJUSTE.neblinaLonge;
+}
+
 let celulaAtual = null;
 function atualizarIlhas() {
   const ci = Math.floor(camera.position.x / CELULA);
@@ -906,7 +923,7 @@ function atualizarIlhas() {
   const precisa = new Set();
   for (let di = -ALCANCE; di <= ALCANCE; di++) {
     for (let dj = -ALCANCE; dj <= ALCANCE; dj++) {
-      if (di * di + dj * dj > ALCANCE * ALCANCE) continue;
+      if (!ilhaAoAlcance(ci + di, cj + dj, di, dj)) continue;
       const k = (ci + di) + ',' + (cj + dj);
       precisa.add(k);
       if (!ilhas.has(k)) ilhas.set(k, criarIlha(ci + di, cj + dj));

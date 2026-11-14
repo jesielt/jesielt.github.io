@@ -11,6 +11,13 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
+## 2.1.4 — 13/11/2026
+
+- Visão mais longa: a neblina começa em 1500 e fecha em 3000 (antes 650 e 2200)
+- Sombra cobre uma área maior em volta do jogador (raio 1000, antes 700)
+- Ilhas surgem aos poucos na neblina, sem aparecer de repente no horizonte: são criadas já cobertas, com folga pelo tamanho de cada uma
+- Ilhas, árvores e sapos não perdem a neblina ao irem para a borda da tela (neblina pela distância real, não pela profundidade). A água mantém a neblina de antes
+
 ## 2.1.1 — 12/11/2026
 
 Nada muda no jogo; só por dentro:

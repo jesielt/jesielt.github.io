@@ -16,8 +16,8 @@ const AJUSTE = {
   inclinaLado: 0.07, // inclinação da câmera ao mover de lado (A/D)
   inclinaCurva: 0.04, // ...e para dentro da curva ao girar o mouse
   inclinaMax: 0.2,
-  neblinaPerto: 650, // início da neblina
-  neblinaLonge: 2200, // distância em que tudo assume a cor do horizonte
+  neblinaPerto: 1500, // início da neblina
+  neblinaLonge: 3000, // distância em que tudo assume a cor do horizonte
 };
 
 const CORES = {
@@ -40,6 +40,24 @@ const canvas = document.getElementById('tela');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
 // Celular: resolução menor (tela pequena, processador mais fraco).
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, TOQUE ? 1.5 : 2));
+
+// Neblina pela distância real até a câmera nos materiais indicados. A padrão do
+// three.js usa a profundidade (eixo z da visão): ao girar a câmera, um objeto
+// que vai para a borda da tela perde neblina. A água e o que fica submerso
+// mantêm a padrão, que define o tom e a transparência do mar.
+// Chamar depois de qualquer outro onBeforeCompile do material.
+function neblinaEsferica(...materiais) {
+  for (const mat of materiais) {
+    const anterior = mat.onBeforeCompile;
+    const chave = mat.customProgramCacheKey() + '|esferica';
+    mat.onBeforeCompile = (sh, r) => {
+      anterior.call(mat, sh, r);
+      sh.vertexShader = sh.vertexShader.replace('#include <fog_vertex>',
+        '#ifdef USE_FOG\n\tvFogDepth = length( mvPosition.xyz );\n#endif');
+    };
+    mat.customProgramCacheKey = () => chave;
+  }
+}
 
 const cena = new THREE.Scene();
 // Neblina na cor do horizonte: quanto mais longe, mais desbotado.
@@ -69,7 +87,7 @@ cena.add(sol);
 
 // Sombras: só numa área em volta do jogador, que o acompanha.
 // Fazem sombra rochas, árvores e bichos; grama, plataforma e manchas só recebem.
-const SOMBRA_RAIO = 700;              // meia largura da área com sombra, em unidades
+const SOMBRA_RAIO = 1000;              // meia largura da área com sombra, em unidades
 const SOMBRA_MAPA = TOQUE ? 1024 : 2048;
 renderer.shadowMap.enabled = true;
 sol.castShadow = true;

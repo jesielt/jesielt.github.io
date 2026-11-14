@@ -56,6 +56,7 @@ const matSapoLiso = new THREE.MeshLambertMaterial({ color: '#3aa596' });
 const matOlhoSapo = new THREE.MeshLambertMaterial({ color: '#d8261c', emissive: '#5a0a06' });
 const matPupila = new THREE.MeshBasicMaterial({ color: '#111111' });
 const matUnha = new THREE.MeshLambertMaterial({ color: '#efe6c8' });
+neblinaEsferica(matSapo, matSapoLiso, matOlhoSapo, matPupila, matUnha);
 const _geoBola = new THREE.SphereGeometry(1, 16, 12);
 const _geoCrista = new THREE.ConeGeometry(1, 1, 10);
 
