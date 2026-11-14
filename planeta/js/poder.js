@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------
-// Bola de energia: sai da palma (braco.js), voa na direção da mira, alonga-se
+// Bola de energia: sai do bocal do braço-canhão (braco.js), voa na direção da mira, alonga-se
 // um pouco no voo e explode ao tocar terra, rocha, árvore ou água. A explosão
 // tem clarão, luz e poeira; em terra, deixa uma mancha de fuligem.
 // Escala: 17,5 unidades ≈ 1 m sentido.
@@ -18,21 +18,24 @@ const PODER = {
   tempoClarao: 0.35, // s
   nPoeira: 9, // nuvens de poeira por explosão
   tempoPoeira: 1.9, // s
-  corBola: '#ffd22e',
+  corBola: '#ff2b2b', // casca, halo e luz
+  corNucleo: '#fff0ec', // centro da bola
+  corClarao: '#ffc4b5', // clarão da explosão
   corPoeira: '#c9b59a',
   corNevoa: '#e4f1ec', // poeira sobre a água
 };
 
-// Textura de brilho: centro branco, borda amarela transparente.
+// Textura de brilho: branca, opaca no centro e transparente na borda (a cor
+// vem do material).
 function texturaDeBrilho() {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const ctx = c.getContext('2d');
   const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
   g.addColorStop(0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.22, 'rgba(255,246,190,0.95)');
-  g.addColorStop(0.55, 'rgba(255,205,60,0.35)');
-  g.addColorStop(1, 'rgba(255,190,0,0)');
+  g.addColorStop(0.22, 'rgba(255,255,255,0.95)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0.35)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
   const t = new THREE.CanvasTexture(c);
@@ -62,7 +65,7 @@ const texPoeira = texturaDeMancha(7, 14, 0.5);
 const texFuligem = texturaDeMancha(10, 12, 0.75);
 
 const geoBola = new THREE.SphereGeometry(1, 20, 14);
-const matNucleo = new THREE.MeshBasicMaterial({ color: '#fffbe6', fog: false });
+const matNucleo = new THREE.MeshBasicMaterial({ color: PODER.corNucleo, fog: false });
 const matCasca = new THREE.MeshBasicMaterial({
   color: PODER.corBola, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
 });
@@ -212,7 +215,7 @@ function explodir(t) {
   const R = PODER.raio;
   const p = t.ponto.clone().addScaledVector(t.normal, R * 0.5);
   const clarao = new THREE.Sprite(matHalo.clone());
-  clarao.material.color.set('#fff3b0');
+  clarao.material.color.set(PODER.corClarao);
   clarao.position.copy(p);
   const bolha = new THREE.Mesh(geoBola, matCasca.clone());
   bolha.material.opacity = 0.9;
@@ -228,9 +231,10 @@ function explodir(t) {
     const v = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
     if (v.dot(t.normal) < 0) v.addScaledVector(t.normal, -2 * v.dot(t.normal));
     v.addScaledVector(t.normal, 0.4).addScaledVector(_cima, 0.3).normalize().multiplyScalar(R * (3 + Math.random() * 5));
-    s.position.copy(p).addScaledVector(v, 0.15);
+    const base = p.clone().addScaledVector(v, 0.15);
+    s.position.copy(base);
     cena.add(s);
-    poeira.push({ s, v, cresce: 3.5 + Math.random() * 2.5 });
+    poeira.push({ s, v, base, cresce: 3.5 + Math.random() * 2.5 });
   }
   explosoes.push({ t: 0, p, clarao, bolha, poeira });
   if (!t.agua && t.ilha) manchar(t);
@@ -267,6 +271,15 @@ function manchar(t) {
   }
 }
 
+// Sprite plano junto à superfície fica cortado pela metade: desloca-o em direção
+// à câmera em meia largura (sem passar dos olhos).
+const _paraCam = new THREE.Vector3();
+function aproximarDaCamera(s, base) {
+  _paraCam.subVectors(camera.position, base);
+  const d = _paraCam.length();
+  s.position.copy(base).addScaledVector(_paraCam, Math.min(s.scale.x * 0.5, d - 1) / (d || 1));
+}
+
 function removerExplosao(e) {
   cena.remove(e.clarao, e.bolha);
   e.clarao.material.dispose();
@@ -301,16 +314,18 @@ function atualizarPoder(dt) {
     e.t += dt;
     const kc = Math.min(1, e.t / PODER.tempoClarao);
     e.clarao.scale.setScalar(R * (3 + 9 * kc));
+    aproximarDaCamera(e.clarao, e.p);
     e.clarao.material.opacity = 1 - kc;
     e.bolha.scale.setScalar(R * (1 + 3 * kc));
     e.bolha.material.opacity = 0.9 * (1 - kc) ** 2;
     e.clarao.visible = e.bolha.visible = kc < 1;
     const kp = Math.min(1, e.t / PODER.tempoPoeira);
     for (const q of e.poeira) {
-      q.s.position.addScaledVector(q.v, dt);
+      q.base.addScaledVector(q.v, dt);
       q.v.multiplyScalar(Math.exp(-2.5 * dt));
-      q.s.position.y += R * 0.5 * dt; // poeira quente sobe
+      q.base.y += R * 0.5 * dt; // poeira quente sobe
       q.s.scale.setScalar(R * (1.5 + q.cresce * Math.sqrt(kp)));
+      aproximarDaCamera(q.s, q.base);
       q.s.material.opacity = 0.75 * Math.min(1, e.t / 0.06) * (1 - kp) ** 1.5;
     }
     if (kp >= 1) { removerExplosao(e); explosoes.splice(i, 1); }
