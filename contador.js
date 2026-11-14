@@ -35,6 +35,27 @@
   var relogio = null;
   var ocultoDesde = 0;
 
+  // Sistema e navegador a partir do user agent. A ordem importa: Edge, Opera e
+  // Samsung também se declaram "Chrome", e o Chrome também se declara "Safari".
+  function identificar() {
+    var ua = navigator.userAgent;
+    var sistema =
+      /Android/.test(ua) ? 'Android' :
+      /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'iOS' :
+      /CrOS/.test(ua) ? 'ChromeOS' :
+      /Windows/.test(ua) ? 'Windows' :
+      /Mac OS X|Macintosh/.test(ua) ? 'macOS' :
+      /Linux/.test(ua) ? 'Linux' : '';
+    var navegador =
+      /Edg(e|A|iOS)?\//.test(ua) ? 'Edge' :
+      /OPR\/|Opera/.test(ua) ? 'Opera' :
+      /SamsungBrowser/.test(ua) ? 'Samsung Internet' :
+      /Firefox|FxiOS/.test(ua) ? 'Firefox' :
+      /Chrome|CriOS/.test(ua) ? 'Chrome' :
+      /Safari/.test(ua) ? 'Safari' : '';
+    return { sistema: sistema, navegador: navegador };
+  }
+
   function enviar(dados) {
     var corpo = JSON.stringify(dados);
     // text/plain evita a verificação prévia de CORS; a resposta não é lida.
@@ -67,7 +88,10 @@
     var esta = sessao;
     localizar().then(function (geo) {
       if (esta !== sessao) return;
+      var id = identificar();
       enviar({
+        sistema: id.sistema,
+        navegador: id.navegador,
         sessao: sessao,
         visitante: visitante,
         apelido: ler('contador-apelido') || '',
