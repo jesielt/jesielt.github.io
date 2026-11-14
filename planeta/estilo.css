@@ -601,7 +601,7 @@ body.toque #tela { touch-action: none; }
 /* teclado e mouse desenhados não se aplicam ao celular */
 body.toque .teclas { display: none; }
 
-/* radar, altura e caixa sobem para o canto superior direito (embaixo ficam os botões) */
+/* radar e caixa sobem para o canto superior direito (embaixo ficam os botões) */
 body.toque {
   --radar: clamp(84px, 24vmin, 150px);
   /* recalculado aqui: as variáveis do :root já vêm resolvidas com o radar grande */
@@ -610,16 +610,18 @@ body.toque {
   --topo: max(10px, env(safe-area-inset-top));
   --lado: max(12px, env(safe-area-inset-right));
 }
+/* altura e velocidade: embaixo, ao centro, entre os polegares */
 body.toque .altura,
 body.toque .velocidade {
-  top: var(--topo);
-  bottom: auto;
-  right: var(--lado);
+  top: auto;
+  right: auto;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
   padding: 3px 9px;
   font-size: 15px;
 }
-/* velocidade à esquerda do radar, sem tocar a altura */
-body.toque .velocidade { right: calc(var(--lado) + var(--radar) + 8px); transform: none; }
+body.toque .velocidade { transform: translateX(calc(-100% - 5px)); }
+body.toque .altura { transform: translateX(5px); }
 body.toque .radar {
   top: calc(var(--topo) + 32px);
   bottom: auto;
@@ -689,9 +691,9 @@ body.toque .joystick.ativo { opacity: 1; background: rgba(255, 255, 255, 0.22); 
 body.toque .toque-botoes {
   --b: 58px;
   display: grid;
-  grid-template-columns: var(--b) var(--b) var(--b);
+  grid-template-columns: var(--b) var(--b);
   grid-template-rows: var(--b) var(--b) var(--b);
-  grid-template-areas: ". rec sobe" "solt ajuda dash" ". merg desce";
+  grid-template-areas: "rec sobe" "ajuda dash" "merg desce";
   gap: 6px 10px;
   place-items: center;
   position: fixed;
@@ -721,7 +723,17 @@ body.toque .toque-botoes {
 #toqueMergulho { grid-area: merg; }
 #toqueAjuda { grid-area: ajuda; font-weight: 700; color: #1f6fc0; }
 /* soltar: oculto (sem ocupar outro lugar) enquanto a caixa está vazia */
-#toqueSoltar { grid-area: solt; visibility: hidden; }
+/* soltar: fora da grade, no topo ao centro; oculto (sem deslocar nada)
+   enquanto a caixa está vazia */
+#toqueSoltar {
+  position: fixed;
+  left: 50%;
+  top: max(10px, env(safe-area-inset-top));
+  width: 64px;
+  height: 64px;
+  transform: translateX(-50%);
+  visibility: hidden;
+}
 #toqueSoltar.visivel { visibility: visible; }
 #toqueSoltar.piscando { animation: piscarSoltar 0.5s ease-in-out infinite alternate; }
 #toqueSoltar svg { width: 68%; height: 68%; overflow: visible; }
@@ -766,6 +778,10 @@ body.toque .ajuda .lista-toque { display: grid; }
 body.toque .soltar { display: none; }
 .tbotao.pequeno { width: 40px; height: 40px; font-size: 16px; }
 .tbotao svg { width: 62%; height: 62%; }
+/* ▲ ⚡ ▼ em SVG: centrados igualmente em qualquer aparelho (glifos de fonte
+   e emoji variam de altura conforme o sistema) */
+.tbotao[data-tecla] svg, #toqueDash svg { width: 46%; height: 46%; }
+#toqueDash { color: #f39a1e; }
 .tbotao.ativa {
   background: rgba(255, 255, 255, 0.85);
   color: #1f6040;

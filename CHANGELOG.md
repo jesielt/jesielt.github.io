@@ -11,6 +11,13 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
+## 2.1.6 — 13/11/2026
+
+Celular:
+- Botão de soltar esfera no topo, ao centro
+- Altura e velocidade embaixo, ao centro, entre os polegares
+- ▲, ⚡ e ▼ desenhados em SVG: o ⚡ fica centrado entre ▲ e ▼ em qualquer aparelho
+
 ## 2.1.5 — 13/11/2026
 
 Celular:
