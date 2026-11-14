@@ -11,6 +11,13 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
+## 2.2.1 — 14/11/2026
+
+Bola de energia:
+- Carga de 1 s à frente do canhão antes do lançamento
+- Bola vermelha com brilho de plasma e rastro curto
+- Fumaça da explosão grande, densa e cinza; fuligem mais clara
+
 ## 2.2.0 — 14/11/2026
 
 Braço-canhão e bola de energia:
