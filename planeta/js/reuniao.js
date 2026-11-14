@@ -57,6 +57,12 @@ document.addEventListener('mouseup', ev => {
   segurandoDesde = -1;
   if (capturavel) capturar();
 });
+// toque: botão próprio solta uma esfera por toque
+const botaoSoltar = document.getElementById('toqueSoltar');
+botaoSoltar.addEventListener('pointerdown', ev => {
+  ev.preventDefault();
+  if (reuniao < 0) soltarEsfera();
+});
 caixaEsferas.addEventListener('pointerdown', ev => { if (ev.pointerType !== 'mouse') segurandoDesde = performance.now(); });
 for (const tipo of ['pointerup', 'pointercancel', 'pointerleave']) {
   caixaEsferas.addEventListener(tipo, () => { segurandoDesde = -1; });
@@ -131,6 +137,8 @@ function atualizarReuniao(dt) {
     segurandoDesde = -1; // o mesmo aperto já não captura ao soltar o botão
     if (reuniao < 0) soltarEsfera();
   }
+  botaoSoltar.classList.toggle('visivel', reuniao < 0 && esferas.some(e => e.capturada));
+  botaoSoltar.classList.toggle('piscando', iconeSoltar.classList.contains('piscando'));
   // ícone: surge piscando quando as 7 estão na caixa, depois fica fixo
   if (!juntouAs7 && esferas.every(e => e.capturada)) {
     juntouAs7 = true;

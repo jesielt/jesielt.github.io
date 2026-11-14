@@ -216,11 +216,38 @@
         <path class="x" d="M3 3 L8 8 M8 3 L3 8" />
       </svg>
     </span>
+    <span class="tbotao pequeno" id="toqueAjuda" aria-label="ajuda">?</span>
+    <!-- soltar esfera: aparece com ao menos uma esfera na caixa -->
+    <span class="tbotao" id="toqueSoltar" aria-label="soltar esfera">
+      <svg viewBox="0 0 48 56" aria-hidden="true">
+        <!-- gradiente próprio: o do aviso do topo fica em elemento oculto no toque -->
+        <defs>
+          <radialGradient id="gradSoltarToque" cx="35%" cy="30%" r="70%">
+            <stop offset="0" stop-color="#ffe2a4" /><stop offset="0.45" stop-color="#f7a02c" /><stop offset="1" stop-color="#c8650f" />
+          </radialGradient>
+        </defs>
+        <path class="seta" d="M24 4 V20 M18 14.5 L24 20.5 L30 14.5" />
+        <path class="chao" d="M3 50 Q24 46.5 45 50 V55 H3 Z" />
+        <path class="relva" d="M3 50 Q24 46.5 45 50" />
+        <circle cx="24" cy="38" r="8.5" fill="url(#gradSoltarToque)" />
+        <polygon class="estrela" points="24.00,34.30 24.76,36.45 27.04,36.51 25.24,37.90 25.88,40.09 24.00,38.80 22.12,40.09 22.76,37.90 20.96,36.51 23.24,36.45" />
+      </svg>
+    </span>
     <span class="tbotao" data-tecla="Space" aria-label="subir">▲</span>
     <span class="tbotao" id="toqueDash" aria-label="dash (liga/desliga)">⚡</span>
     <span class="tbotao" data-tecla="KeyC" aria-label="descer">▼</span>
   </div>
-  <div class="gire" aria-hidden="true">vire o celular de lado</div>
+  <!-- retrato: celular em pé girando para deitado -->
+  <div class="gire" role="img" aria-label="vire o celular de lado">
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <g class="aparelho">
+        <rect x="16" y="8" width="16" height="30" rx="3" stroke-width="2.6" />
+        <path d="M22 33.5 H26" stroke-width="2.2" />
+      </g>
+      <path d="M39 15 A17 17 0 0 1 39 33" stroke-width="2.4" />
+      <path d="M35.5 30.5 L39 33.6 L42.4 30" stroke-width="2.4" />
+    </svg>
+  </div>
 
   <script src="jogo.js?v=2.1.4"></script>
 </body>

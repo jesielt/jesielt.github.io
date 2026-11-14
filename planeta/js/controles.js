@@ -152,14 +152,16 @@ function abertura() {
 canvas.addEventListener('click', () => {
   convite.classList.add('escondido');
   abertura();
-  if (document.pointerLockElement === canvas) return;
+  if (TOQUE || document.pointerLockElement === canvas) return; // toque: sem trava de cursor
   try {
     const pedido = canvas.requestPointerLock();
     if (pedido && pedido.catch) pedido.catch(() => {});
   } catch (erro) { /* sem trava: modo arrastar */ }
 });
 document.addEventListener('pointerlockchange', () => {
-  // liberado com Esc: o convite volta a aparecer
+  // liberado com Esc: o convite volta a aparecer. No toque não há trava; o
+  // evento disparado pela tela cheia o faria reaparecer.
+  if (TOQUE) return;
   convite.classList.toggle('escondido', document.pointerLockElement === canvas);
 });
 canvas.addEventListener('mousedown', () => { arrastando = true; });
@@ -268,6 +270,8 @@ if (TOQUE) {
     if (apertadas.has('ToqueDash')) soltar('ToqueDash'); else apertar('ToqueDash');
     botaoDash.classList.toggle('ativa', apertadas.has('ToqueDash'));
   });
+
+  document.getElementById('toqueAjuda').addEventListener('click', () => alternarAjuda());
 
   // recomeçar pede confirmação (as esferas são perdidas)
   document.getElementById('toqueRecomecar').addEventListener('click', () => {
