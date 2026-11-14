@@ -11,6 +11,14 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
+## 2.2.0 — 14/11/2026
+
+Braço-canhão e bola de energia:
+- Braço mecânico de robô em primeira pessoa, do lado direito da tela
+- Clique esquerdo: o braço se ergue e lança uma bola de energia vermelha, com tranco a cada tiro
+- A bola explode ao tocar terra, rocha, árvore ou água, com clarão, luz e poeira; em terra deixa fuligem
+- CREDITS.md com as bibliotecas de terceiros
+
 ## 2.1.7 — 14/11/2026
 
 Celular:
