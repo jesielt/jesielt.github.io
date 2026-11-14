@@ -105,18 +105,80 @@ html, body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, 24px);
-  padding: 8px 16px;
-  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.6);
-  color: rgba(40, 70, 60, 0.8);
-  font-size: 14px;
+  color: rgba(255, 255, 255, 0.95);
+  filter: drop-shadow(0 1px 3px rgba(30, 60, 50, 0.45));
   pointer-events: none;
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   transition: opacity 0.3s;
 }
 .convite.escondido { opacity: 0; }
+.convite svg { width: 30px; height: 42px; }
+.convite .apertar { fill: #ff8a1c; animation: piscar 0.6s ease-in-out infinite alternate; }
+.convite .dedo-toque { display: none; width: 40px; height: 40px; }
+.convite .dedo-toque .anel { animation: anelConvite 1s ease-out infinite; transform-origin: 50% 50%; }
+@keyframes anelConvite { from { scale: 0.5; opacity: 1; } to { scale: 1.15; opacity: 0; } }
+body.toque .convite .mouse-esq { display: none; }
+body.toque .convite .dedo-toque { display: block; }
+
+/* ---------- ajuda (H) ---------- */
+.ajuda {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(400px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 18px 20px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 24px rgba(30, 60, 50, 0.3);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: rgba(30, 60, 50, 0.9);
+  font-size: 13px;
+  z-index: 10;
+}
+.ajuda[hidden] { display: none; }
+.ajuda .objetivo { margin: 0 28px 12px 0; font-weight: 600; }
+.ajuda dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; align-items: center; }
+.ajuda dt { font-weight: 600; white-space: nowrap; }
+.ajuda dd { margin: 0; }
+.ajuda kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 2px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(30, 60, 50, 0.25);
+  box-shadow: 0 2px 0 rgba(30, 60, 50, 0.15);
+  font: inherit;
+  text-align: center;
+}
+.ajuda .fechar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(30, 60, 50, 0.12);
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ajuda .fechar:hover { background: rgba(30, 60, 50, 0.22); }
 
 /* créditos: discretos no canto superior esquerdo */
 .creditos {
@@ -380,6 +442,8 @@ html, body {
   box-shadow: 0 1px 3px rgba(30, 60, 50, 0.35);
   pointer-events: none;
 }
+/* H: selo azul com ponto de interrogação */
+.tecla.com-selo .selo.azul { background: #4a8de8; color: #fff; }
 /* M com som desligado: tecla acesa */
 .tecla[data-tecla="KeyM"].ligado { background: rgba(255, 255, 255, 0.7); }
 .tecla.shift { width: calc(var(--k) * 1.6); }

@@ -97,7 +97,18 @@
       <path d="M22.6 0 H28 V25 H18.8 V3.8 Q18.8 0 22.6 0 Z" />
     </svg>
   </div>
-  <div class="convite" id="convite">clique pra voar</div>
+  <!-- convite para começar: mouse com o botão esquerdo piscando (no toque, um dedo tocando) -->
+  <div class="convite" id="convite" role="img" aria-label="click to fly">
+    <svg class="mouse-esq" viewBox="0 0 26 36" aria-hidden="true">
+      <path class="apertar" d="M13 1.5 C6.6 1.5 1.5 6.6 1.5 13 V14 H13 Z" />
+      <rect x="1.5" y="1.5" width="23" height="33" rx="11.5" fill="none" stroke="currentColor" stroke-width="2.2" />
+      <path d="M1.5 14 H24.5 M13 1.5 V14" fill="none" stroke="currentColor" stroke-width="2.2" />
+    </svg>
+    <svg class="dedo-toque" viewBox="0 0 36 36" aria-hidden="true">
+      <circle class="anel" cx="18" cy="18" r="14" fill="none" stroke="currentColor" stroke-width="2.2" />
+      <circle cx="18" cy="18" r="6.5" fill="currentColor" />
+    </svg>
+  </div>
 
   <!-- Painel no canto: acende o que está pressionado.
        As teclas também aceitam clique e toque. -->
@@ -136,6 +147,10 @@
       <span class="tecla shift" data-tecla="ShiftLeft">⇧</span>
       <span class="tecla espaco" data-tecla="Space"></span>
       <span class="tecla" data-tecla="KeyC">C</span>
+      <span class="tecla com-selo" data-tecla="KeyH" title="H: help">H<svg class="selo azul" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M5.8 6.1 a2.3 2.3 0 1 1 3.2 2.1 c-.6.3-1 .8-1 1.5 v.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+          <circle cx="8" cy="12.5" r="1.05" fill="currentColor" />
+        </svg></span>
     </div>
     <!-- não mergulhar: (botão direito) ×2 alterna; nadador com X aceso = ativo -->
     <div class="mergulho" id="semMergulho" role="switch" aria-checked="false" aria-label="não mergulhar">
@@ -155,6 +170,30 @@
         </svg>
       </span>
     </div>
+  </div>
+
+  <!-- H: lista de comandos (em inglês, provisoriamente) -->
+  <div class="ajuda" id="ajuda" role="dialog" aria-label="controls" hidden>
+    <button class="fechar" id="fecharAjuda" type="button" aria-label="close">×</button>
+    <p class="objetivo">Find the 7 balls, then drop them together on land.</p>
+    <dl>
+      <dt><kbd>W</kbd><kbd>↑</kbd></dt><dd>Move forward</dd>
+      <dt><kbd>S</kbd><kbd>↓</kbd></dt><dd>Move back</dd>
+      <dt><kbd>A</kbd><kbd>←</kbd> <kbd>D</kbd><kbd>→</kbd></dt><dd>Move left / right</dd>
+      <dt>Mouse</dt><dd>Look around</dd>
+      <dt>Left click</dt><dd>Start (lock the mouse)</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Release the mouse</dd>
+      <dt><kbd>Space</kbd></dt><dd>Fly up / take off</dd>
+      <dt><kbd>C</kbd></dt><dd>Fly down</dd>
+      <dt><kbd>C</kbd> <kbd>C</kbd></dt><dd>Stop flying (double tap)</dd>
+      <dt><kbd>Shift</kbd></dt><dd>Dash (flying) / run (walking)</dd>
+      <dt>Right click</dt><dd>Pick up a ball</dd>
+      <dt>Hold right click</dt><dd>Drop the balls (fewest stars first)</dd>
+      <dt>Double right click</dt><dd>No-dive mode on / off</dd>
+      <dt><kbd>R</kbd></dt><dd>Restart (the balls are lost)</dd>
+      <dt><kbd>M</kbd></dt><dd>Sound on / off</dd>
+      <dt><kbd>H</kbd></dt><dd>Show / hide this help</dd>
+    </dl>
   </div>
 
   <!-- Celular: joystick (aparece onde o polegar toca, à esquerda) e

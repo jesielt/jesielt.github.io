@@ -508,11 +508,11 @@ turvarEmbaixoDagua(matSaia);
 const _m4a = new THREE.Matrix4(), _qa = new THREE.Quaternion(), _ea = new THREE.Euler();
 const _pa = new THREE.Vector3(), _sa = new THREE.Vector3();
 
-function criarIlha(i, j) {
+// Tamanho sorteado da ilha da célula, antes da regra das micro ilhas (null: só água).
+function formaDaIlha(i, j) {
   const gigante = ehGigante(i, j);
   const enorme = gigante || ehEnorme(i, j); // a gigante segue as regras da enorme
-  if (!enorme && (vizinhaDeEnorme(i, j) || vizinhaDeGigante(i, j) || hash(i, j) > 0.5)) return null; // só água
-
+  if (!enorme && (vizinhaDeEnorme(i, j) || vizinhaDeGigante(i, j) || hash(i, j) > 0.5)) return null;
   // raio médio: comuns de 35 a 140, a maioria média ou grande (expoente < 1
   // puxa para cima); enormes de 190 a 300; gigantes de 420 a 560
   const tam = gigante ? 420 + hash(i, j, 1) * 140
@@ -521,6 +521,27 @@ function criarIlha(i, j) {
   const varia = enorme ? 0.3 : 0.6; // enormes variam menos, para caber no espaço reservado
   const sx = tam * (1 - varia / 2 + hash(i, j, 2) * varia); // largura...
   const sz = tam * (1 - varia / 2 + hash(i, j, 3) * varia); // ...e profundidade independentes
+  return { gigante, enorme, tam, sx, sz };
+}
+// Micro ilha: menos de 15 m na parte mais larga (raio < 131). Micro ilhas evitam
+// umas às outras: entre vizinhas (8 células em volta), a de maior prioridade
+// sorteada fica; as outras só aparecem com chance MICRO.chanceVizinha.
+const MICRO = { raio: 131, chanceVizinha: 0.3 };
+const ehMicro = f => f && !f.enorme && Math.max(f.sx, f.sz) < MICRO.raio;
+function microAfastada(i, j, f) {
+  if (!ehMicro(f)) return false;
+  const minha = hash(i, j, 66);
+  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+    if (!di && !dj) continue;
+    if (hash(i + di, j + dj, 66) < minha && ehMicro(formaDaIlha(i + di, j + dj))) return hash(i, j, 67) > MICRO.chanceVizinha;
+  }
+  return false;
+}
+
+function criarIlha(i, j) {
+  const forma = formaDaIlha(i, j);
+  if (!forma || microAfastada(i, j, forma)) return null; // só água
+  const { gigante, enorme, tam, sx, sz } = forma;
   const folga = Math.max(0, CELULA / 2 - Math.max(sx, sz) * 1.2);
   const x = (i + 0.5) * CELULA + (hash(i, j, 4) - 0.5) * 2 * folga;
   const z = (j + 0.5) * CELULA + (hash(i, j, 5) - 0.5) * 2 * folga;

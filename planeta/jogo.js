@@ -12,7 +12,7 @@ document.getElementById('versao').textContent = 'v' + VERSAO;
 const TOQUE = matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0;
 if (TOQUE) {
   document.body.classList.add('toque');
-  document.getElementById('convite').textContent = 'toque pra voar';
+  document.getElementById('convite').setAttribute('aria-label', 'tap to fly');
 }
 
 // Partes do jogo em js/, uma por assunto. São scripts comuns (não módulos) e

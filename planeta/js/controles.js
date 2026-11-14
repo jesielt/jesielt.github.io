@@ -11,6 +11,7 @@ const MAPA = {
   ShiftLeft: 'dash', ShiftRight: 'dash',
   KeyR: 'recomecar', // volta ao início (como ao acabar o ar)
   KeyM: 'mudo', // liga/desliga o som
+  KeyH: 'ajuda', // mostra/oculta a lista de comandos
 };
 // o Shift direito acende o mesmo desenho do Shift esquerdo
 const DESENHO = { ShiftRight: 'ShiftLeft' };
@@ -33,6 +34,7 @@ function apertar(codigo) {
   if (!(codigo in MAPA)) return false;
   if (codigo === 'KeyR' && !apertadas.has(codigo)) recomecar();
   if (codigo === 'KeyM' && !apertadas.has(codigo)) alternarMudo();
+  if (codigo === 'KeyH' && !apertadas.has(codigo)) alternarAjuda();
   if (codigo === 'KeyC' && !apertadas.has(codigo)) {
     const agora = performance.now();
     if (agora - ultimoC < 350) { desistirDoVoo(); ultimoC = -1e9; } else ultimoC = agora;
@@ -41,6 +43,15 @@ function apertar(codigo) {
   marcarTecla(codigo, true);
   return true;
 }
+
+// Ajuda: ao abrir, o cursor é liberado (para clicar no X); um clique no jogo
+// trava o cursor de novo.
+const caixaAjuda = document.getElementById('ajuda');
+function alternarAjuda(abrir = caixaAjuda.hidden) {
+  caixaAjuda.hidden = !abrir;
+  if (abrir && document.pointerLockElement) document.exitPointerLock();
+}
+document.getElementById('fecharAjuda').addEventListener('click', () => alternarAjuda(false));
 
 function soltar(codigo) {
   if (apertadas.delete(codigo)) marcarTecla(codigo, false);

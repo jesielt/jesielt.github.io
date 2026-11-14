@@ -14,6 +14,7 @@ const SOM = {
   rajada: 0.35, // efeito das rajadas no volume (0 = nenhum)
   passo: 0.3, // volume do passo
   vidro: 0.09, // volume do impacto com a esfera
+  espuma: 0.22, // volume do chiado da espuma (voo rente à água)
 };
 let vento = null;
 function criarVento() {
@@ -78,7 +79,27 @@ function criarVento() {
     fonte.start();
     return g;
   });
-  return { ctx, passos, ruidoCurto, filtro, filtro2, ressoa, volume, lados, rajada: [1, 1], alvoRajada: [1, 1], troca: [0, 0] };
+  // Espuma: ruído branco em laço por um passa-faixa aberto (chiado de água
+  // espirrando, "shhhaaa"); o volume acompanha a força do espirro.
+  const nEspuma = Math.floor(ctx.sampleRate * 3);
+  const bufEspuma = ctx.createBuffer(1, nEspuma, ctx.sampleRate);
+  const de = bufEspuma.getChannelData(0);
+  for (let i = 0; i < nEspuma; i++) de[i] = Math.random() * 2 - 1;
+  const fonteEspuma = ctx.createBufferSource();
+  fonteEspuma.buffer = bufEspuma;
+  fonteEspuma.loop = true;
+  const faixaEspuma = ctx.createBiquadFilter();
+  faixaEspuma.type = 'bandpass';
+  faixaEspuma.frequency.value = 2200;
+  faixaEspuma.Q.value = 0.6;
+  const graveEspuma = ctx.createBiquadFilter(); // tira o ronco: só o chiado
+  graveEspuma.type = 'highpass';
+  graveEspuma.frequency.value = 600;
+  const espuma = ctx.createGain();
+  espuma.gain.value = 0;
+  fonteEspuma.connect(faixaEspuma).connect(graveEspuma).connect(espuma).connect(ctx.destination);
+  fonteEspuma.start();
+  return { ctx, passos, ruidoCurto, filtro, filtro2, ressoa, volume, lados, rajada: [1, 1], alvoRajada: [1, 1], troca: [0, 0], espuma, faixaEspuma, ondaEspuma: 0 };
 }
 // M liga/desliga o som (preferência salva)
 let mudo = false;
@@ -239,4 +260,9 @@ function atualizarSom(dt) {
   vento.ressoa.frequency.setTargetAtTime(freq * 0.45, t, 0.2);
   vento.lados[0].gain.setTargetAtTime(vento.rajada[0], t, 0.3);
   vento.lados[1].gain.setTargetAtTime(vento.rajada[1], t, 0.3);
+  // espuma: ondula devagar (o jato não é constante) e fica mais aguda com a velocidade
+  vento.ondaEspuma += dt * (2 + Math.random() * 3);
+  const ondula = 0.8 + 0.2 * Math.sin(vento.ondaEspuma) * Math.sin(vento.ondaEspuma * 0.37);
+  vento.espuma.gain.setTargetAtTime(SOM.espuma * forcaEspirro * ondula * (1 - uniAlto.value), t, 0.08);
+  vento.faixaEspuma.frequency.setTargetAtTime(1700 + 1300 * Math.min(1, rapidez / 2), t, 0.2);
 }
