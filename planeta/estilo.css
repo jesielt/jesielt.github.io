@@ -249,6 +249,7 @@ body.toque .convite .dedo-toque { display: block; }
   transform: translateX(-50%);
   border-radius: 50% 50% 30% 30% / 90% 90% 20% 20%;
   background: rgba(240, 245, 235, 0.95);
+  box-shadow: 0 2px 2px rgba(30, 60, 50, 0.45); /* só o botão (cúpula) faz sombra: a haste é parte do corpo do radar */
 }
 
 /* altura: logo acima do radar, no canto direito;

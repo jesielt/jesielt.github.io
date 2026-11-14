@@ -391,6 +391,9 @@ function geometriaPlataforma(ondas) {
 const CHANCE_GIGANTE = 0.45;
 // Ilha rochosa: muitas rochas e poucas árvores (só a partir de tamanho médio).
 const CHANCE_ROCHOSA = 0.12;
+// Rochas vizinhas crescem juntas (ver criarIlha): alcance da vizinhança (× soma
+// dos raios), crescimento por vizinha e crescimento máximo.
+const VIZINHA_ROCHA = 2.5, CRESCE_ROCHA = 0.3, CRESCE_MAX = 2.2;
 // Árvores: chance máxima de uma ilha comum ter alguma, e tamanho de ilha por árvore.
 const ARVORES = { chanceMax: 0.7, porTam: 40 };
 function ehGigante(i, j) {
@@ -639,8 +642,34 @@ function criarIlha(i, j) {
       mapa: forma.mapa, G: forma.G, pico: forma.pico, perfil: forma.perfil,
     };
     solidos.push(sol);
+    // Rocha que passa da beira da plataforma: ganha um pé que desce até o fundo do
+    // mar, senão fica oca vista de baixo d'água. Prisma pelo contorno do pé (perfil),
+    // só nessas rochas (as de dentro da ilha não precisam).
+    const c = Math.cos(giro), sn = Math.sin(giro), q = forma.perfil.length;
+    const borda = forma.perfil.map((r, k) => {
+      const a = (k / q) * Math.PI * 2, lx = Math.cos(a) * r * gx, lz = Math.sin(a) * r * gz;
+      return [lx, lz, px + lx * c + lz * sn, pz - lx * sn + lz * c];
+    });
+    const naAgua = borda.some(([, , ix, iz]) => Math.hypot(ix / sx, iz / sz) >= contorno(Math.atan2(iz / sz, ix / sx), ondas));
+    if (naAgua) {
+      const pos = [], topo = base + 0.5, fundo = -PROF - 20;
+      for (let k = 0; k < q; k++) {
+        const [ax, az] = borda[k], [bx, bz] = borda[(k + 1) % q];
+        pos.push(ax, fundo, az, bx, topo, bz, bx, fundo, bz, ax, fundo, az, ax, topo, az, bx, topo, bz);
+      }
+      const gp = new THREE.BufferGeometry();
+      gp.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      gp.setAttribute('color', new THREE.Float32BufferAttribute(new Array(pos.length).fill(0.75), 3));
+      gp.computeVertexNormals();
+      const pe = new THREE.Mesh(gp, matPedra);
+      pe.position.set(px, 0, pz);
+      pe.rotation.y = giro;
+      grupo.add(pe);
+      geosExtras.push(gp);
+    }
     return sol;
   }
+  const geosExtras = []; // geometrias próprias da ilha (pés de rocha), liberadas com ela
 
   // Montanha: ocasionalmente, uma rocha bem maior perto do centro (12 a 28 m; nas
   // enormes, até 35 m; as altas são raras), com topo plano para pouso. Ocorre em 15%
@@ -675,6 +704,7 @@ function criarIlha(i, j) {
   const n = rochosa ? Math.ceil(maxRochas * 0.7) + Math.floor(hash(i, j, 7) * maxRochas * 0.3)
     : enorme ? Math.ceil(maxRochas / 2) + Math.floor(hash(i, j, 7) * (maxRochas / 2 + 1))
     : 1 + Math.floor(hash(i, j, 7) * maxRochas);
+  const candidatas = [];
   for (let k = 0; k < n; k++) {
     const s = 100 + k * 10;
     const ang = hash(i, j, s) * Math.PI * 2;
@@ -690,7 +720,19 @@ function criarIlha(i, j) {
     const rz = base * (0.65 + hash(i, j, s + 4) * 0.7);
     const rh = 10 + hash(i, j, s + 5) ** 1.5 * (miuda ? 95 : 170);
     if (montanhas.length && encostaEmRocha(x + px, z + pz, Math.max(rx, rz) * 1.1 + 4, [null, ...montanhas])) continue;
-    erguerRocha(px, pz, rx, rz, rh, s, miuda ? Math.min(tam * 0.3, 40) : tam * 0.16);
+    candidatas.push({ px, pz, rx, rz, rh, s, maxR: miuda ? Math.min(tam * 0.3, 40) : tam * 0.16 });
+  }
+  // Rochas próximas estimulam o crescimento umas das outras: cada vizinha (a
+  // menos de VIZINHA_ROCHA vezes a soma dos raios) aumenta o tamanho em
+  // CRESCE_ROCHA, até CRESCE_MAX. Grupos viram maciços; as pequenas ficam sozinhas.
+  for (const a of candidatas) {
+    const ra = Math.max(a.rx, a.rz);
+    const vizinhas = candidatas.filter(b => b !== a && Math.hypot(a.px - b.px, a.pz - b.pz) < (ra + Math.max(b.rx, b.rz)) * VIZINHA_ROCHA).length;
+    a.k = Math.min(CRESCE_MAX, 1 + CRESCE_ROCHA * vizinhas, tam * 0.3 / ra); // nunca maior que 30% da ilha
+  }
+  for (const a of candidatas) {
+    const k = Math.max(1, a.k);
+    erguerRocha(a.px, a.pz, a.rx * k, a.rz * k, a.rh * k, a.s, a.maxR * k);
   }
 
   // árvores: poucas e espalhadas. Nas comuns, a chance de ter alguma cresce com
@@ -721,10 +763,11 @@ function criarIlha(i, j) {
     plantar(lugar.px, alt, lugar.pz, arv, hash(i, j, 320 + k));
   }
 
-  // raro: ~10% das rochas têm uma árvore no ponto mais alto
+  // árvore no ponto mais alto: 12% das rochas com mais de 2 m (nas baixas, a
+  // árvore pareceria plantada no chão)
   for (let n = 1; n < solidos.length; n++) {
-    if (hash(i, j, 500 + n * 10) > 0.1) continue;
     const roc = solidos[n];
+    if (roc.h - roc.base < 2 * ESCALA_SENTIDA || hash(i, j, 500 + n * 10) > 0.12) continue;
     const arv = sortearArvore(hash(i, j, 501 + n * 10), hash(i, j, 502 + n * 10));
     const [pu, pv] = roc.pico, c = Math.cos(roc.giro), sn = Math.sin(roc.giro);
     const wx = pu * roc.rx * c + pv * roc.rz * sn, wz = -pu * roc.rx * sn + pv * roc.rz * c;
@@ -818,7 +861,7 @@ function criarIlha(i, j) {
   });
 
   cena.add(grupo);
-  return { grupo, geo, geosManchas, tufos, geoSaia, algas, x, z, solidos, copas, fauna, alt, gigante };
+  return { grupo, geo, geosManchas, geosExtras, tufos, geoSaia, algas, x, z, solidos, copas, fauna, alt, gigante };
 }
 
 // Altura das árvores (do pé ao topo da copa, em metros sentidos): de 2 a 20 m,
@@ -876,6 +919,7 @@ function atualizarIlhas() {
       cena.remove(ilha.grupo);
       ilha.geo.dispose();
       ilha.geosManchas.forEach(g => g.dispose());
+      ilha.geosExtras.forEach(g => g.dispose());
       ilha.tufos.dispose();
       ilha.geoSaia.dispose();
       ilha.algas.dispose();
