@@ -750,10 +750,42 @@ function criarIlha(i, j) {
   const area = Math.PI * sx * sz;
   const nMoitas = Math.min(gigante ? 1000 : 260, Math.floor(area / 160));
   const POR_MOITA = 10;
-  const tufos = new THREE.InstancedMesh(geoTufo, matTufo, nMoitas * POR_MOITA);
+  // grama também nos patamares das rochas: moitas menores, só onde o relevo é
+  // plano o bastante para ser grama (o mesmo critério da cor do topo)
+  const tufosRocha = []; // [x, y, z, giro, tamanho] em coordenadas da ilha
+  const plano = (r, lx, lz) => {
+    const d = 1 / r.G, h = alturaLocal(r.mapa, r.G, lx, lz);
+    const gx = (alturaLocal(r.mapa, r.G, lx + d, lz) - alturaLocal(r.mapa, r.G, lx - d, lz)) / (2 * d);
+    const gz = (alturaLocal(r.mapa, r.G, lx, lz + d) - alturaLocal(r.mapa, r.G, lx, lz - d)) / (2 * d);
+    return h > 0 && 1 / Math.hypot(1, gx, gz) > RELEVO.grama;
+  };
+  for (let n = 1; n < solidos.length; n++) {
+    const r = solidos[n];
+    if (!r.mapa) continue;
+    const c = Math.cos(r.giro), sn = Math.sin(r.giro);
+    const moitas = Math.min(30, Math.floor(r.rx * r.rz / 250));
+    for (let mo = 0; mo < moitas; mo++) {
+      const sm = 30000 + n * 200 + mo * 12;
+      const mx = (hash(i, j, sm) * 2 - 1) * 0.8, mz = (hash(i, j, sm + 1) * 2 - 1) * 0.8;
+      if (!plano(r, mx, mz)) continue;
+      for (let k = 0; k < 6; k++) {
+        const a = hash(i, j, sm + 2 + k) * Math.PI * 2, d = hash(i, j, sm + 8 + k) * 3 / Math.min(r.rx, r.rz);
+        const lx = mx + Math.cos(a) * d, lz = mz + Math.sin(a) * d;
+        if (!plano(r, lx, lz)) continue;
+        const wx = r.x + lx * r.rx * c + lz * r.rz * sn, wz = r.z - lx * r.rx * sn + lz * r.rz * c;
+        tufosRocha.push([wx - x, alturaNoMapa(r, wx, wz), wz - z, a * 3, 0.6 + hash(i, j, sm + 20 + k) * 0.8]);
+      }
+    }
+  }
+  const tufos = new THREE.InstancedMesh(geoTufo, matTufo, nMoitas * POR_MOITA + tufosRocha.length);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
   const p3 = new THREE.Vector3(), s3 = new THREE.Vector3();
   let usados = 0;
+  for (const [tx, ty, tz, giro, tam] of tufosRocha) {
+    e.set(0, giro, 0);
+    m4.compose(p3.set(tx, ty, tz), q.setFromEuler(e), s3.set(tam, tam, tam));
+    tufos.setMatrixAt(usados++, m4);
+  }
   for (let mo = 0; mo < nMoitas; mo++) {
     const sm = 1000 + mo * 40;
     const ang = hash(i, j, sm) * Math.PI * 2;

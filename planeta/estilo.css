@@ -222,9 +222,9 @@ body.toque .convite .dedo-toque { display: block; }
   width: var(--radar);
   height: var(--radar);
   border-radius: 50%;
-  border: 8px solid rgba(240, 245, 235, 0.75);
+  border: 8px solid rgba(240, 245, 235, 0.95);
   box-shadow: 0 3px 10px rgba(30, 60, 50, 0.25);
-  opacity: 0.95;
+  opacity: 1;
   pointer-events: none;
 }
 /* botão no topo do aro: haste e, por cima, a cúpula */
@@ -236,7 +236,7 @@ body.toque .convite .dedo-toque { display: block; }
   height: calc(var(--radar) * 0.05);
   transform: translateX(50%);
   border-radius: 2px 2px 0 0;
-  background: rgba(240, 245, 235, 0.75);
+  background: rgba(240, 245, 235, 0.95);
   pointer-events: none;
 }
 .radar-botao::before {
@@ -248,7 +248,7 @@ body.toque .convite .dedo-toque { display: block; }
   height: calc(var(--radar) * 0.075);
   transform: translateX(-50%);
   border-radius: 50% 50% 30% 30% / 90% 90% 20% 20%;
-  background: rgba(240, 245, 235, 0.75);
+  background: rgba(240, 245, 235, 0.95);
 }
 
 /* altura: logo acima do radar, no canto direito;
@@ -442,6 +442,11 @@ body.toque .convite .dedo-toque { display: block; }
   box-shadow: 0 1px 3px rgba(30, 60, 50, 0.35);
   pointer-events: none;
 }
+/* R: caveira em vermelho escuro; M: alto-falante branco (sobre fundo cinza, para
+   aparecer) com o risco de proibido em vermelho escuro */
+.tecla[data-tecla="KeyR"] .selo { color: #8b1a1a; }
+.tecla[data-tecla="KeyM"] .selo { background: rgba(110, 110, 110, 0.7); color: #fff; }
+.tecla[data-tecla="KeyM"] .selo .proibido { stroke: #8b1a1a; }
 /* H: selo azul com ponto de interrogação */
 .tecla.com-selo .selo.azul { background: #4a8de8; color: #fff; }
 /* M com som desligado: tecla acesa */
@@ -722,7 +727,7 @@ body.toque .toque-botoes {
   box-shadow: 0 1px 0 rgba(30, 60, 50, 0.18);
 }
 #toqueDash.ativa { color: #e08a00; box-shadow: 0 0 0 2px rgba(255, 190, 60, 0.8), 0 0 12px rgba(255, 210, 120, 0.8); }
-#toqueRecomecar { color: rgba(200, 60, 50, 0.85); }
+#toqueRecomecar { color: #8b1a1a; }
 #toqueMergulho .x { stroke: rgba(40, 70, 60, 0.45); }
 #toqueMergulho.ligado {
   background: rgba(255, 255, 255, 0.9);

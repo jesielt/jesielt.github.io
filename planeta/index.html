@@ -11,7 +11,7 @@
   <!-- ?v=versão: cada versão tem endereço próprio, então o navegador não
        mistura a página nova com estilo ou jogo antigos em cache.
        Ao alterar VERSAO no jogo.js, alterar aqui também (nos dois). -->
-  <link rel="stylesheet" href="estilo.css?v=2.1.2">
+  <link rel="stylesheet" href="estilo.css?v=2.1.3">
 </head>
 <body>
   <canvas id="tela"></canvas>
@@ -133,7 +133,7 @@
       <span class="tecla com-selo" data-tecla="KeyM" title="M: liga/desliga o som">M<svg class="selo" viewBox="0 0 16 16" aria-hidden="true">
           <path fill="currentColor" d="M2.2 6h2.4L8 3.2v9.6L4.6 10H2.2z" />
           <path d="M10.2 5.6q1.4 2.4 0 4.8M11.9 4.3q2.4 3.7 0 7.4" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" />
-          <path d="M2 13.8 14 2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          <path class="proibido" d="M2 13.8 14 2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
         </svg></span>
       <span class="tecla" data-tecla="ArrowLeft">←</span>
       <span class="tecla" data-tecla="ArrowDown">↓</span>
@@ -222,6 +222,6 @@
   </div>
   <div class="gire" aria-hidden="true">vire o celular de lado</div>
 
-  <script src="jogo.js?v=2.1.2"></script>
+  <script src="jogo.js?v=2.1.3"></script>
 </body>
 </html>
