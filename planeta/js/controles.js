@@ -272,6 +272,15 @@ if (TOQUE) {
   });
 
   document.getElementById('toqueAjuda').addEventListener('click', () => alternarAjuda());
+  // ajuda: copia o desenho de cada botão para a lista de toque. O id do
+  // gradiente é removido da cópia (ids repetidos); a cópia usa o do botão.
+  caixaAjuda.querySelectorAll('[data-icone]').forEach(el => {
+    const svg = document.getElementById(el.dataset.icone)?.querySelector('svg');
+    if (!svg) return;
+    const copia = svg.cloneNode(true);
+    copia.querySelector('defs')?.remove();
+    el.appendChild(copia);
+  });
 
   // recomeçar pede confirmação (as esferas são perdidas)
   document.getElementById('toqueRecomecar').addEventListener('click', () => {

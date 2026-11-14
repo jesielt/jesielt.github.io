@@ -729,6 +729,39 @@ body.toque .toque-botoes {
 #toqueSoltar .chao { fill: #b06a74; }
 #toqueSoltar .relva { fill: none; stroke: #7d9ce2; stroke-width: 2.4; stroke-linecap: round; }
 #toqueSoltar .estrela { fill: #d4141a; }
+/* som: fora da grade, abaixo dos créditos no canto superior esquerdo.
+   Riscado (classe ligado = mudo) em vermelho escuro. */
+#toqueSom {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left));
+  top: calc(max(10px, env(safe-area-inset-top)) + 40px);
+}
+#toqueSom .proibido { display: none; stroke: #8b1a1a; }
+#toqueSom.ligado { color: rgba(40, 70, 60, 0.45); }
+#toqueSom.ligado .proibido { display: inline; }
+/* ajuda: no toque, a lista de toque substitui a de teclado */
+.ajuda .lista-toque, body.toque .ajuda .lista-teclado { display: none; }
+body.toque .ajuda .lista-toque { display: grid; }
+.ajuda .mini {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(30, 60, 50, 0.25);
+  font-size: 12px;
+  vertical-align: middle;
+}
+.ajuda .mini svg { width: 66%; height: 66%; overflow: visible; }
+.ajuda .mini .proibido, .ajuda .mini .x { display: none; }
+.ajuda .mini .seta { fill: none; stroke: rgba(40, 70, 60, 0.8); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+.ajuda .mini .chao { fill: #b06a74; }
+.ajuda .mini .relva { fill: none; stroke: #7d9ce2; stroke-width: 2.4; stroke-linecap: round; }
+.ajuda .mini .estrela { fill: #d4141a; }
+.ajuda .mini.caveira { color: #8b1a1a; }
+.ajuda .mini.interrogacao { font-weight: 700; color: #1f6fc0; }
 /* no toque, o aviso do topo (com mouse) dá lugar ao botão */
 body.toque .soltar { display: none; }
 .tbotao.pequeno { width: 40px; height: 40px; font-size: 16px; }

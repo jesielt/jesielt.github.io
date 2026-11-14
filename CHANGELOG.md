@@ -11,6 +11,16 @@ Numeração: `maior.menor.correção`
 A versão atual também fica na constante `VERSAO`, no começo de `planeta/jogo.js`,
 e aparece embaixo do nome, no canto da tela (e no console do navegador).
 
+## 2.1.5 — 13/11/2026
+
+Celular:
+- Aviso de girar o celular virou ícone animado (celular em pé deitando)
+- O convite "toque pra voar" não volta mais ao tocar nos botões
+- Botão de soltar esfera (seta, bola e chão), visível com ao menos uma esfera na caixa; pisca com as 7 juntas
+- Botão de ajuda (?), com lista própria dos controles de toque
+- Botão de som (liga/desliga) no canto superior esquerdo
+- Botões reorganizados: ▲, ⚡ e ▼ numa coluna; caveira, ? e não mergulhar ao lado
+
 ## 2.1.4 — 13/11/2026
 
 - Visão mais longa: a neblina começa em 1500 e fecha em 3000 (antes 650 e 2200)
