@@ -32,7 +32,12 @@ const AJUSTE_BRACO = {
   impulsoSobe: 3.2, // rad/s: cano sobe
   impulsoEsquerda: 1.6, // rad/s: cano vai para a esquerda
   impulsoRecuo: 1.3, // m/s: braço recua
-  raioSaida: 0.03, // raio aparente da bola ao sair da boca (m)
+  raioSaida: 0.03, // raio do clarão na boca no instante do tiro (m)
+  // carga: a bola surge pequena no ar, à frente da boca, e cresce até ser lançada
+  tempoCarga: 1, // s
+  raioCarga: 0.06, // raio final da bola carregada (m); no cenário vira PODER.raio
+  folgaCarga: 0.03, // vão entre a boca e a bola já carregada (m)
+  inicioCarga: 0.08, // tamanho inicial da bolinha, em fração do raio final
 };
 
 const cenaBraco = new THREE.Scene();
@@ -235,44 +240,55 @@ const matBrilhoBoca = new THREE.MeshStandardMaterial({ color: '#000000', emissiv
 const claraoBocal = visualDaBola();
 claraoBocal.visible = false;
 cenaBraco.add(claraoBocal);
+// bola em carga, à frente da boca
+const bolaCarga = visualDaBola();
+bolaCarga.visible = false;
+cenaBraco.add(bolaCarga);
 
 pivo.position.fromArray(AJUSTE_BRACO.ombro);
 const BAIXO = -Math.PI / 2; // giro em repouso: apontando para baixo
 const estadoBraco = {
-  fase: 'repouso', desdeTiro: 99, fila: false, flash: 99,
+  fase: 'repouso', desdeTiro: 99, fila: false, flash: 99, carga: -1, // carga: s carregando (-1 = parado)
   giro: BAIXO, vGiro: 0, lado: 0, vLado: 0, rec: 0, vRec: 0,
   yawAntes: 0, pitchAntes: 0,
 };
 pivo.visible = false;
 
 // compila já os programas de desenho: evita travada no primeiro tiro
-pivo.visible = claraoBocal.visible = true;
+pivo.visible = claraoBocal.visible = bolaCarga.visible = true;
 renderer.compile(cenaBraco, camBraco);
-pivo.visible = claraoBocal.visible = false;
+pivo.visible = claraoBocal.visible = bolaCarga.visible = false;
 
 // ---------------------------------------------------------------------
 // Animação
 // ---------------------------------------------------------------------
-// Clique esquerdo: erguido, atira na hora; abaixado ou descendo, sobe e atira ao chegar.
+// Clique esquerdo: erguido, começa a carregar; abaixado ou descendo, sobe e
+// carrega ao chegar. Durante a carga, o clique é ignorado.
 function pedirDisparo() {
   const e = estadoBraco;
-  if (e.fase === 'pronto') { if (e.desdeTiro >= AJUSTE_BRACO.intervalo) atirar(); return; }
+  if (e.fase === 'pronto') { if (e.carga < 0 && e.desdeTiro >= AJUSTE_BRACO.intervalo) e.carga = 0; return; }
   e.fila = true;
   if (e.fase === 'repouso') { e.yawAntes = yaw; e.pitchAntes = pitch; }
   e.fase = 'sobe';
 }
 
+// Centro da bola em carga: fixo à frente da boca, no eixo do cano, onde a bola
+// pronta fica a `folgaCarga` da boca; a bolinha cresce ali sem encostar.
 const _ponta = new THREE.Vector3();
+function centroDaCarga(saida) {
+  return corrente.localToWorld(saida.set(0, comprimentoBraco + AJUSTE_BRACO.folgaCarga + AJUSTE_BRACO.raioCarga, 0));
+}
+
 function atirar() {
   const A = AJUSTE_BRACO, e = estadoBraco;
   e.desdeTiro = 0;
   e.flash = 0;
-  e.fila = false;
-  // a bola sai da boca, na pose atual, vista da câmera
+  e.carga = -1;
+  // a bola carregada passa ao cenário com o mesmo tamanho aparente
   pivo.updateMatrixWorld(true);
-  corrente.localToWorld(_ponta.set(0, comprimentoBraco, 0));
+  centroDaCarga(_ponta);
   const dist = _ponta.length();
-  lancarBola(_ponta.divideScalar(dist), A.raioSaida / dist);
+  lancarBola(_ponta.divideScalar(dist), A.raioCarga / dist);
   // tranco: impulso nas molas
   e.vGiro += A.impulsoSobe;
   e.vLado += A.impulsoEsquerda;
@@ -288,9 +304,10 @@ function passoMola(x, v, alvo, [w, z], dt) {
 const _origemBoca = new THREE.Vector3();
 function atualizarBraco(dt) {
   const A = AJUSTE_BRACO, e = estadoBraco;
-  if (e.fase === 'repouso') { pivo.visible = false; claraoBocal.visible = false; luzBocal.intensity = 0; return; }
+  if (e.fase === 'repouso') { pivo.visible = claraoBocal.visible = bolaCarga.visible = false; luzBocal.intensity = 0; return; }
   e.desdeTiro += dt;
   e.flash += dt;
+  if (e.carga >= 0) e.carga += dt;
 
   // inércia: o giro da câmera neste quadro é parcialmente devolvido ao braço
   const dYaw = Math.max(-0.1, Math.min(0.1, yaw - e.yawAntes));
@@ -307,8 +324,9 @@ function atualizarBraco(dt) {
     [e.rec, e.vRec] = passoMola(e.rec, e.vRec, 0, A.molaRecuo, h);
   }
 
-  if (e.fase === 'sobe' && e.giro > -0.08) { e.fase = 'pronto'; if (e.fila) atirar(); }
-  else if (e.fase === 'pronto' && e.desdeTiro >= A.espera) e.fase = 'desce';
+  if (e.fase === 'sobe' && e.giro > -0.08) { e.fase = 'pronto'; if (e.fila) { e.fila = false; e.carga = 0; } }
+  else if (e.fase === 'pronto' && e.carga >= A.tempoCarga) { pivo.updateMatrixWorld(true); atirar(); }
+  else if (e.fase === 'pronto' && e.carga < 0 && e.desdeTiro >= A.espera) e.fase = 'desce';
   else if (e.fase === 'desce' && e.giro < BAIXO + 0.05) {
     e.fase = 'repouso';
     e.giro = BAIXO; e.vGiro = e.lado = e.vLado = e.rec = e.vRec = 0;
@@ -323,12 +341,24 @@ function atualizarBraco(dt) {
   // brilho do fundo do cano: pulsa parado, cresce na subida, estoura no tiro
   const pulso = 0.85 + 0.15 * Math.sin(performance.now() * 0.006);
   const flash = Math.max(0, 1 - e.flash / 0.12);
-  const base = e.fase === 'sobe' ? A.brilhoCarga : A.brilhoBoca;
+  const kCarga = e.carga >= 0 ? Math.min(1, e.carga / A.tempoCarga) : 0;
+  const base = e.carga >= 0 ? A.brilhoCarga * (0.5 + kCarga) : e.fase === 'sobe' ? A.brilhoCarga * 0.5 : A.brilhoBoca;
   matBrilhoBoca.emissiveIntensity = base * pulso + A.brilhoTiro * flash;
   pivo.updateMatrixWorld(true);
   boca.getWorldPosition(_origemBoca);
   luzBocal.position.copy(_origemBoca);
   luzBocal.intensity = 0.02 * matBrilhoBoca.emissiveIntensity;
+  // bola em carga: surge pequena e cresce, tremendo de leve
+  bolaCarga.visible = e.carga >= 0;
+  if (bolaCarga.visible) {
+    const treme = 1 + 0.07 * Math.sin(performance.now() * 0.045) * kCarga;
+    const cresce = kCarga * kCarga * (3 - 2 * kCarga);
+    const r = A.raioCarga * (A.inicioCarga + (1 - A.inicioCarga) * cresce) * treme;
+    centroDaCarga(bolaCarga.position);
+    bolaCarga.scale.setScalar(r);
+    luzBocal.position.copy(bolaCarga.position);
+    luzBocal.intensity += 0.6 * kCarga;
+  }
   // clarão na saída da boca, no início do tiro
   claraoBocal.visible = flash > 0.3;
   corrente.localToWorld(claraoBocal.position.set(0, comprimentoBraco + 0.01, 0));
