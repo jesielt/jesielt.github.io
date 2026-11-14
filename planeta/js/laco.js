@@ -10,9 +10,12 @@ function quadro(agora) {
   atualizarEspirro(dt);
   atualizarDebaixoDagua(dt);
   atualizarSom(dt);
+  atualizarPoder(dt);
+  atualizarBraco(dt);
   animarAgua(agora / 1000);
   seguirSombra();
   renderer.render(cena, camera);
+  desenharBraco(); // por cima do cenário
   desenharRadar(agora / 1000);
   desenharRiscos(dt);
   mostrarAltura();

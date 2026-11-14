@@ -32,7 +32,7 @@
 
   <div class="mira"></div>
 
-  <div class="creditos"><a class="autor" href="https://github.com/jesielt" target="_blank" rel="noopener">© Jesiel Ternero</a><span class="versao" id="versao"></span></div>
+  <div class="creditos"><a class="autor" href="https://github.com/jesielt" target="_blank" rel="noopener">© Jesiel Ternero</a><span class="versao" id="versao"></span><a class="modelo" href="https://sketchfab.com/3d-models/low-poly-fps-arms-4b2a03333baf42aa82182e73ac4f4fc5" target="_blank" rel="noopener">arms: BIGMACorSomething · CC BY 4.0</a></div>
 
   <!-- radar: mapa visto de cima, girando com o jogador -->
   <canvas class="radar" id="radar" aria-hidden="true"></canvas>
@@ -197,6 +197,7 @@
       <dt><kbd>A</kbd><kbd>←</kbd> <kbd>D</kbd><kbd>→</kbd></dt><dd>Move left / right</dd>
       <dt>Mouse</dt><dd>Look around</dd>
       <dt>Left click</dt><dd>Start (lock the mouse)</dd>
+      <dt>Left click</dt><dd>Energy blast (mouse locked)</dd>
       <dt><kbd>Esc</kbd></dt><dd>Release the mouse</dd>
       <dt><kbd>Space</kbd></dt><dd>Fly up / take off</dd>
       <dt><kbd>C</kbd></dt><dd>Fly down</dd>
@@ -272,6 +273,16 @@
     </svg>
   </div>
 
+  <!-- "three" aponta para o mesmo endereço importado em jogo.js: os complementos
+       (carregador de GLB, decalque) usam a mesma cópia do three.js -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
   <script src="jogo.js?v=2.1.7"></script>
 </body>
 </html>

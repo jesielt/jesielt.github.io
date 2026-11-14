@@ -33,6 +33,8 @@ const PARTES = [
   'espirro', // espirro de água no dash rente ao mar
   'mergulho',   // debaixo d'água, bolhas, ar, recomeçar, céu escuro e raios
   'espaco', // subida ao espaço: planeta visto de fora, estrelas
+  'poder', // bola de energia, explosão e fuligem
+  'braco', // braço em primeira pessoa e disparo (clique esquerdo)
   'som',        // vento e passos
   'laco', // laço principal (sempre por último)
 ];
