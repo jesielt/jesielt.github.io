@@ -3,7 +3,7 @@
 
 // three.js carregado por import(): funciona no site e com o index.html aberto direto.
 // Versão oficial, alterada a cada publicação. Ver CHANGELOG.md.
-const VERSAO = '2.1.6';
+const VERSAO = '2.1.7';
 console.log(`Planeta v${VERSAO}`);
 // Exibida na tela, abaixo do nome.
 document.getElementById('versao').textContent = 'v' + VERSAO;

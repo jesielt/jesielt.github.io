@@ -610,15 +610,26 @@ body.toque {
   --topo: max(10px, env(safe-area-inset-top));
   --lado: max(12px, env(safe-area-inset-right));
 }
-/* altura e velocidade: embaixo, ao centro, entre os polegares */
+/* Pilha embaixo, ao centro, entre os polegares. De baixo para cima: barra de
+   ar, (futura) barra de vida, altura e velocidade. Cada barra visível soma sua
+   altura mais uma folga em --pilha-*, e quem está acima sobe junto; ninguém se
+   sobrepõe. Barra nova: definir --pilha-nova quando visível e somá-la no
+   bottom de quem fica acima dela. */
+body.toque {
+  --pilha-base: max(14px, env(safe-area-inset-bottom));
+  --pilha-ar: 0px;
+}
+body.toque:has(.ar.visivel) { --pilha-ar: calc(12px + 8px); } /* altura da barra + folga */
+body.toque .ar { bottom: var(--pilha-base); }
 body.toque .altura,
 body.toque .velocidade {
   top: auto;
   right: auto;
   left: 50%;
-  bottom: max(14px, env(safe-area-inset-bottom));
+  bottom: calc(var(--pilha-base) + var(--pilha-ar));
   padding: 3px 9px;
   font-size: 15px;
+  transition: bottom 0.3s;
 }
 body.toque .velocidade { transform: translateX(calc(-100% - 5px)); }
 body.toque .altura { transform: translateX(5px); }
@@ -805,7 +816,7 @@ body.toque .soltar { display: none; }
     position: fixed;
     left: 50%;
     top: 50%;
-    transform: translate(-50%, 56px);
+    transform: translate(-50%, calc(-100% - 8px)); /* acima do convite, que fica logo abaixo do centro */
     width: 64px;
     height: 64px;
     color: rgba(255, 255, 255, 0.95);
